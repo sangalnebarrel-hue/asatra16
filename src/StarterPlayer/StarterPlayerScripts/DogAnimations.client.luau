@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local AnimationPlayer = require(ReplicatedStorage:WaitForChild("DogAnimationPlayer"))
+local DogLook = require(ReplicatedStorage:WaitForChild("DogLook"))
 local library = ReplicatedStorage:WaitForChild("DogAnimationClips")
 local active = workspace:WaitForChild("DOGROTS_District"):WaitForChild("03_DogLine"):WaitForChild("ActiveDogs")
 local tracked = {}
@@ -60,10 +61,19 @@ local function attach(model)
 end
 
 local kennels = workspace.DOGROTS_District:WaitForChild("KennelDogs")
-for _, folder in ipairs({active, kennels}) do
+local function watch(folder)
     folder.ChildAdded:Connect(attach)
     folder.ChildRemoved:Connect(detach)
     for _, model in ipairs(folder:GetChildren()) do attach(model) end
+end
+for _, folder in ipairs({active, kennels}) do watch(folder) end
+-- Secret arrivals staged off the tongue (SecretReveal); the server creates the folder.
+local reveals = workspace:FindFirstChild("DOGROTS_SecretReveals")
+if reveals then watch(reveals) else
+    local waiting
+    waiting = workspace.ChildAdded:Connect(function(child)
+        if child.Name == "DOGROTS_SecretReveals" and child:IsA("Folder") then waiting:Disconnect(); watch(child) end
+    end)
 end
 -- Bone animation for every kennel and conveyor dog each frame is the heaviest client
 -- loop in the game. Distant dogs update at a lower rate (gait time stays continuous).
@@ -79,6 +89,25 @@ RunService.PreSimulation:Connect(function()
         if root then
             local distance = (root.Position - origin).Magnitude
             if distance > 320 then interval = 8 elseif distance > 160 then interval = 3 end
+        end
+        -- THE DOG's stare (DogLook): dogs turn on every frame, then hold at the usual rate.
+        local body, head, target, bow, moving
+        if DogLook.Current then
+            local position = model.PrimaryPart and model.PrimaryPart.Position
+            moving = (model:GetAttribute("LocomotionSpeed") or 0) > .1
+            body, head, target, bow = DogLook.For(model, entry, position, moving)
+        end
+        if body then
+            local look = entry.Look or {}
+            look.Target, look.Body, look.Head, look.Bow = target, body, head, bow
+            entry.Look = look
+            entry.Player.Look = look
+            -- Settled once the turn is done and the walking cap (DogLook's MoveScale) has eased.
+            local cap = entry.MoveScale or 1
+            if head < 1 or bow ~= 0 or body < cap - 1e-3 or cap ~= (moving and .4 or 1) then interval = 1 end
+        elseif entry.Player.Look then
+            entry.Player.Look = nil
+            interval = 1
         end
         if interval == 1 or (frame + entry.Phase) % interval == 0 then entry.Player:Step(now) end
     end

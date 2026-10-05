@@ -1,6 +1,6 @@
 local C={}
 C.Version=3
-C.BalanceVersion="2026-10-05.1"
+C.BalanceVersion="2026-10-05.2"
 C.StartingCash=750
 C.MaxCash=9000000000000000
 C.MaxDogs=250
@@ -10,12 +10,26 @@ C.UpgradeEffects={Dig=.04,Storage=25,Kennel=.015,Plot=.025,DogStorage=20,Ability
 C.Rarities={"Common","Rare","Epic","Legendary","Mythic","Secret"}
 C.Power={1,1.3,1.7,2.3,3.1,4.2}
 C.Prices={150,900,7500,45000,300000,2500000}
-C.Weights={58,27,10.2,3.8,1,0}
+-- Per-spawn rarity odds on the tongue (sum 100), tuned to Steal a Brainrot's real-time
+-- feel at ~5.6 dogs/min: Legendary ~7 min, Mythic ~24 min, a Secret ~2 h per server.
+C.Weights={60.5,27,9,2.6,.75,.15}
+-- How the Secret budget is shared on the tongue (per mille). THE DOG is the legend:
+-- ~1 in 95,000 line dogs, roughly once per 280 hours of one server.
+C.SecretLineWeights={Cubedog=290,Dogdogdogdog=210,Spiderdog=160,WrongDog=120,NuclearPug=85,
+ ['404Dog']=60,UnfinishedDog=38,DivineDog=30,TheDog=7}
+-- What a Secret costs on the tongue (BasePrice stays C.Prices[6] for every other use).
+-- Like Steal a Brainrot, the rarer it walks, the more it costs.
+C.SecretLinePrices={Cubedog=2500000,Dogdogdogdog=3000000,Spiderdog=3500000,WrongDog=4000000,NuclearPug=4500000,
+ ['404Dog']=5500000,UnfinishedDog=7000000,DivineDog=8000000,TheDog=16000000}
 -- Rarity is not tied to depth: the conveyor is shared by players at every depth.
 C.DogMinLayer={1,1,1,1,1,1}
-C.LineGuarantee={[4]=300,[5]=720} -- rank=seconds: an overdue Legendary/Mythic walks the line next
+-- rank=seconds: a soft safety net (~3x the natural interval) for a quiet server, not a
+-- schedule. Secrets are never guaranteed.
+C.LineGuarantee={[4]=1200,[5]=4500}
 C.SpecialAcquisition={LongDog={MinLayer=4,Chance=1/20000},TheDog={MinLayer=5,MinPrestige=1,Interval=900,Chance=1/1000,ClaimCooldown=86400}}
-C.SpecialDiscovery={LongDogChance=1/20000,LongDogMinLayer=4,ArrivalInterval=900,ArrivalChance=.001}
+-- THE DOG now arrives on the tongue (SecretLineWeights) with its cinematic; the old
+-- silent straight-to-inventory server arrival is off (ArrivalChance=0, code kept).
+C.SpecialDiscovery={LongDogChance=1/20000,LongDogMinLayer=4,ArrivalInterval=900,ArrivalChance=0}
 C.Retire={1,5,20,80,300,1200}
 C.Variants={
  {Name="Normal",Weight=9150,Bonus=0},{Name="Shiny",Weight=550,Bonus=.03},

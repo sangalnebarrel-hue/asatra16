@@ -177,7 +177,7 @@ end)
 local function cameraOpen()
  if not gui:GetAttribute('RewardMachineWorldOpen') then return end
  local camera=workspace.CurrentCamera;if not camera or cameraSession then return end
- cameraSession={Camera=camera,Type=camera.CameraType,Subject=camera.CameraSubject,FieldOfView=camera.FieldOfView,CFrame=camera.CFrame,Focus=camera.Focus,Geometry=cameraGeometry(),Snap=true,LabelRestore={}}
+ cameraSession={Camera=camera,Type=camera.CameraType,Subject=camera.CameraSubject,FieldOfView=camera:GetAttribute('SecretZoom')or camera.FieldOfView,CFrame=camera.CFrame,Focus=camera.Focus,Geometry=cameraGeometry(),Snap=true,LabelRestore={}}
  local prize=rig:FindFirstChild('CommittedPrize');if prize then for _,object in ipairs(prize:GetDescendants())do hidePrizeLabel(object)end end
  camera.CameraType=Enum.CameraType.Scriptable;returnAt=0
 end

@@ -186,7 +186,15 @@ function Runtime.SpecialTick(now)
    local transport,ok,result=pcall(function()return Runtime.Engine:GrantSpecial(id,'LongDog',operation)end)
    if transport and ok then
     local player=Players:GetPlayerByUserId(id)
-    if player then Runtime.Refresh(player);Replicated.RewardPresentation:FireClient(player,{Cue='Reveal',Message=result.Message,Dog=result.Dog})end
+    if player then
+     Runtime.Refresh(player)
+     -- It first stretches out of the pit for everyone; the discovery toast follows.
+     local shown,model=pcall(Runtime.RevealExcavation,player,'LongDog')
+     local toastAfter=(shown and model)and math.max(0,require(script.Parent.Parent.SecretReveal).Hold('LongDog')-.8)or 0
+     task.delay(toastAfter,function()
+      if player.Parent then Replicated.RewardPresentation:FireClient(player,{Cue='Reveal',Message=result.Message,Dog=result.Dog})end
+     end)
+    end
    end
   end
  end
@@ -211,6 +219,27 @@ function Runtime.SpecialTick(now)
    if player then Replicated.RewardPresentation:FireClient(player,{Cue='Reveal',Message=result.Message,Dog=result.Dog})end
   end
  end
+end
+-- The Secret arrival of a dug-up dog, staged on one of the owner's dig slots.
+function Runtime.RevealExcavation(player,dogId)
+ local yard=require(script.Parent.YardCommerce).Yard(player);if not yard then return end
+ -- An unlocked, empty pit if there is one, so it does not stand inside a resident dog.
+ local slot
+ for _,s in ipairs(yard:GetDescendants())do
+  if s.Name:match('^DigSlot_%d+$')and s:GetAttribute('Unlocked')~=false and typeof(s:GetAttribute('DigCenter'))=='Vector3'then
+   if not s:GetAttribute('AssignedDogUid')then slot=s;break end
+   slot=slot or s
+  end
+ end
+ local spawn=yard:FindFirstChild('YardSpawn',true)
+ local ground=slot and slot:GetAttribute('DigCenter')or (spawn and spawn.Position)
+ if not ground then return end
+ -- Stand on the pit's visible top, as DogKennelService does.
+ local pit=slot and slot:FindFirstChild('DarkExcavation')
+ if pit and pit:IsA('BasePart')then ground=Vector3.new(ground.X,pit.Position.Y+pit.Size.Y/2,ground.Z)
+ elseif slot then ground+=Vector3.new(0,((slot:GetAttribute('DigSize')or Vector3.new(12,.4,12)).Y)/2,0)end
+ local toward=(spawn and spawn.Position or ground+Vector3.zAxis)-ground
+ return require(script.Parent.Parent.SecretReveal).Show(dogId,ground+Vector3.new(0,.04,0),toward,{Venue='Excavation',By=player.DisplayName})
 end
 local buckets={};local marketQueries={}
 local function allow(player,cost)

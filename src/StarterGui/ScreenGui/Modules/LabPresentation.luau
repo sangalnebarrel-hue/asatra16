@@ -46,7 +46,7 @@ function P.Play(result)
  if not anchor then return end
  local player=game.Players.LocalPlayer;local reduced=player:GetAttribute('ReducedMotion')==true
  local low=reduced or player:GetAttribute('LowFX')or player:GetAttribute('WorldEventFX')=='Low'
- local camera=workspace.CurrentCamera;local oldType,oldSubject,oldCF,oldFocus,oldFov=camera.CameraType,camera.CameraSubject,camera.CFrame,camera.Focus,camera.FieldOfView
+ local camera=workspace.CurrentCamera;local oldType,oldSubject,oldCF,oldFocus,oldFov=camera.CameraType,camera.CameraSubject,camera.CFrame,camera.Focus,camera:GetAttribute('SecretZoom')or camera.FieldOfView
  local model,ring;local original={};local localFX=Instance.new('Folder');localFX.Name='LocalGeneticsFX';localFX.Parent=workspace
  local status=chamber:FindFirstChild('StatusText',true);local oldStatus=status and status.Text
  local lights={};for _,o in chamber:GetDescendants()do if o:IsA('PointLight')then lights[o]={Brightness=o.Brightness,Color=o.Color}end end

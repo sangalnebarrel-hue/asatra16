@@ -68,7 +68,7 @@ end
 
 function Player.new(model, dogId)
     local self = setmetatable({Model = model, DogId = dogId or model:GetAttribute("DogId") or model.Name,
-        Bones = {}, BoneGroups = {}, AllBones = {}, HiddenBones = {}}, Player)
+        Bones = {}, BoneGroups = {}, AllBones = {}, HiddenBones = {}, PreLook = {}}, Player)
     self:RefreshRig()
     return self
 end
@@ -90,6 +90,19 @@ function Player:RefreshRig()
         depths[bone] = depth
     end
     table.sort(self.AllBones, function(a,b) return depths[a] < depths[b] end)
+    -- Look targets: the single top bone (turns the whole skinned dog), neck and heads.
+    self.TopBone = nil
+    for _, bone in ipairs(self.AllBones) do
+        if bone.Parent and bone.Parent:IsA("BasePart") then self.TopBone = bone; break end
+    end
+    self.LookHeads = {}
+    for name, group in pairs(self.BoneGroups) do
+        local lower = string.lower(name)
+        if lower == "head" or lower == "head_c" or lower == "head_l" or lower == "head_r" or string.match(lower, "^pup_%d+_head$") then
+            for _, bone in ipairs(group) do table.insert(self.LookHeads, bone) end
+        end
+    end
+    self.LookNeck = self.Bones.Neck or self.Bones.neck
     -- Bones can stream in after the first measurement; measure again with the full rig.
     liftCache[self.Model] = nil
     if self.Clip and Player.ResolveName(self.DogId, "Work") == self.Clip.SourceName then self.Lift = self:ComputeLift(self.Clip) end
@@ -115,6 +128,7 @@ function Player:GetClipNames()
 end
 
 function Player:Stop()
+    table.clear(self.PreLook)
     self.Clip, self.Name, self.BlendFrom = nil, nil, nil
     self.Gait = nil
     table.clear(self.HiddenBones)
@@ -210,7 +224,8 @@ function Player:Play(name, options)
     local previous = self.Clip ~= nil
     local blend = {}
     for _, bone in ipairs(self.AllBones) do
-        if bone.Parent and not self.HiddenBones[bone] then blend[bone] = bone.Transform end
+        -- Blend from the animated pose, not from the stare's turn on top of it.
+        if bone.Parent and not self.HiddenBones[bone] then blend[bone] = self.PreLook[bone] or bone.Transform end
     end
     self.Clip, self.Name = clip, name
     self.StartTime = finite(options.StartTime) and options.StartTime or workspace:GetServerTimeNow()
@@ -296,8 +311,60 @@ function Player:Sample(seconds, blendAlpha)
     end
 end
 
+local UP = Vector3.yAxis
+local function turn(bone, axis, angle, pre)
+    if bone and bone.Parent and math.abs(angle) > 1e-4 then
+        pre[bone] = pre[bone] or bone.Transform
+        bone.Transform *= CFrame.fromAxisAngle(bone.TransformedWorldCFrame:VectorToObjectSpace(axis), angle)
+    end
+end
+-- self.Look = {Target=Vector3 (world), Body=0..1, Head=0..1, Ground=Vector3? (pivot space), Bow=radians?}
+-- Turns the whole solved pose about the dog's own feet toward Target (Body), then the
+-- neck and heads (Head). Only Bone.Transform changes: nothing replicates or sticks, and
+-- the next Sample rebuilds every bone. Bone axes differ between imports, so every
+-- rotation is a world axis converted into the bone's space.
+function Player:ApplyLook()
+    local look, top = self.Look, self.TopBone
+    if not look or not top or not top.Parent or not top.Parent:IsA("BasePart") then return end
+    local pivot = self.Model:GetPivot()
+    local ground = look.Ground or self.Model:GetAttribute("GroundLocal") or Vector3.zero
+    local d = pivot:PointToObjectSpace(look.Target) - ground
+    if d.X * d.X + d.Z * d.Z < .01 then return end
+    -- Dogs face pivot -Z; this yaw turns -Z onto the target.
+    local yaw = math.atan2(-d.X, -d.Z) * (look.Body or 0)
+    if math.abs(yaw) > 1e-4 then
+        local rotation = CFrame.new(ground) * CFrame.fromAxisAngle(UP, yaw) * CFrame.new(-ground)
+        local bind = pivot:ToObjectSpace(top.Parent.CFrame * top.CFrame)
+        self.PreLook[top] = self.PreLook[top] or top.Transform
+        top.Transform = bind:Inverse() * rotation * bind * top.Transform
+    end
+    local weight = look.Head or 0
+    if weight <= 0 then return end
+    local forward = pivot:VectorToWorldSpace(CFrame.fromAxisAngle(UP, yaw).LookVector)
+    forward = Vector3.new(forward.X, 0, forward.Z)
+    if forward.Magnitude < 1e-3 then return end
+    forward = forward.Unit
+    for i, head in ipairs(self.LookHeads or {}) do
+        if head.Parent then
+            local to = look.Target - head.TransformedWorldCFrame.Position
+            local flat = Vector3.new(to.X, 0, to.Z)
+            if flat.Magnitude > 1e-3 then
+                local side = math.clamp(math.atan2(forward:Cross(flat.Unit).Y, forward:Dot(flat.Unit)), -math.rad(70), math.rad(70)) * weight
+                local pitch = math.clamp(math.atan2(to.Y, flat.Magnitude), math.rad(-20), math.rad(35)) * weight - (look.Bow or 0)
+                local right = CFrame.fromAxisAngle(UP, side):VectorToWorldSpace(forward):Cross(UP).Unit
+                if i == 1 and self.LookNeck then
+                    turn(self.LookNeck, UP, side * .4, self.PreLook); turn(self.LookNeck, right, pitch * .4, self.PreLook)
+                    side *= .6; pitch *= .6
+                end
+                turn(head, UP, side, self.PreLook); turn(head, right, pitch, self.PreLook)
+            end
+        end
+    end
+end
+
 function Player:Step(now)
     if not self.Clip then return end
+    table.clear(self.PreLook)
     now = now or workspace:GetServerTimeNow()
     local blend = if self.BlendFrom then smooth((now - self.BlendStartedAt) / math.max(.001, self.BlendDuration)) else 1
     local locomotion=self.Model:GetAttribute("LocomotionSpeed")
@@ -308,6 +375,12 @@ function Player:Step(now)
         self:Sample(math.max(0, (now - self.StartTime) * self.Speed + (self.PhaseOffset or 0)), blend)
     end
     if blend >= 1 then self.BlendFrom = nil end
+    self:ApplyEventHead(now)
+    -- After the gait IK and the event head bob: the solved pose turns rigidly.
+    if self.Look then self:ApplyLook() end
+end
+
+function Player:ApplyEventHead(now)
     local events = ReplicatedStorage:FindFirstChild("WorldEvents")
     local state = events and events:FindFirstChild("State")
     if not state or state:GetAttribute("State") ~= "ACTIVE" or self.Model:GetAttribute("WorkState") == "DIGGING" then return end

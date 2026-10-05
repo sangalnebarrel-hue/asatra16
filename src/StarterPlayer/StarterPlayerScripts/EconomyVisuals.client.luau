@@ -94,7 +94,7 @@ Replicated:WaitForChild('DiscoveryReveal').OnClientEvent:Connect(function(x)
   -- One short zoom, with no change to camera position or player controls.
   local camera=workspace.CurrentCamera
   if camera and x.TierIndex>=6 and not player:GetAttribute('ReducedMotion') and not camera:GetAttribute('DiscoveryZoom')then
-   camera:SetAttribute('DiscoveryZoom',true);local original=camera.FieldOfView
+   camera:SetAttribute('DiscoveryZoom',true);local original=camera:GetAttribute('SecretZoom')or camera.FieldOfView
    Tween:Create(camera,TweenInfo.new(.25),{FieldOfView=math.min(90,original+6)}):Play()
    task.delay(.4,function()if camera.Parent then Tween:Create(camera,TweenInfo.new(.5),{FieldOfView=original}):Play();task.delay(.6,function()camera:SetAttribute('DiscoveryZoom',nil)end)end end)
   end

@@ -11,11 +11,22 @@ local remote=RS:FindFirstChild('RewardMachinePresentation')or Instance.new('Remo
 require(RS.RewardMachineText).Apply(rig)
 local angle=0;local busy=false;local playerAttempts={};local animated={}
 local function clearPrize()local old=rig:FindFirstChild('CommittedPrize');if old then old:Destroy()end end
-local function display(result)
+local Reveal=require(script.Parent.SecretReveal)
+local function display(result,winner)
  clearPrize();local container=Instance.new('Model');container.Name='CommittedPrize';container.Parent=rig
  local focus=rig.CameraHooks.RevealFocus;local spawn=rig.CameraHooks.RewardSpawn
  rig.WorldResult.Lettering.Title.Text=(motion.UltraRare(result)and 'ULTRA RARE!  'or '')..result.Name
- if result.Dog then
+ local secret=result.Dog and Reveal.Has(result.Dog.DogId)
+  and require(script.Parent.Economy.DogDefinitions)[result.Dog.DogId].Rank==6
+ if secret then
+  -- A Secret prize performs its arrival on the reward stand and stays as the prize.
+  local ok,model=pcall(Reveal.Show,result.Dog.DogId,spawn.Position,CFrame.Angles(0,-math.pi/2,0).LookVector,
+   {Venue='Machine',By=winner,Linger=false,Parent=container})
+  if not ok or not model then secret=false end
+ end
+ if secret then
+  -- Already on the stand (SecretReveal).
+ elseif result.Dog then
   local def=require(script.Parent.Economy.DogDefinitions)[result.Dog.DogId]
   local source=def and game.ServerStorage.DogTemplates:FindFirstChild(def.VisualAsset)
   if source then
@@ -80,7 +91,7 @@ service.RequestWorldSpin=function(player,args)
  task.delay(math.max(0,presentation.StartedAt+presentation.Duration-workspace:GetServerTimeNow()),function()
   local success,err=pcall(function()
    angle=motion.Target(index);drum:PivotTo(center*CFrame.Angles(0,0,angle));rig:SetAttribute('RestAngle',angle)
-   rig:SetAttribute('LastReward',result.Name);machine:SetAttribute('LastReward',result.Name);display(result)
+   rig:SetAttribute('LastReward',result.Name);machine:SetAttribute('LastReward',result.Name);display(result,player.DisplayName)
   end)
   if not success then warn('Reward machine reveal deferred:',err)end;release()
  end)

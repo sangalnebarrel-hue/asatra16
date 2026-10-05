@@ -3,7 +3,7 @@ local C={Version=3}
 C.Rarities={'Common','Rare','Epic','Legendary','Mythic','Secret'}
 C.LegacyAliases={Uncommon='Rare',['Brainrot God']='Mythic'}
 C.Stream={SlotLength=12,EmptySlots=3,Speed=6,BlockChance=.25,MaxActive=8}
-C.SpawnWeights={52,27,12,6,2.5,0.5} -- sums to 100; inaccessible tiers are omitted and normalized
+C.SpawnWeights={54,28,12,4.5,1.25,.25} -- sums to 100; inaccessible tiers are omitted and normalized
 -- Blocks are not tied to depth either; kept for older readers of this table.
 C.MinLayer={Common=1,Rare=1,Epic=1,Legendary=1,Mythic=1,Secret=1,Uncommon=1,['Brainrot God']=1}
 C.ConveyorPrices={Common=200,Rare=800,Epic=5000,Legendary=25000,Mythic=120000,Secret=600000}

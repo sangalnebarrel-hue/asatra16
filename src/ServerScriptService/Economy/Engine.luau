@@ -103,10 +103,14 @@ function E:EventClaim(id,a,request)
   return {Message="Event reward claimed"}
  end,request)
 end
+-- A dog's share of its rarity's line budget. Ordinary dogs split it evenly;
+-- Secrets carry a LineWeight so the rarest of them (THE DOG) stays the rarest.
+local function lineShare(def)return def.LineWeight or 1 end
 -- Every rarity can walk the shared line for every player; price is the only gate.
-function E:Choose()
+-- maxRank leaves out the rarer groups (their budget is not redistributed).
+function E:LineOdds(maxRank)
  local choices,total,groups={},0,{}
- for id,def in pairs(D) do if def.CanSpawnOnLine==true and self.AssetReady(id) and R.Available(def,self.Now()) then
+ for id,def in pairs(D) do if def.CanSpawnOnLine==true and def.Rank<=(maxRank or #C.Rarities) and self.AssetReady(id) and R.Available(def,self.Now()) then
   groups[def.Rank]=groups[def.Rank]or{};table.insert(groups[def.Rank],def)
  end end
  -- Each rarity owns one probability budget regardless of how many dogs it contains.
@@ -114,21 +118,30 @@ function E:Choose()
   local members=groups[rank]
   if members then
    table.sort(members,function(a,b)return a.Id<b.Id end)
-   local weight=(C.Weights[rank]or 0)/#members
-   for _,def in ipairs(members)do total+=weight;table.insert(choices,{Id=def.Id,Ceiling=total})end
+   local shares=0;for _,def in ipairs(members)do shares+=lineShare(def)end
+   for _,def in ipairs(members)do
+    local weight=(C.Weights[rank]or 0)*lineShare(def)/shares
+    if weight>0 then total+=weight;table.insert(choices,{Id=def.Id,Rank=rank,Weight=weight,Ceiling=total})end
+   end
   end
  end
+ return choices,total
+end
+function E:Choose(maxRank)
+ local choices,total=self:LineOdds(maxRank)
  if total==0 then return nil end
  local roll=self.Random()*total;for _,v in ipairs(choices) do if roll<v.Ceiling then return v.Id end end
  return choices[#choices].Id
 end
 -- One line dog of the given rarity, for the conveyor's overdue-rarity guarantee.
 function E:ChooseRank(rank)
- local members={}
- for id,def in pairs(D)do if def.Rank==rank and def.CanSpawnOnLine==true and self.AssetReady(id) and R.Available(def,self.Now())then table.insert(members,id)end end
+ local members,shares={},0
+ for id,def in pairs(D)do if def.Rank==rank and def.CanSpawnOnLine==true and self.AssetReady(id) and R.Available(def,self.Now())then table.insert(members,def);shares+=lineShare(def)end end
  if #members==0 then return nil end
- table.sort(members)
- return members[math.min(#members,math.floor(self.Random()*#members)+1)]
+ table.sort(members,function(a,b)return a.Id<b.Id end)
+ local roll=self.Random()*shares
+ for _,def in ipairs(members)do roll-=lineShare(def);if roll<0 then return def.Id end end
+ return members[#members].Id
 end
 -- Called only by server discovery/arrival orchestration, never by an economy remote action.
 -- An arrival's operation ID must remain stable while retrying storage/capacity failures.
@@ -169,7 +182,7 @@ function E:BuyLine(id,dogId,uid,request)
   R.Check(R.Available(D[dogId],now),"This dog is not available")
   local current=v[key];R.Check((current and current.Owner)==old,"Another player bought this dog; try again")
   R.Check(R.Free(p),"Dog storage full")
-  local price=current and current.NextPrice or D[dogId].BasePrice;local dog
+  local price=current and current.NextPrice or D[dogId].LinePrice or D[dogId].BasePrice;local dog
   if current then
    R.Check(current.State=="Walking" and current.DogId==dogId and old~=id,"Dog cannot be rebought")
    local from=v[pk(old)];dog=from and from.Dogs[uid]
@@ -196,7 +209,8 @@ function E:Roll(id,mode,request)
  R.Check(mode~='LuckyBlock','Visit the tongue or Lucky Blocks in Shop')
  R.Check(mode=="LuckyBlock" or mode=="EventRoll","Invalid roll")
  local current=self:Get(id);self:Authorize(current,id)
- local dogId=self:Choose();R.Check(dogId,"No assets available")
+ -- Secrets only come from the tongue and blocks, never from a token roll.
+ local dogId=self:Choose(5);R.Check(dogId,"No assets available")
  local uid=self.Guid();local now=self.Now()
  return self.Tx:Run({pk(id),'supply:'..dogId},function(v)
   local p=v[pk(id)];self:Authorize(p,id);R.Normalize(p,id,now)

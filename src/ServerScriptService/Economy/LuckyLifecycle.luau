@@ -217,7 +217,26 @@ function L.Open(player,a)
   -- projection/reconciliation or persistence work.
   local model=L.Models[player.UserId..':'..uid]
   if model then model:SetAttribute('BlockState','Opened');task.delay(.55,function()if model.Parent then model:Destroy()end end);L.Models[player.UserId..':'..uid]=nil end
-  if not L.Presented[uid]then L.Presented[uid]=true;RS.RewardPresentation:FireClient(player,{OpenedBlock=result,Cue='Open'})end
+  -- A Secret first walks out of the block on its pad (everyone sees its arrival);
+  -- the opener's reward card follows once the arrival has landed.
+  local cardDelay=0
+  local dog=type(result)=='table'and result.Dog
+  local Reveal=require(script.Parent.Parent.SecretReveal)
+  if dog and Dogs[dog.DogId]and Dogs[dog.DogId].Rank==6 and Reveal.Has(dog.DogId)and not L.Presented[uid]then
+   local pad=Commerce.Yard(player)
+   pad=pad and pad:FindFirstChild('LuckyPad_'..tostring(b.Slot))
+   if pad and pad:IsA('BasePart')then
+    local root=player.Character and player.Character:FindFirstChild('HumanoidRootPart')
+    local ground=pad.Position+Vector3.new(0,pad.Size.Y/2,0)
+    local ok,shown=pcall(Reveal.Show,dog.DogId,ground,root and root.Position-ground or pad.CFrame.LookVector,{Venue='Yard',By=player.DisplayName})
+    if ok and shown then cardDelay=math.max(0,Reveal.Hold(dog.DogId)-.8)end
+   end
+  end
+  if not L.Presented[uid]then
+   L.Presented[uid]=true
+   local function card()if player.Parent then RS.RewardPresentation:FireClient(player,{OpenedBlock=result,Cue='Open'})end end
+   if cardDelay>0 then task.delay(cardDelay,card)else card()end
+  end
   task.defer(function()
    if not player.Parent then return end
    local good,live=pcall(function()return runtime.Engine:Get(player.UserId)end);if good and live then runtime.Views[player.UserId]=live end

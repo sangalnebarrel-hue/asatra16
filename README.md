@@ -1,7 +1,76 @@
-# DOGROTS — source workspace
+# DOGROTS — исходники и сборка плейса
 
-- `place/DOGROTS_V13_RELEASE.rbxl` — original place file (V13 release).
-- `src/` — every script from the place (except the generated `ReplicatedStorage/DogAnimationClips`), one file per
-  instance. `*.server.luau` = Script, `*.client.luau` = LocalScript, `*.luau` = ModuleScript.
-  `~N` in a name means the N-th sibling with the same name. `src/MANIFEST.tsv` lists every file.
-- `tools/` — [Lune](https://github.com/lune-org/lune) scripts that extract scripts from a place and build a new place.
+- `place/DOGROTS_V13_RELEASE.rbxl` — исходный плейс (V13).
+- `build/DOGROTS_V14.rbxl` — готовый плейс с изменениями ниже (открывать в Roblox Studio).
+- `src/` — все скрипты плейса (кроме сгенерированных `ReplicatedStorage/DogAnimationClips`), один файл на инстанс.
+  `*.server.luau` = Script, `*.client.luau` = LocalScript, `*.luau` = ModuleScript; `~N` в имени — N-й одноимённый сосед.
+  `src/MANIFEST.tsv` — список скриптов исходного плейса.
+- `tools/` — сборка и проверки (см. ниже).
+
+## Что изменено в V14
+
+### Секретные собаки выходят с конвеера (как в Steal a Brainrot)
+- Шанс на каждую собаку на конвеере (`ReplicatedStorage/DogEconomy/Config.luau`, `C.Weights`):
+  Common 60.5% · Rare 27% · Epic 9% · Legendary 2.6% · Mythic 0.75% · **Secret 0.15%**.
+  При ~5.6 собаки в минуту на сервер: Legendary ≈ раз в 7 мин, Mythic ≈ раз в 24 мин, какой-нибудь Secret ≈ раз в 2 часа.
+- Внутри Secret — своё распределение (`C.SecretLineWeights`, доли из 1000), THE DOG самая редкая:
+
+  | Собака | Доля | ≈ 1 на N собак | ≈ раз в N часов на сервер |
+  |---|---|---|---|
+  | Cubedog | 290 | 2 299 | 6.8 |
+  | DOGDOGDOGDOG | 210 | 3 175 | 9.4 |
+  | Spiderdog | 160 | 4 167 | 12.3 |
+  | The Wrong Dog | 120 | 5 556 | 16.5 |
+  | Nuclear Pug | 85 | 7 843 | 23 |
+  | 404 DOG NOT FOUND | 60 | 11 111 | 33 |
+  | The Unfinished Dog | 38 | 17 544 | 52 |
+  | Biblically Accurate Dog | 30 | 22 222 | 66 |
+  | **THE DOG** | 7 | 95 238 | 282 |
+
+- Цена секретки на конвеере растёт с редкостью (`C.SecretLinePrices`): от 2.5M (Cubedog) до 16M (THE DOG).
+  Базовая цена (`C.Prices`) для остальных систем не менялась.
+- Long Dog (выкапывается) и Aurion (эксклюзив DOG-O-MATIC) на конвеер не попадают — их источники не тронуты.
+- Секреты никогда не «гарантируются» таймером; жетонный `EventRoll` больше не может выдать секретку.
+
+### Реже Legendary и Mythic
+- Таймеры-гарантии были главной причиной: раньше Legendary принудительно каждые 5 мин, Mythic каждые 12 мин
+  (это давало ~35% всех Legendary и ~52% всех Mythic). Теперь это мягкая страховка: 20 мин / 75 мин.
+- Гарантия больше не может «понизить» выпавшую более редкую собаку (раньше выпавший Mythic мог замениться Legendary).
+- Частота лаки-блоков высоких тиров на конвеере тоже снижена (`LuckyBlockConfig.SpawnWeights`).
+- Итог (симуляция 20 000 часов на реальном коде, `tools/odds_report.luau`):
+  Legendary — раз в 6.5 мин (было 3.2), Mythic — раз в 23 мин (было 8.8).
+
+### Анимация появления у каждой секретной собаки (все 11)
+- Секретка выходит не из глубины пасти, а на «сцену» в проёме пасти гигантской головы, стоит там (её нельзя купить),
+  пока все игроки видят её анимацию, и потом идёт по языку. Сервер проигрывает её авторские клипы
+  (Flip, Split, Ground_Opens, Depth_Error…), а клиент — уникальный кинематик:
+  свет, частицы, звук, тряска камеры, цветокоррекция, и **загадочный текст наверху экрана** у всех игроков.
+- Если секретку получили не с конвеера (лаки-блок на паде во дворе, выкопанный Long Dog, Aurion из DOG-O-MATIC),
+  её копия появляется прямо там с той же анимацией, а карточка награды показывается после неё.
+- **THE DOG**: конвеер замирает, музыка гаснет, неон языка гаснет от пасти, **все собаки на карте поворачиваются
+  и смотрят на неё** (конвеер, будки, витрины во дворах, музей, приз автомата), даже зрачки гигантской
+  головы-фабрики опускаются и следят за ней; во тьме мигают глаза, земля раскрывается, она поднимается,
+  все собаки кланяются. Пока она идёт (в полскорости) и пока её ведут к покупателю — все продолжают смотреть.
+  Сверху: «the tongue has gone quiet.» → … → «good boy.» и «it chose you.» покупателю.
+- Настройки (тайминги, клипы, фразы, цвета): `ReplicatedStorage/SecretArrivalConfig.luau`.
+  `C.Sounds` — можно вписать ID загруженных звуков (сейчас звуки синтезируются из встроенного звука Roblox
+  и треков игры NULL_HOUR / THE_VOID_OPENS).
+- Код: `StarterPlayerScripts/SecretArrivals` (+ `Kit`, `Whisper`, `Stare`, `Dogs/<DogId>`),
+  `ReplicatedStorage/DogLook.luau` (поворот собак костями — без репликации), `ServerScriptService/SecretReveal.luau`.
+
+### Как посмотреть в Studio
+Play → **F7** — панель Secret Arrivals: клик — собака появляется на конвеере, правый клик — перед тобой
+(как из лаки-блока). В опубликованном плейсе такие собаки только для просмотра (купить нельзя).
+Проверки баланса: `require(game.ServerStorage.BalanceQATests).Run()` в командной строке сервера.
+
+## Сборка и проверки
+Нужны: Python 3 (`pip install lz4 zstandard`), [Lune](https://github.com/lune-org/lune) 0.10.5+,
+`luau-compile`, [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp) и его `globalTypes.d.luau`.
+
+- `python3 tools/build_place.py place/DOGROTS_V13_RELEASE.rbxl src build/DOGROTS_V14.rbxl` — собирает плейс.
+  Это «хирургическая» сборка: меняются только исходники изменённых скриптов и добавляются новые скрипты,
+  всё остальное остаётся байт-в-байт как в исходном файле (полная пересборка через Lune/rbx-dom меняет формат
+  свойств мешей и теряет часть данных, поэтому она не используется).
+- `tools/check.sh OUT.rbxl` — сборка + синтаксис + типы Roblox API для всех изменённых скриптов.
+- `lune run tools/odds_report.luau src 20000` — реальные шансы конвеера и симуляция.
+- `lune run tools/extract.luau PLACE.rbxl DIR` — выгрузить скрипты из плейса.

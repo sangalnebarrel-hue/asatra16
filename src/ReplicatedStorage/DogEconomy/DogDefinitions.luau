@@ -100,7 +100,7 @@ local rows = {
  {Index=97,Id="Spiderdog",DisplayName="Spiderdog",Rank=6,Ability="EightLegDig",Signature="Eight legs perform multiple excavations.",Tags={"Explorers"},VisualAsset="Spiderdog",LayerAffinity=5,Acquisition="Standard"},
  {Index=98,Id="DivineDog",DisplayName="Biblically Accurate Dog",Rank=6,Ability="IndependentLuck",Signature="Makes several independent luck rolls.",Tags={"Explorers"},VisualAsset="DivineDog",LayerAffinity=5,Acquisition="Standard"},
  {Index=99,Id="UnfinishedDog",DisplayName="The Unfinished Dog",Rank=6,Ability="MissingOrTriple",Signature="An unfinished result may disappear or duplicate x3.",Tags={"Explorers"},VisualAsset="UnfinishedDog",LayerAffinity=5,Acquisition="Standard"},
- {Index=100,Id="TheDog",DisplayName="THE DOG",Rank=6,Ability="EndgameArrival",Signature="A very rare server arrival with an endgame team ability.",Tags={"Explorers"},VisualAsset="TheDog",LayerAffinity=5,Acquisition="ServerArrival"},
+ {Index=100,Id="TheDog",DisplayName="THE DOG",Rank=6,Ability="EndgameArrival",Signature="Walks the tongue once in a blue moon; every dog stops to watch. Endgame team ability.",Tags={"Explorers"},VisualAsset="TheDog",LayerAffinity=5,Acquisition="ServerArrival"},
  {Index=101,Id="Aurion",DisplayName="Aurion",Rank=6,Ability="PrismEcho",Signature="Every tenth completed dig makes an extra independent discovery roll.",Tags={"Cosmic"},VisualAsset="Aurion",LayerAffinity=1,Acquisition="RouletteOnly",MuseumExcluded=true},
 }
 local Definitions = {}
@@ -114,7 +114,10 @@ for _,d in ipairs(rows) do
  d.AnimationAsset=d.Id;d.AudioProfile=d.Id;d.MutationRules={Enabled=true}
  d.EventId='';d.FirstEditionLimit=d.Rank>=4 and 5000 or 0
  d.LimitedSupply=0;d.ReleaseEnd=0;d.OG=false
- d.CanSpawnOnLine=d.Acquisition=='Standard' and d.Rank<6
+ -- Secrets walk the line only with a LineWeight: their share of the Secret budget.
+ d.LineWeight=d.Rank==6 and C.SecretLineWeights[d.Id] or nil
+ d.LinePrice=d.LineWeight and C.SecretLinePrices[d.Id] or nil
+ d.CanSpawnOnLine=(d.Acquisition=='Standard' and d.Rank<6) or (d.LineWeight or 0)>0
  d.CanDropFromLuckyBlock=d.Acquisition=='Standard'
  d.CanDropFromRoulette=d.Acquisition=='Standard' and d.Rank<6
  if d.Id=='Aurion'then

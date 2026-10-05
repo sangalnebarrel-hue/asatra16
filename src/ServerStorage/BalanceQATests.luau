@@ -24,6 +24,35 @@ function QA.Run()
   check(math.abs(probability-1)<1e-8,'pool probability '..tier)
   for i,n in ipairs(B.RewardPools[tier])do check(math.abs(groups[i]-n/100)<1e-8,'exact tier chance '..tier..'/'..i)end
  end
+ -- The tongue: odds sum to 100 and every rarity keeps its budget; Secrets share theirs by
+ -- LineWeight with THE DOG the rarest; no Secret is ever guaranteed or token-rolled; every
+ -- line Secret has an arrival whose clips exist.
+ local weights=0;for _,w in ipairs(C.Weights)do weights+=w end
+ check(math.abs(weights-100)<1e-8,'line weights sum to 100')
+ check(C.LineGuarantee[6]==nil,'no secret guarantee')
+ check(D.TheDog.CanSpawnOnLine==true and D.TheDog.CanDropFromLuckyBlock==false,'THE DOG walks the tongue only')
+ check(not D.LongDog.CanSpawnOnLine and not D.Aurion.CanSpawnOnLine,'excavation and roulette exclusives stay off the tongue')
+ local engine=require(E.Engine).new(nil,{Now=os.time,Random=function()return .5 end,AssetReady=function(id)return D[id]~=nil end})
+ local choices,total=engine:LineOdds();local share={0,0,0,0,0,0}
+ for _,row in ipairs(choices)do share[row.Rank]+=row.Weight/total end
+ for rank,w in ipairs(C.Weights)do check(math.abs(share[rank]-w/weights)<1e-9,'line rarity budget '..rank)end
+ local tokenChoices=engine:LineOdds(5);for _,row in ipairs(tokenChoices)do check(row.Rank<6,'token roll never mints a secret')end
+ local Arrivals=require(RS.SecretArrivalConfig)
+ local cinematics=game:GetService('StarterPlayer').StarterPlayerScripts:FindFirstChild('SecretArrivals')
+ cinematics=cinematics and cinematics:FindFirstChild('Dogs')
+ for id,def in pairs(D)do
+  if def.Rank==6 then
+   if def.CanSpawnOnLine then
+    check(def.LineWeight>=D.TheDog.LineWeight,'THE DOG is the rarest secret '..id)
+    check(def.LinePrice and def.LinePrice>=C.Prices[6],'secret line price '..id)
+   end
+   -- Every Secret has an arrival, on the tongue or wherever it is obtained.
+   local arrival=Arrivals.Dogs[id];check(arrival~=nil and arrival.Hold>0,'secret arrival '..id)
+   local cinematic=cinematics and cinematics:FindFirstChild(id);check(cinematic~=nil and cinematic:IsA('ModuleScript'),'secret cinematic '..id)
+   local library=RS.DogAnimationClips:FindFirstChild(def.AnimationAsset)
+   for _,step in ipairs(arrival.Clips)do check(library:FindFirstChild(step[2])~=nil,'arrival clip '..id..'/'..step[2])end
+  end
+ end
  local rng=Random.new(3092026);local random=function()return rng:NextNumber()end
  local sumIncome={};local now=2000000000
  table.sort(ids)
@@ -53,7 +82,7 @@ function QA.Run()
  local probabilities={};local n=100000
  for _=1,n do local m,chance=I.Mutation(random,{SignatureMutation='Glitched',SignatureMutationChance=.02});probabilities[m.Name]=(probabilities[m.Name]or 0)+1;check(chance>0 and chance<=1,'mutation probability')end
  check(math.abs((probabilities.GLITCHED or 0)/n-(.02+.98*.0005))<.003,'merged mutation probability')
- print('DOGROTS_BALANCE_QA_PASS',checks,'checks;101 dogs;6 pools;8000 work cycles;100000 mutation rolls')
+ print('DOGROTS_BALANCE_QA_PASS',checks,'checks;101 dogs;6 pools;line odds;8000 work cycles;100000 mutation rolls')
  return {Checks=checks,Dogs=#ids,Counts=counts,IncomeSample=sumIncome,MutationCounts=probabilities}
 end
 return QA
