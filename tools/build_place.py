@@ -217,6 +217,16 @@ class Place:
         cid, i = self.ref_class[ref]
         return self.column(cid, pname)["values"][i].decode("utf-8")
 
+    def next_unique_index(self):
+        if not hasattr(self, "unique_top"):
+            self.unique_top = 0
+            for cid, info in self.classes.items():
+                if "UniqueId" in info["props"] and info["refs"]:
+                    for v in self.column(cid, "UniqueId")["values"]:
+                        self.unique_top = max(self.unique_top, struct.unpack(">I", v[:4])[0])
+        self.unique_top += 1
+        return self.unique_top
+
     def add_instance(self, class_name, parent, name, source=None):
         cid = self.class_by_name[class_name]
         info = self.classes[cid]
@@ -241,9 +251,13 @@ class Place:
                 value = ("{%s}" % str(uuid.uuid4()).upper()).encode()
             elif pname in ("LinkedSource", "AttributesSerialize"):
                 value = b""
+            elif pname == "UniqueId":
+                # index (u32 BE) | time (u32 BE) | random (8 bytes): keep the template's
+                # time and random, take the next index nothing in the place uses yet.
+                value = struct.pack(">I", self.next_unique_index()) + value[4:]
             elif col["type"] == UNIQUE_ID:
-                # Bytes 0..7 hold the (rotated) random component of the id.
-                value = os.urandom(8) + value[8:]
+                # HistoryId and the like: a new script has no history.
+                value = bytes(len(value))
             elif pname == "Disabled":
                 value = b"\x00"
             col["values"].append(value)

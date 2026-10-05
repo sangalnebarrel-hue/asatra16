@@ -403,8 +403,8 @@ if game:GetService('RunService'):IsStudio() and game.GameId==0 then
 end
 -- Studio-only preview of every Secret arrival (F7 panel); live servers never create it.
 if game:GetService('RunService'):IsStudio() then
- local preview=Instance.new('RemoteFunction');preview.Name='StudioSecretArrival';preview.Parent=Replicated
- preview.OnServerInvoke=function(player,id,here)
+ local preview=Instance.new('RemoteFunction');preview.Name='StudioSecretArrival'
+ local function arrive(player,id,here)
   if type(id)~='string' or not Arrivals.Dogs[id] or not definitions[id] then return false,'Unknown secret' end
   -- Off-tongue Secrets (or "here") arrive in front of the player, as from a Lucky Block.
   if here==true or not definitions[id].CanSpawnOnLine then
@@ -415,7 +415,9 @@ if game:GetService('RunService'):IsStudio() then
    local hit=workspace:Raycast(ahead+Vector3.new(0,6,0),Vector3.new(0,-40,0),params)
    local ground=hit and hit.Position or ahead-Vector3.new(0,3,0)
    local ok,model=pcall(require(script.Parent.SecretReveal).Show,id,ground,-look,{Venue='Yard',By=player.DisplayName})
-   return ok and model~=nil,ok and model and ('Revealed '..definitions[id].DisplayName) or 'Reveal failed'
+   if not ok then return false,'Reveal failed: '..tostring(model)end
+   if not model then return false,'Reveal failed: no usable template for '..id end
+   return true,'Revealed '..definitions[id].DisplayName
   end
   local dog=spawnDog(id)
   if not dog then return false,'Template unavailable' end
@@ -425,6 +427,14 @@ if game:GetService('RunService'):IsStudio() then
   if game.GameId~=0 then dog:SetAttribute('StudioPreview',true) end
   return true,'Spawned '..definitions[id].DisplayName..(game.GameId~=0 and ' (preview, not for sale)' or '')
  end
+ -- An error comes back to the panel as text instead of a silent failure.
+ preview.OnServerInvoke=function(player,id,here)
+  local ok,success,message=xpcall(arrive,debug.traceback,player,id,here)
+  if not ok then warn('[SecretArrivals] Studio preview of',id,'failed:',success);return false,'Server error: '..(string.match(tostring(success),'^[^\n]*')or'') end
+  print('[SecretArrivals] Studio preview:',id,success,message)
+  return success,message
+ end
+ preview.Parent=Replicated
 end
 print('DOGROTS_SHARED_STREAM_READY',spacing)
 

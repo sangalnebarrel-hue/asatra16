@@ -5,6 +5,11 @@
 -- arrive as display dogs in DOGROTS_SecretReveals (ServerScriptService/SecretReveal).
 local RS=game:GetService('ReplicatedStorage')
 local Run=game:GetService('RunService')
+-- Studio's preview panel (★ SECRETS / F7) starts first, so nothing below can hold it up.
+if Run:IsStudio()then
+ local panel=script:FindFirstChild('StudioPanel')
+ if panel then task.spawn(require,panel)else warn('[SecretArrivals] StudioPanel module is missing')end
+end
 local Config=require(RS:WaitForChild('SecretArrivalConfig'))
 local Kit=require(script:WaitForChild('Kit'))
 local Whisper=require(script:WaitForChild('Whisper'))
@@ -110,9 +115,5 @@ if reveals then follow(reveals)else
  waiting=workspace.ChildAdded:Connect(function(child)
   if child.Name=='DOGROTS_SecretReveals'and child:IsA('Folder')then waiting:Disconnect();follow(child)end
  end)
-end
-if Run:IsStudio()then
- local panel=script:FindFirstChild('StudioPanel')
- if panel then task.spawn(require,panel)end
 end
 print('DOGROTS_SECRET_ARRIVALS_READY')
