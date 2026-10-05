@@ -1,0 +1,1 @@
+return {Enabled=false,Cooldown=20,Contribution=2,XP=2,Milestones={500,2500,10000,50000,200000}}

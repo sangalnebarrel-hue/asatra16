@@ -1,0 +1,1 @@
+require(script.Parent.Economy.CommunityService).Start()

@@ -1,0 +1,3 @@
+local CS=game:GetService("CollectionService");local RS=game:GetService("ReplicatedStorage");local Config=require(RS:WaitForChild("LightingConfig"));local base={}
+local function refresh() for tag,info in pairs(Config.Architectural) do for _,obj in ipairs(CS:GetTagged(tag)) do local ls={};if obj:IsA("Light") then table.insert(ls,obj) end;for _,d in ipairs(obj:GetDescendants()) do if d:IsA("Light") then table.insert(ls,d) end end;for _,l in ipairs(ls) do if base[l]==nil then base[l]=l.Brightness end;l.Enabled=info.Enabled;l.Brightness=base[l]*info.Multiplier end end end end
+refresh();local ev=RS:FindFirstChild("LightingRefreshEvent") or Instance.new("BindableEvent");ev.Name="LightingRefreshEvent";ev.Parent=RS;ev.Event:Connect(refresh);print("DOGROTS_ARCH_LIGHTS_REFRESHED")

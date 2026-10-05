@@ -1,0 +1,1 @@
+return {Leaderboard={Metric='XP',RefreshSeconds=120,WriteSeconds=90,KingSeconds=15,OrderedStore='DOGROTS_TOP_XP_V1',Top=10},Mailbox={Cooldown=60,DailyLimit=5,SessionLimit=3,MaxCharacters=300,Categories={'IDEA','BUG','FEEDBACK','OTHER'}}}

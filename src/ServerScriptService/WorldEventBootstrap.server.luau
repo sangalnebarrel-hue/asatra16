@@ -1,0 +1,1 @@
+require(script.Parent.WorldEventService).Start()

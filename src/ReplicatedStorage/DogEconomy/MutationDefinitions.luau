@@ -1,0 +1,1 @@
+return {{["Name"]="NORMAL",["Chance"]=0.9834999999999999,["ValueMultiplier"]=1},{["Name"]="GOLDEN",["Chance"]=0.01,["ValueMultiplier"]=2.5},{["Name"]="RAINBOW",["Chance"]=0.004,["ValueMultiplier"]=8},{["Name"]="CURSED",["Chance"]=0.002,["ValueMultiplier"]=5},{["Name"]="GLITCHED",["Chance"]=0.0005,["ValueMultiplier"]=15}}
