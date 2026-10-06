@@ -1,8 +1,8 @@
 -- LONG DOG: "IT NEVER ENDS". Dug up in its owner's yard, and it does not stop coming out.
--- The ground splits, the head bursts out and runs a lap of the WHOLE island (down the west
--- yards, up past the plaza and the museum, round the DOG-O-MATIC, back past the shops, the
--- east yards and across the tongue) while its body keeps pouring out of the hole behind
--- it: one dachshund, two kilometres long, lying across every yard. Every dog on the island
+-- The ground splits, the head bursts out and runs a lap of the WHOLE island (up the west
+-- lawns, past the plaza, the museum and the DOG-O-MATIC, down the boulevard, through the
+-- arches, the east lawns, and over the top of the giant head) while its body keeps pouring
+-- out of the hole behind it: one dachshund, two kilometres long, lying across every yard. Every dog on the island
 -- turns to follow the head, every screen counts its LENGTH, every camera rides along. Back
 -- at the hole the head finds its body still coming out; the tail finally pops free, the
 -- whole body snaps back along its path like a tape measure, and a perfectly normal Long Dog
@@ -17,8 +17,9 @@ local SAND,DIRT,DUST,BONE,VOID,BAND=C(240,196,120),C(104,72,42),C(196,164,120),C
 -- Until the dog's own texture has been sampled (or if it cannot be).
 local FUR=C(198,135,74)
 local TICK='rbxasset://sounds/volume_slider.ogg'
--- The runner, in template units (the template is 2.19 tall and 5.9 long).
-local SCALE=3.4
+-- The runner, in template units (the template is 2.19 tall and 5.9 long): 29.5 studs long
+-- and a body 4.2 studs thick, so the far end of the island still sees it.
+local SCALE=5
 local SPINE=1.02    -- the spine's height above the paws
 local RADIUS=.42    -- the body's radius
 local SEAM=1.44     -- where the tube meets a runner: LongSeg3, behind the front legs
@@ -27,20 +28,27 @@ local STEP=2        -- path resolution, studs
 -- Beats on the arrival clock: out of the hole, back at the hole, the tail pops out, the
 -- snap starts, the tail reaches the head (the real dog appears).
 local T_OUT,T_STOP,T_POP,T_SNAP,T_JOIN=.9,11,11.6,12.3,13.6
--- The lap (world X,Z). It starts and ends at whichever point is nearest the hole.
-local LAP:{Vector2}={
- Vector2.new(-83,-80),Vector2.new(-83,-40),Vector2.new(-83,40),Vector2.new(-83,105),Vector2.new(-100,160),
- Vector2.new(-130,230),Vector2.new(-95,290),Vector2.new(-40,330),Vector2.new(-40,420),Vector2.new(-35,500),
- Vector2.new(-70,575),Vector2.new(-110,615),Vector2.new(-100,675),Vector2.new(-50,705),Vector2.new(0,660),
- Vector2.new(5,600),Vector2.new(8,430),Vector2.new(40,370),Vector2.new(55,330),Vector2.new(30,270),
- Vector2.new(20,235),Vector2.new(25,180),Vector2.new(60,150),Vector2.new(83,105),Vector2.new(83,40),
- Vector2.new(83,-40),Vector2.new(83,-80),Vector2.new(65,-108),Vector2.new(30,-100),Vector2.new(0,-98),
- Vector2.new(-30,-100),Vector2.new(-65,-108),
+-- The lap: its spine's path (world studs), checked against every visible part of the island
+-- with room to spare: up the west lawns, the plaza, past the museum, round the DOG-O-MATIC,
+-- down the boulevard and through the arches, the east lawns, then over the giant head.
+-- It starts and ends wherever it passes closest to the hole. (SecretArrivalConfig.Map.LongDogLap
+-- overrides it.)
+local LAP:{Vector3}={
+ Vector3.new(-110,6.1,-112),Vector3.new(-110,6.1,-40),Vector3.new(-110,6.1,40),Vector3.new(-110,7.1,112),
+ Vector3.new(-118,30.1,205),Vector3.new(-60,23.1,300),Vector3.new(-40,23.1,400),Vector3.new(-35,25.1,470),
+ Vector3.new(-48,26.1,530),Vector3.new(-80,19.1,575),Vector3.new(-88,13.1,630),Vector3.new(-80,14.1,676),
+ Vector3.new(-52,15.1,690),Vector3.new(-20,17.1,650),Vector3.new(0,17.1,580),Vector3.new(0,17.1,520),
+ Vector3.new(0,19.1,440),Vector3.new(20,33.1,405),Vector3.new(50,23.1,330),Vector3.new(40,23.1,240),
+ Vector3.new(-25,35.1,190),Vector3.new(-22,39.1,152),Vector3.new(22,39.1,142),Vector3.new(72,23.1,140),
+ Vector3.new(110,7.1,112),Vector3.new(110,6.1,40),Vector3.new(110,6.1,-40),Vector3.new(110,6.1,-112),
+ Vector3.new(85,44.1,-175),Vector3.new(0,99.1,-205),Vector3.new(-85,44.1,-175),
 }
+-- High behind the giant head, looking up the whole island.
+local OVERVIEW=CFrame.lookAt(Vector3.new(0,150,-280),Vector3.new(0,20,420))
 local function smooth(x)x=math.clamp(x,0,1);return x*x*(3-2*x)end
 
 -- Centripetal Catmull-Rom between p1 and p2 (no loops or overshoot at sharp corners).
-local function spline(p0:Vector2,p1:Vector2,p2:Vector2,p3:Vector2,t:number):Vector2
+local function spline(p0:Vector3,p1:Vector3,p2:Vector3,p3:Vector3,t:number):Vector3
  local function knot(k,a,b)return k+math.max((b-a).Magnitude,1e-3)^.5 end
  local t0=0;local t1=knot(t0,p0,p1);local t2=knot(t1,p1,p2);local t3=knot(t2,p2,p3)
  local u=t1+(t2-t1)*t
@@ -91,18 +99,31 @@ return function(ctx:any)
 
  -- The real (display) dog waits, hidden, until the very end.
  local vis=scope:Visibility(model);vis.Set(1)
+ -- A dog already digging in this pit would stand inside the arrival: it steps aside
+ -- (hidden here, for this arrival only).
+ do
+  local district=workspace:FindFirstChild('DOGROTS_District')
+  local kennels=district and district:FindFirstChild('KennelDogs')
+  for _,m in ipairs(kennels and kennels:GetChildren()or {})do
+   if m:IsA('Model')then
+    local p=m:GetPivot().Position
+    if Vector2.new(p.X-origin.X,p.Z-origin.Z).Magnitude<10 then scope:Visibility(m).Set(1)end
+   end
+  end
+ end
 
  ---------------------------------------------------------------- the path
  -- Join the lap where it passes closest to the hole, slanting on in its direction of travel,
  -- go all the way round, and slant back off to stop beside the hole (beside the body still
  -- pouring out of it).
- local here=Vector2.new(origin.X,origin.Z)
+ local function flatten(v:Vector3):Vector3 return Vector3.new(v.X,0,v.Z)end
+ local here=flatten(origin)
  local route=(Config.Map and Config.Map.LongDogLap)or LAP
  local n=#route
  local along={0}
- for i=1,n do along[i+1]=along[i]+(route[i%n+1]-route[i]).Magnitude end
+ for i=1,n do along[i+1]=along[i]+flatten(route[i%n+1]-route[i]).Magnitude end
  local lap=along[n+1]
- local function lapPoint(s:number):Vector2
+ local function lapPoint(s:number):Vector3
   s=s%lap
   for i=1,n do
    if s<=along[i+1]then return route[i]:Lerp(route[i%n+1],(s-along[i])/math.max(along[i+1]-along[i],1e-6))end
@@ -112,7 +133,7 @@ return function(ctx:any)
  -- Where the lap passes closest to the hole.
  local nearest,best=0,math.huge
  for i=1,n do
-  local a,b=route[i],route[i%n+1]
+  local a,b=flatten(route[i]),flatten(route[i%n+1])
   local ab=b-a
   local u=math.clamp((here-a):Dot(ab)/math.max(ab:Dot(ab),1e-6),0,1)
   local d=(a+ab*u-here).Magnitude
@@ -120,11 +141,12 @@ return function(ctx:any)
  end
  local on,off=nearest+30,nearest-40+lap
  local onPoint,offPoint=lapPoint(on),lapPoint(off)
- local out=onPoint-here
- if out.Magnitude<1 then out=onPoint-lapPoint(on-1)end
- local side=Vector2.new(-out.Unit.Y,out.Unit.X)
- local back=offPoint-here
- local points:{Vector2}={here,here+out.Unit*math.min(6,out.Magnitude*.3),onPoint}
+ local out=flatten(onPoint)-here
+ if out.Magnitude<1 then out=flatten(onPoint-lapPoint(on-1))end
+ local side=Vector3.new(-out.Unit.Z,0,out.Unit.X)
+ local back=flatten(offPoint)-here
+ local start=Vector3.new(origin.X,onPoint.Y,origin.Z)
+ local points:{Vector3}={start,start+out.Unit*math.min(6,out.Magnitude*.3),onPoint}
  -- Every corner of the lap between the two, in its direction of travel.
  for j=1,2*n do
   local i=(j-1)%n+1
@@ -132,17 +154,25 @@ return function(ctx:any)
   if s>on+4 and s<off-4 then table.insert(points,route[i])end
  end
  table.insert(points,offPoint)
- table.insert(points,here+back.Unit*math.min(14,back.Magnitude*.5))
- -- Flat curve through the points, about every 3 studs.
- local flat:{Vector2}={}
+ table.insert(points,Vector3.new(origin.X,offPoint.Y,origin.Z)+back.Unit*math.min(22,back.Magnitude*.5))
+ -- The curve through the points, about every 3 studs (its heights are the lap's own).
+ local curve:{Vector3}={}
+ -- The legs between the hole and the lap cross this yard (kennels, fences): only those are
+ -- measured against the ground. The lap's own heights already clear the island.
+ local leg:{boolean}={}
  for i=1,#points-1 do
   local p1,p2=points[i],points[i+1]
   local p0=points[i-1]or p1*2-p2
   local p3=points[i+2]or p2*2-p1
-  local steps=math.max(2,math.ceil((p2-p1).Magnitude/3))
-  for k=0,steps-1 do table.insert(flat,spline(p0,p1,p2,p3,k/steps))end
+  local steps=math.max(2,math.ceil(flatten(p2-p1).Magnitude/3))
+  for k=0,steps-1 do
+   table.insert(curve,spline(p0,p1,p2,p3,k/steps))
+   leg[#curve]=i<=2 or i>=#points-1
+  end
  end
- table.insert(flat,points[#points])
+ table.insert(curve,points[#points]);leg[#curve]=true
+ local flat:{Vector2}={}
+ for i,p in ipairs(curve)do flat[i]=Vector2.new(p.X,p.Z)end
  -- Ground under it (roofs, arches and fences included: it goes over them).
  local skip:{Instance}={model}
  for _,name in ipairs({'DOGROTS_SecretArrivalFX','DOGROTS_SecretReveals','DogDexLocalDisplays'})do
@@ -165,16 +195,32 @@ return function(ctx:any)
    local part=hit.Instance
    if part:IsA('Terrain')then return hit.Position.Y end
    local size=(part::BasePart).Size
-   -- Poles, lamps, leaves and glass are not ground.
-   if (part::BasePart).Transparency<.9 and math.min(size.X,size.Z)>=2.5 then return hit.Position.Y end
+   -- Poles, lamp posts and glass are not ground (walls and signs are: it goes over them).
+   if (part::BasePart).Transparency<.9 and math.max(size.X,size.Z)>=2.5 then return hit.Position.Y end
    table.insert(ignore,part)
   end
   return fallback
  end
  local count=#flat
+ local spine=SPINE*SCALE
+ local radius=RADIUS*SCALE
+ -- The spine never dips below the lap's own height, nor below what this client's island
+ -- needs (a kennel next to the pit, anything the lap itself does not pass over).
  local floor=table.create(count,0)
  local last=origin.Y
- for i,p in ipairs(flat)do last=ground(p.X,p.Y,last);floor[i]=last end
+ for i,p in ipairs(flat)do
+  if leg[i]then
+   -- Across the body's whole width, so it does not graze a wall it runs beside.
+   local d=flat[math.min(i+1,count)]-flat[math.max(i-1,1)]
+   local across=d.Magnitude>1e-3 and Vector2.new(-d.Y,d.X).Unit*radius or Vector2.zero
+   local g=ground(p.X,p.Y,last)
+   g=math.max(g,ground(p.X+across.X,p.Y+across.Y,g),ground(p.X-across.X,p.Y-across.Y,g))
+   last=g
+   floor[i]=math.max(g,curve[i].Y-spine)
+  else
+   floor[i]=curve[i].Y-spine
+  end
+ end
  -- Over obstacles in long arcs: widen bumps, cap the slope, then smooth.
  local heights=table.create(count,0)
  for i=1,count do
@@ -188,16 +234,21 @@ return function(ctx:any)
   local was=table.clone(heights)
   for i=2,count-1 do heights[i]=(was[i-1]+2*was[i]+was[i+1])/4 end
  end
+ -- Smoothing must not pull it back down into what it is clearing.
+ for i=1,count do
+  local need=floor[i]
+  if i>1 then need=math.max(need,floor[i-1])end
+  if i<count then need=math.max(need,floor[i+1])end
+  heights[i]=math.max(heights[i],need)
+ end
  -- The spine floats at the runner's height (it is only held up at its ends, like every
  -- photo of a long dog), rising out of the hole over the first few studs.
- local spine=SPINE*SCALE
- local radius=RADIUS*SCALE
  local raw:{Vector3}={}
  local run=0
  for i,p in ipairs(flat)do
   if i>1 then run+=(p-flat[i-1]).Magnitude end
   local y=heights[i]+spine
-  if run<14 then y=origin.Y-radius*2+(y-origin.Y+radius*2)*smooth(run/14)end
+  if run<20 then y=origin.Y-radius*2+(y-origin.Y+radius*2)*smooth(run/20)end
   raw[i]=Vector3.new(p.X,y,p.Y)
  end
  -- Even spacing along the 3D curve: point(s) is a table lookup.
@@ -312,7 +363,7 @@ return function(ctx:any)
   if p then return p end
   local a,b=(k-1)*SEG,math.min(k*SEG,total)
   local pa,pb=point(a),point(b)
-  local length=(pb-pa).Magnitude+.5
+  local length=(pb-pa).Magnitude+1
   p=scope:Part({Name='LongBody',Shape=Enum.PartType.Cylinder,Material=Enum.Material.SmoothPlastic,Color=fur,
    Size=Vector3.new(length,radius*2,radius*2),CFrame=Kit.LookAt((pa+pb)/2,pb)*CFrame.Angles(0,math.pi/2,0),
    Transparency=1,CastShadow=not low})
@@ -355,7 +406,7 @@ return function(ctx:any)
  local function piece(p:BasePart,a:number,b:number)
   if b-a<.3 then p.Transparency=1;return end
   local pa,pb=point(a),point(b)
-  p.Size=Vector3.new((pb-pa).Magnitude+.5,radius*2,radius*2)
+  p.Size=Vector3.new((pb-pa).Magnitude+1,radius*2,radius*2)
   p.CFrame=Kit.LookAt((pa+pb)/2,pb)*CFrame.Angles(0,math.pi/2,0)
   p.Transparency=0
  end
@@ -514,17 +565,7 @@ return function(ctx:any)
  -- Cutaway 1: ride along behind the head as it tears out of the yard, then rise high over
  -- the island to see the body lying across all of it. Cutaway 2: the tail at the hole,
  -- the island as it snaps back, the real dog.
- -- A high shot from the side that holds the whole lap.
- local overview do
-  local lo,hi=P[1],P[1]
-  for _,p in ipairs(P)do lo=lo:Min(p);hi=hi:Max(p)end
-  local c=(lo+hi)/2
-  local ex,ez=hi.X-lo.X,hi.Z-lo.Z
-  local d=math.max(ex,ez)*.72+120
-  local away=ez>=ex and Vector3.new(-1,0,0)or Vector3.new(0,0,-1)
-  local at=Vector3.new(c.X,lo.Y,c.Z)
-  overview=Kit.Frame(at+away*d+Vector3.new(0,d*.78,0),at)
- end
+ local overview=OVERVIEW
  local chase={}
  for i=0,8 do
   local t=1.3+i*.4
@@ -533,14 +574,14 @@ return function(ctx:any)
   local level=Vector3.new(d.X,0,d.Z);level=level.Magnitude>1e-3 and level.Unit or Vector3.zAxis
   local right=level:Cross(Vector3.yAxis)
   local at=point(s)
-  table.insert(chase,{At=t,CFrame=Kit.Frame(at-level*26+right*14+Vector3.new(0,10,0),at+level*10),Fov=66,Linear=i>0})
+  table.insert(chase,{At=t,CFrame=Kit.Frame(at-level*30+right*34+Vector3.new(0,16,0),at+level*18),Fov=66,Linear=i>0})
  end
  table.insert(chase,{At=5.4,CFrame=overview,Fov=70})
  table.insert(chase,{At=6.9,CFrame=overview*CFrame.new(0,0,-25),Fov=68,Linear=true})
  ctx:Cutaway(chase,{Focus=point(headAt(3)),Bars=.08})
  -- From the side: the head on one side of the hole, its body leaving on the other.
- local across3,out3=Vector3.new(side.X,0,side.Y),Vector3.new(out.Unit.X,0,out.Unit.Y)
- local holeShot=Kit.Frame(origin+across3*26+out3*-2+Vector3.new(0,8,0),origin+Vector3.new(0,2.5,0))
+ local across3,out3=side,out.Unit
+ local holeShot=Kit.Frame(origin+across3*44+out3*-4+Vector3.new(0,13,0),origin+Vector3.new(0,3,0))
  local standShot=Kit.Frame(origin-across3*16+out3*5+Vector3.new(0,5,0),origin+Vector3.new(0,2.5,0))
  ctx:Cutaway({
   {At=T_STOP+.2,CFrame=holeShot,Fov=60},{At=T_SNAP-.05,CFrame=holeShot*CFrame.new(0,0,-4),Fov=56,Linear=true},

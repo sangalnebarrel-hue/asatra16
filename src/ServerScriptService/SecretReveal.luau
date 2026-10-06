@@ -51,6 +51,8 @@ function M.Show(dogId,ground,facing,options)
  model:SetAttribute('RevealVenue',options.Venue or 'Yard');model:SetAttribute('RevealBy',options.By or '')
  model:SetAttribute('SecretArrivalAt',now);model:SetAttribute('ArrivalHoldUntil',now+arrival.Hold)
  model:SetAttribute('ArrivalOrigin',ground);model:SetAttribute('LocomotionSpeed',0)
+ -- Every player's camera visits the arrival: the whole dog reaches every client.
+ pcall(function()model.ModelStreamingMode=Enum.ModelStreamingMode.Persistent end)
  local function clip(name,looped,at)
   model:SetAttribute('AnimationName',name);model:SetAttribute('AnimationLooped',looped==true);model:SetAttribute('AnimationStartedAt',at)
  end

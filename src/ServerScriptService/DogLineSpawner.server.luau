@@ -316,7 +316,11 @@ local function spawnDog(forced)
 	local along=linePosition(endPoint)-mouth
 	local stage=arrival and along.Magnitude>Arrivals.Stage and Arrivals.Stage or 0
 	local at=mouth+(stage>0 and along.Unit*stage or Vector3.zero)
-	if arrival then beginArrival(dog,arrival,at) end
+	if arrival then
+		beginArrival(dog,arrival,at)
+		-- Every player's camera visits the arrival: the whole dog reaches every client.
+		pcall(function()dog.ModelStreamingMode=Enum.ModelStreamingMode.Persistent end)
+	end
 	dog.Parent=active; 
 	movePivot(dog,pivotAt(dog, at, facing(endPoint.Position-spawnPoint.Position, Vector3.new(0,0,-1)))); 
 	billboard(dog,data); 
@@ -411,8 +415,16 @@ if game:GetService('RunService'):IsStudio() then
    local root=player.Character and player.Character:FindFirstChild('HumanoidRootPart')
    if not root then return false,'No character' end
    local look=root.CFrame.LookVector;local ahead=root.Position+Vector3.new(look.X,0,look.Z).Unit*12
-   local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={player.Character}
-   local hit=workspace:Raycast(ahead+Vector3.new(0,6,0),Vector3.new(0,-40,0),params)
+   local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
+   -- The floor, not an invisible roof, post or trigger above it.
+   local ignore:{Instance}={player.Character}
+   local hit
+   for _=1,6 do
+    params.FilterDescendantsInstances=ignore
+    hit=workspace:Raycast(ahead+Vector3.new(0,6,0),Vector3.new(0,-40,0),params)
+    if not hit or(hit.Instance.Transparency<.95 and hit.Instance.CanCollide)then break end
+    table.insert(ignore,hit.Instance);hit=nil
+   end
    local ground=hit and hit.Position or ahead-Vector3.new(0,3,0)
    local ok,model=pcall(require(script.Parent.SecretReveal).Show,id,ground,-look,{Venue='Yard',By=player.DisplayName})
    if not ok then return false,'Reveal failed: '..tostring(model)end

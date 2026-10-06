@@ -69,6 +69,43 @@ local function borrow(className:string,parent:Instance,neutral:{[string]:any})
   end
  end
 end
+-- World events (ReplicatedStorage.WorldEvents) drive Lighting, the Atmosphere, Clouds and the
+-- Sky while one runs, and snapshot them when one starts. So the sky only touches those when
+-- no event can begin or end before it has let go of them; otherwise it turns the camera
+-- grade alone (which nothing else writes).
+local eventLighting:any=nil
+local function worldFree(seconds:number):boolean
+ local events=RS:FindFirstChild('WorldEvents')
+ if not events then return true end
+ if eventLighting==nil then
+  local module=events:FindFirstChild('WorldEventLighting')
+  local ok,result=pcall(function()return module and require(module::ModuleScript)end)
+  eventLighting=ok and type(result)=='table'and result or false
+ end
+ if eventLighting and eventLighting.Active then return false end
+ local state=events:FindFirstChild('State')
+ if not state then return true end
+ local kind,ends=state:GetAttribute('State'),state:GetAttribute('EndTimestamp')
+ if type(ends)~='number'then return kind==nil end
+ local left=ends-workspace:GetServerTimeNow()
+ -- NORMAL ends in a 60 s warning before the event itself lights up.
+ if kind=='NORMAL'then return left+60>seconds+3 end
+ if kind=='WARNING'then return left>seconds+3 end
+ return false
+end
+-- What a theme's Lighting/Atmosphere would have done, approximated with the camera grade.
+local function fallbackGrade(patch:{[string]:any}):{[string]:any}?
+ local light=patch.Lighting or {}
+ local dim=0
+ if type(light.ClockTime)=='number'and(light.ClockTime<5.5 or light.ClockTime>19.5)then dim-=.22 end
+ if type(light.ExposureCompensation)=='number'then dim+=math.clamp((light.ExposureCompensation-.08)*.2,-.3,.2)end
+ if type(light.Brightness)=='number'then dim+=math.clamp((light.Brightness-2.25)*.08,-.2,.1)end
+ local grade={}
+ if math.abs(dim)>.01 then grade.Brightness=dim end
+ local air=patch.Atmosphere
+ if air and typeof(air.Color)=='Color3'then grade.TintColor=Color3.new(1,1,1):Lerp(air.Color,.25)end
+ return next(grade)and grade or nil
+end
 local function mix(key:string,a:any,b:any,t:number,out:boolean):any
  local ta=typeof(a)
  if ta~=typeof(b)then return (out and t>=1 or not out and t>0)and b or a end
@@ -92,9 +129,10 @@ end
   Grade      = {TintColor, Saturation, Contrast, Brightness}   (a camera ColorCorrection)
   Bloom      = {Intensity, Size, Threshold}                    (a camera Bloom)
  Eases in over fadeIn (default 1.2 s) and back over fadeOut (default 1.5 s) once the scope
- ends; held meanwhile against the server's and world events' own writes (what they write
- is what comes back). handle:Set(patch, seconds) eases to new values (same shape as theme);
- handle:Release(seconds) gives everything back early. ]]
+ ends; held meanwhile against the server's day cycle (what it writes is what comes back).
+ While a world event runs or could start or end before the arrival is over, only Grade and
+ Bloom apply (Lighting/Atmosphere become an approximate grade). handle:Set(patch, seconds)
+ eases to new values (same shape as theme); handle:Release(seconds) lets go early. ]]
 function Scope:Sky(theme:{[string]:any},fadeIn:number?,fadeOut:number?)
  local tracks={}
  local gives={}
@@ -114,7 +152,23 @@ function Scope:Sky(theme:{[string]:any},fadeIn:number?,fadeOut:number?)
  end
  local camera=workspace.CurrentCamera
  local grade,bloom
- local function apply(patch:{[string]:any})
+ -- Decided once: free of world events until this arrival ends (scope.EndsAt) and fades out.
+ local ends=self.EndsAt
+ local free=worldFree((type(ends)=='number'and math.max(ends-workspace:GetServerTimeNow(),0)or 20)+(fadeOut or 1.5))
+ local function apply(given:{[string]:any})
+  local patch=given
+  if not free and(given.Lighting or given.Atmosphere or given.Clouds or given.Sky)then
+   patch={Grade=given.Grade,Bloom=given.Bloom}
+   local extra=fallbackGrade(given)
+   if extra then
+    local merged=table.clone(patch.Grade or {})
+    for k,v in pairs(extra)do
+     if k=='Brightness'then merged.Brightness=(merged.Brightness or 0)+v
+     elseif merged[k]==nil then merged[k]=v end
+    end
+    patch.Grade=merged
+   end
+  end
   if patch.Lighting then hold(Lighting,patch.Lighting)end
   if patch.Atmosphere then
    local o,give=borrow('Atmosphere',Lighting,{Density=0,Offset=0,Glare=0,Haze=0})
@@ -242,9 +296,11 @@ K.Bounds=bounds
  A colossal copy of a dog over the island, seen from every yard (a local clone of
  ReplicatedStorage.MenuModels, so it does not depend on what is streamed in).
   DogId   the dog (default options.Ctx.DogId)       Ctx   the arrival ctx (for DogId/Origin)
-  Height  studs tall (default 160)
-  At      CFrame of its visual centre (default: K.Map.Sky above K.Map.Center, facing Face)
-  Face    Vector3 it turns toward (default the arrival's Origin); Tilt radians it leans down
+  Height  studs tall (default 160; 180-260 reads best in the sky)
+  At      CFrame of its visual centre, fixed in the world. Default: in each player's own sky,
+          Distance (480) studs beyond the venue as they see it, Elevation (14) degrees up,
+          facing them (a fixed spot over the island is out of every player's shot)
+  Face    the venue it hangs beyond (default the arrival's Origin); Tilt radians it leans down
   Style   'Solid' | 'Ghost' (glowing, see-through) | 'Silhouette' (black) | 'Hologram'
   Color   colour for Ghost / Silhouette / Hologram;  Alpha see-through 0..1
   Clip    a clip of DogAnimationClips/<DogId> to play (looped unless Once=true), Speed
@@ -284,13 +340,29 @@ function Scope:Colossus(options:{[string]:any})
  end
  local face=options.Face or ctx and ctx.Origin or K.Map.Mouth
  local function place(at:CFrame)model:PivotTo(at*CFrame.new(-centre))end
- local at=options.At
- if not at then
-  local p=K.Map.Center+Vector3.new(0,K.Map.Sky,0)
-  local flat=Vector3.new(face.X-p.X,0,face.Z-p.Z)
-  at=CFrame.lookAt(p,p+(flat.Magnitude>1 and flat.Unit or Vector3.new(0,0,-1)))*CFrame.Angles(-(options.Tilt or 0),0,0)
+ -- Where it hangs: a fixed CFrame (options.At), or by default in this player's own sky
+ -- beyond the venue: Distance studs out along the bearing from the camera to Face, its
+ -- centre Elevation degrees up, facing back at them, so it is on screen whenever they
+ -- look toward the arrival (a camera only sees ~15-20 degrees above the horizon, so
+ -- anything hung over the island itself is out of shot).
+ local fixed=options.At~=nil
+ local distance=options.Distance or 480
+ local elevation=math.rad(options.Elevation or 14)
+ local bearing:Vector3?=nil
+ local function skyFrame(dt:number):CFrame
+  local cam=workspace.CurrentCamera
+  local eye=cam and cam.CFrame.Position or K.Map.Center
+  local flat=Vector3.new(face.X-eye.X,0,face.Z-eye.Z)
+  local want=flat.Magnitude>24 and flat.Unit or bearing or(cam and Vector3.new(cam.CFrame.LookVector.X,0,cam.CFrame.LookVector.Z))
+  if not want or want.Magnitude<1e-3 then want=Vector3.new(0,0,-1)end
+  want=want.Unit
+  -- Swings round slowly when the player walks round the venue, and never flips.
+  bearing=bearing and bearing:Lerp(want,math.min(1,dt*1.5))or want
+  local dir=(bearing::Vector3).Magnitude>1e-3 and(bearing::Vector3).Unit or want
+  local p=eye+dir*distance*math.cos(elevation)+Vector3.new(0,distance*math.sin(elevation),0)
+  return CFrame.lookAt(p,p-dir)*CFrame.Angles(-(options.Tilt or 0),0,0)
  end
- local current:CFrame=at
+ local current:CFrame=fixed and options.At or skyFrame(1)
  local rise=options.Rise or 0
  place(current-Vector3.new(0,rise,0))
  model.Name='Colossus_'..dogId
@@ -311,12 +383,13 @@ function Scope:Colossus(options:{[string]:any})
  end
  local stopping=false
  local connection
- connection=Run.RenderStepped:Connect(function()
+ connection=Run.RenderStepped:Connect(function(dt)
   if not model.Parent then connection:Disconnect();return end
   local now=os.clock()
   local f=fadeSeconds>0 and smooth((now-fadeStart)/fadeSeconds)or 1
   applyAlpha(fadeFrom+(fadeTo-fadeFrom)*f)
-  if moveSeconds>0 then
+  if not fixed then current=skyFrame(dt)
+  elseif moveSeconds>0 then
    local m=smooth((now-moveStart)/moveSeconds)
    current=moveFrom:Lerp(moveTo,m)
   end
@@ -327,7 +400,9 @@ function Scope:Colossus(options:{[string]:any})
   if stopping and f>=1 then connection:Disconnect();model:Destroy()end
  end)
  function handle:Center():Vector3 return current.Position end
+ -- Pins it to a world CFrame (gliding there over `seconds`), leaving the sky placement.
  function handle:Pose(cf:CFrame,seconds:number?)
+  fixed=true
   moveFrom,moveTo,moveStart,moveSeconds=current,cf,os.clock(),seconds or 0
   if (seconds or 0)<=0 then current=cf;moveSeconds=0 end
  end
@@ -349,23 +424,46 @@ function Scope:Colossus(options:{[string]:any})
 end
 
 ---------------------------------------------------------------- cutaway
-local function menuOpen():boolean
+local CAS=game:GetService('ContextActionService')
+-- A fresh character's camera belongs to WelcomeArrival for a few seconds.
+local spawnedAt=player.Character and -math.huge or os.clock()
+player.CharacterAdded:Connect(function()spawnedAt=os.clock()end)
+local function mainGui():Instance?
  local gui=player:FindFirstChild('PlayerGui')
- local main=gui and gui:FindFirstChild('ScreenGui')
- return main~=nil and main:GetAttribute('OpenMenu')~=nil
+ return gui and gui:FindFirstChild('ScreenGui')
+end
+-- Someone else owns this player's camera or attention: a scripted camera (DOG-O-MATIC, the
+-- lab, events, WelcomeArrival), an FOV zoom, an open menu, a dead or brand-new character.
+local function busyMenu(main:Instance):boolean
+ return main:GetAttribute('OpenMenu')~=nil or(main:GetAttribute('ModalOwnerCount')or 0)>0
+  or main:GetAttribute('RewardMachineWorldOpen')==true
+end
+local function busy(camera:Camera):boolean
+ if camera.CameraType~=Enum.CameraType.Custom then return true end
+ if camera:GetAttribute('DiscoveryZoom')~=nil or camera:GetAttribute('SecretCutaway')~=nil then return true end
+ -- An arrival's own FOV punch (SecretPunch) gives way; anyone else's zoom does not.
+ if camera:GetAttribute('SecretZoom')~=nil and camera:GetAttribute('SecretPunch')~=true then return true end
+ local main=mainGui()
+ if main and busyMenu(main)then return true end
+ if workspace:FindFirstChild('LocalGeneticsFX')then return true end
+ local character=player.Character
+ local humanoid=character and character:FindFirstChildOfClass('Humanoid')
+ if not humanoid or humanoid.Health<=0 then return true end
+ return os.clock()-spawnedAt<5
 end
 --[[ scope:Cutaway(ctx, shots, options) → handle | nil
  For the arrival's big moment every player's camera leaves them and comes back. shots are
  camera keyframes on the arrival clock: {At=seconds, CFrame=camera, Fov=degrees?, Cut=true
  (jump to it instead of gliding), Linear=true (no easing into it)}. Build CFrames with
  K.Frame(position, lookAt) or K.Orbit(centre, radius, height, angle). The camera glides
- between them and is handed back (with a short dip to black) after the last one.
+ between them and is handed back (with a short dip to black) after the last one; the
+ character stands still meanwhile.
  options: Focus (Vector3 to stream in first; default ctx.Origin), Bars (letterbox fraction,
   default .09), Shake (handheld wobble 0..1, default .12).
- Nobody is pulled away when ReducedMotion is on, SecretArrivalConfig.Cutaway is false,
- another script owns the camera (Scriptable, SecretZoom, DiscoveryZoom, SecretCutaway), a
- menu is open, or the client arrives too late; it returns nil then (or a handle whose
- Active stays false). handle:Shake(power, seconds), handle:Stop(). ]]
+ Nobody is pulled away when ReducedMotion is on, SecretArrivalConfig.Cutaway is false, the
+ camera is busy (see busy above) or the client arrives too late; it gives up the moment the
+ player dies, opens a menu or another script takes the camera. Returns nil when skipped up
+ front, else a handle (Active, Shake(power, seconds), Stop()). ]]
 function Scope:Cutaway(ctx:any,shots:{{[string]:any}},given:{[string]:any}?)
  local options:{[string]:any}=given or {}
  if #shots==0 or Config.Cutaway==false or K.ReducedMotion()then return nil end
@@ -381,14 +479,11 @@ function Scope:Cutaway(ctx:any,shots:{{[string]:any}},given:{[string]:any}?)
  end
  local handle={Active=false}
  local name='DOGROTS_SecretCutaway_'..string.sub(tostring(handle),-8)
- local saved
+ local saved:any=nil
  local bars={}
+ local watches:{RBXScriptConnection}={}
  local shakeUntil,shakePower=0,0
  local base=options.Shake or .12
- local function busy():boolean
-  return camera.CameraType==Enum.CameraType.Scriptable or camera:GetAttribute('SecretZoom')~=nil
-   or camera:GetAttribute('DiscoveryZoom')~=nil or camera:GetAttribute('SecretCutaway')~=nil or menuOpen()
- end
  local function sample(t:number):(CFrame,number)
   local fov0=saved and saved.Fov or 70
   if t<=first.At or #list==1 then return first.CFrame,first.Fov or fov0 end
@@ -407,15 +502,23 @@ function Scope:Cutaway(ctx:any,shots:{{[string]:any}},given:{[string]:any}?)
   if not handle.Active then return end
   handle.Active=false
   Run:UnbindFromRenderStep(name)
-  if camera:GetAttribute('SecretCutaway')==name then camera:SetAttribute('SecretCutaway',nil)end
-  if restore and camera.CameraType==Enum.CameraType.Scriptable then
+  CAS:UnbindAction(name)
+  for _,c in ipairs(watches)do c:Disconnect()end
+  table.clear(watches)
+  local ours=camera:GetAttribute('SecretCutaway')==name
+  if ours then camera:SetAttribute('SecretCutaway',nil);camera:SetAttribute('SecretZoom',nil)end
+  if restore and ours and camera.CameraType==Enum.CameraType.Scriptable then
    local character=player.Character
    local humanoid=character and character:FindFirstChildOfClass('Humanoid')
+   local root=character and character:FindFirstChild('HumanoidRootPart')
+   local moved=(root and root:IsA('BasePart')and saved.Root)and root.Position-saved.Root or Vector3.zero
+   camera.FieldOfView=saved.Fov
+   camera.Focus=saved.Focus+moved
+   camera.CFrame=saved.CFrame+moved
    local subject=saved.Subject
    if not subject or not subject.Parent then subject=humanoid end
-   camera.CameraType=saved.Type
    if subject then camera.CameraSubject=subject end
-   camera.FieldOfView=saved.Fov
+   camera.CameraType=saved.Type
    K.Flash(Color3.new(0,0,0),.15,.45)
   end
   for _,b in ipairs(bars)do
@@ -424,12 +527,33 @@ function Scope:Cutaway(ctx:any,shots:{{[string]:any}},given:{[string]:any}?)
   table.clear(bars)
  end
  local function begin()
-  if busy()then return end
-  saved={Type=camera.CameraType,Subject=camera.CameraSubject,Fov=camera.FieldOfView}
-  if saved.Type==Enum.CameraType.Scriptable then return end
+  if busy(camera)then return end
+  local character=player.Character
+  local humanoid=character and character:FindFirstChildOfClass('Humanoid')
+  local root=character and character:FindFirstChild('HumanoidRootPart')
+  local trueFov=camera:GetAttribute('SecretPunch')and camera:GetAttribute('SecretZoom')
+  saved={Type=camera.CameraType,Subject=camera.CameraSubject,Fov=type(trueFov)=='number'and trueFov or camera.FieldOfView,
+   CFrame=camera.CFrame,Focus=camera.Focus,
+   Root=root and root:IsA('BasePart')and root.Position or nil}
   camera:SetAttribute('SecretCutaway',name)
+  -- Other FOV owners save this instead of whatever the cutaway shows.
+  camera:SetAttribute('SecretZoom',saved.Fov)
   camera.CameraType=Enum.CameraType.Scriptable
   handle.Active=true
+  CAS:BindActionAtPriority(name,function()return Enum.ContextActionResult.Sink end,false,3001,
+   Enum.PlayerActions.CharacterForward,Enum.PlayerActions.CharacterBackward,Enum.PlayerActions.CharacterLeft,
+   Enum.PlayerActions.CharacterRight,Enum.PlayerActions.CharacterJump)
+  -- Give up the moment the player is needed elsewhere.
+  if humanoid then table.insert(watches,humanoid.Died:Connect(function()finish(true)end))end
+  if character then
+   table.insert(watches,character.AncestryChanged:Connect(function(_,parent)if not parent then finish(true)end end))
+  end
+  local main=mainGui()
+  if main then
+   for _,key in ipairs({'OpenMenu','ModalOwnerCount','RewardMachineWorldOpen'})do
+    table.insert(watches,main:GetAttributeChangedSignal(key):Connect(function()if busyMenu(main)then finish(true)end end))
+   end
+  end
   K.Flash(Color3.new(0,0,0),.2,.35)
   local fraction=options.Bars or .09
   for i,anchor in ipairs({0,1})do
@@ -439,7 +563,8 @@ function Scope:Cutaway(ctx:any,shots:{{[string]:any}},given:{[string]:any}?)
    K.Tween(b,.45,{Size=UDim2.fromScale(1,i==1 and fraction or fraction*.6)})
    bars[i]=b
   end
-  Run:BindToRenderStep(name,Enum.RenderPriority.Camera.Value+2,function()
+  -- After every other camera writer (WelcomeArrival, the DOG-O-MATIC, shakes: +1..+4).
+  Run:BindToRenderStep(name,Enum.RenderPriority.Camera.Value+6,function()
    if camera.CameraType~=Enum.CameraType.Scriptable or camera:GetAttribute('SecretCutaway')~=name then
     finish(false);return
    end
@@ -452,7 +577,7 @@ function Scope:Cutaway(ctx:any,shots:{{[string]:any}},given:{[string]:any}?)
     cf*=CFrame.Angles(math.noise(now*1.7,3)*g*.035,math.noise(now*1.3,7)*g*.035,math.noise(now*9,11)*g*.02)
    end
    camera.CFrame=cf;camera.FieldOfView=fov
-   camera.Focus=CFrame.new(typeof(focus)=='Vector3'and focus or (cf*CFrame.new(0,0,-40)).Position)
+   camera.Focus=CFrame.new(typeof(focus)=='Vector3'and focus or(cf*CFrame.new(0,0,-40)).Position)
   end)
  end
  function handle:Shake(power:number,seconds:number)

@@ -1,16 +1,55 @@
--- SPIDERDOG: "IT CAME FROM THE ROOF". The lights in the mouth die. Eight orange eyes open
--- up in the roof and a web is shot across the tunnel, strand by strand. The dog drops in
--- upside down on a silk line, legs scuttling, and creeps down, swinging. The line snaps:
--- it flips, lands, the web tears down behind it, and its eight legs dig, each kick
--- lighting one of the mouth's eight runes. Off the tongue the web is a tent over the pad,
--- the eyes open in a knot of shadow at its top and the legs light eight stakes round it.
+-- SPIDERDOG: "IT CAME FROM THE ROOF". First the whole island: the sun drops out of the sky
+-- into an orange night and every light in the district dies with a crackle. A colossal web
+-- is shot across the sky, strand by strand from every horizon to a hub high over the island,
+-- and spun round, outside in, while little Spiderdogs drop on silk threads all around every
+-- player (out of the ceiling, indoors) and hang there upside down, turning. Eight colossal
+-- orange eyes open at the hub, every dog on the island looks up, and a giant Spiderdog
+-- takes shape round them, crawls down the web toward the stage (the strand shivers under
+-- it), lowers itself on a silk line and drops into the roof; the dogs cower. Every camera
+-- follows it in (the cutaway) for the stage act: the mouth is already dark. Eight orange
+-- eyes open up in the roof and a web is shot across the tunnel, strand by strand. The dog
+-- drops in upside down on a silk line, legs scuttling, and creeps down, swinging. The line
+-- snaps: it flips, lands, the web tears down behind it, and its eight legs dig, each kick
+-- lighting one of the mouth's eight runes. On the landing a shockwave rolls across the
+-- island, the sky web falls, the little ones climb away, the lights come back on and the
+-- night lifts. Off the tongue the giant drops onto the pad instead of the giant head's roof,
+-- the web is a tent over the pad, the eyes open in a knot of shadow at its top and the legs
+-- light eight stakes round it.
 local SoundService=game:GetService('SoundService')
 local Players=game:GetService('Players')
+local TweenService=game:GetService('TweenService')
 local C=Color3.fromRGB
 local SILK,EMBER,DIRT,CLOD,DUST,DARK=C(240,240,240),C(255,214,170),C(120,85,50),C(78,54,32),C(150,128,104),C(26,16,12)
 local TICK='rbxasset://sounds/volume_slider.ogg'
--- Server seconds: the drop onto the silk, the snap, the landing, the first dig.
-local DROP,SNAP,LAND,DIG=.7,2.5,2.85,2.9
+-- Map-wide beats on the arrival clock (server seconds): the lights die, the first strand
+-- flies, the spiral is spun, the little ones start dropping, the giant's eyes open, it takes
+-- shape, crawls, lowers itself on its silk, lets go, and is gone into the roof; every camera
+-- is pulled in at CUT.
+local OUT,SPIN,SPIRAL,BROOD,OPEN,REVEAL,CRAWL,LOWER,FALL,GONE,CUT=.9,1.1,3.2,2,4.2,4.9,5.3,7.9,8.4,9,7.1
+-- The stage act runs on its own clock, STAGE seconds into the arrival (the config's Clips and
+-- last whisper are shifted the same way): the drop onto the silk, the snap, the landing, the
+-- first dig, and the end of its digging.
+local STAGE=9.2
+local DROP,SNAP,LAND,DIG,DUG=.7,2.5,2.85,2.9,6.2
+-- The giant: studs tall, and how far it lowers itself on its silk before it lets go.
+local GIANT,LOWERING=95,22
+-- Its eight eyes: the big pair on its own (bones Eye_L/Eye_R), three pairs up its forehead;
+-- {across, up, diameter} in eye spacings from between its eyes.
+local GIANT_EYES={{-.5,0,.52},{.5,0,.52},{-.3,.42,.3},{.3,.42,.3},{-.95,.3,.26},{.95,.3,.26},{-.62,.68,.22},{.62,.68,.22}}
+-- The sky web: how far out its strands reach (flat studs from the hub), and where the spiral
+-- crosses them (fractions of the way out; a third as much web on Low).
+local REACH=950
+local LAPS,LAPS_LOW={.84,.69,.54,.4,.27},{.68,.38}
+-- The night the sun drops into (the grade and bloom are camera effects only this client sees).
+local NIGHT={
+ Lighting={ClockTime=.3,Brightness=.9,ExposureCompensation=-.12,Ambient=C(44,28,20),OutdoorAmbient=C(96,56,32),
+  ColorShift_Top=C(255,140,60),EnvironmentDiffuseScale=.25,EnvironmentSpecularScale=.15},
+ Atmosphere={Density=.27,Offset=.12,Color=C(160,82,38),Decay=C(54,22,10),Glare=0,Haze=1.6},
+ Clouds={Cover=.5,Density=.42,Color=C(70,40,26)},
+ Sky={MoonAngularSize=18},
+ Grade={TintColor=C(255,206,168),Saturation=-.16,Contrast=.16,Brightness=-.02},
+ Bloom={Intensity=.36,Size=28,Threshold=1.05},
+}
 -- An attachment whose X axis points down: CurveSize0=s with CurveSize1=-s makes a beam sag.
 local DOWN=CFrame.Angles(0,0,-math.pi/2)
 local FLAT=CFrame.Angles(0,0,math.pi/2)
@@ -37,6 +76,9 @@ return function(ctx)
  local up=Vector3.yAxis
  local fresh=ctx.Late<.3
  local venue=ctx.Venue or 'Tongue'
+ -- The stage act's clock (0 is STAGE seconds into the arrival) and a wait on it.
+ local function clock()return ctx:Elapsed()-STAGE end
+ local function waitStage(t:number)return ctx:Wait(STAGE+t)end
  -- Its rotation on the stage: the hang is posed in this frame. On the tongue it faces +Z;
  -- off it, the opener, known only once its root streams in. Until then this client's
  -- camera stands in, and `placers` re-lay what was laid out by it.
@@ -71,9 +113,12 @@ return function(ctx)
   local hit=workspace:Raycast(p+up*3,-up*6,params)
   return hit and Vector3.new(p.X,hit.Position.Y,p.Z)or p
  end
- -- Was this beat on time? (late joiners get the state, not the fanfare)
- local function live(t,slack:number?)return ctx:Elapsed()-t<(slack or .35)end
+ -- Was this beat on time? (late joiners get the state, not the fanfare) live() is on the
+ -- stage clock, due() on the arrival's.
+ local function live(t,slack:number?)return clock()-t<(slack or .35)end
+ local function due(t,slack:number?)return ctx:Elapsed()-t<(slack or .35)end
  local function near()return Kit.Near(origin,120)end
+ -- A tick: pitched, reverberant, a thud with `thud`; 3D on `parent`, else every player hears it.
  local function pip(speed:number,volume:number,parent:Instance?,thud:boolean?)
   if not scope.Alive then return end
   local s=Instance.new('Sound');s.SoundId=TICK;s.Volume=volume;s.PlaybackSpeed=speed
@@ -150,10 +195,346 @@ return function(ctx)
  local cut=(base*pose(SNAP)):PointToWorldSpace(BELLY)
  table.insert(placers,function()cut=(base*pose(SNAP)):PointToWorldSpace(BELLY)end)
 
- -- 0: the mouth goes dark. The runes wait for the legs; the lamps come back on the landing.
- scope:Duck(.35,.6)
- scope:Drone('Drone',low and .16 or .24,.5,fresh and 1.2 or .3)
- local grade=scope:Grade({Brightness=-.1,Contrast=.12,Saturation=-.3,TintColor=C(226,232,255)},fresh and .7 or .2)
+ ---------------------------------------------------------------- the island
+ local MAP=Kit.Map
+ local island=MAP.Center
+ -- Where the giant goes in: the giant head's roof just behind the mouth (~86 high there),
+ -- else straight down onto the stage.
+ local nest=roofed and Vector3.new(origin.X,86,origin.Z)-fwd*40 or origin+up*20
+ -- The web's hub, high over the island, 180-220 studs back from the nest on the line from
+ -- the island's centre: the giant always has a long way to crawl, down the first strand.
+ local flatNest=Vector3.new(nest.X,island.Y,nest.Z)
+ local away=flatNest-island
+ local dir=away.Magnitude>1 and away.Unit or Vector3.new(0,0,-1)
+ local span=math.clamp(away.Magnitude,180,220)
+ local apex=flatNest-dir*span+up*(MAP.Sky*1.75)
+ -- The strands' far ends on the horizon all round, the first one out beyond the nest. The
+ -- jitter is seeded by the arrival, so every client spins the same web.
+ local N=low and 8 or 12
+ local laps=low and LAPS_LOW or LAPS
+ local seeded=Random.new(math.floor(ctx.Start*10)%1000003)
+ local horizon:{Vector3}={}
+ for i=1,N do
+  local a=(i-1)/N*math.pi*2
+  if i~=1 and i~=N/2+1 then a+=seeded:NextNumber(-.14,.14)end
+  horizon[i]=Vector3.new(apex.X,island.Y+4,apex.Z)+CFrame.Angles(0,a,0):VectorToWorldSpace(dir)*REACH
+ end
+ -- The first strand, `r` flat studs out from the hub.
+ local slope=(horizon[1]-apex).Unit
+ local function strand(r:number):Vector3 return apex+(horizon[1]-apex)*(r/REACH)end
+ local HALF=GIANT/2
+ local perch=strand(span)
+ -- After lowering itself it falls until its back is deep in the roof (or ~30 over the pad).
+ local falling=math.max(20,perch.Y-GIANT-LOWERING-(roofed and nest.Y-30 or origin.Y+30))
+ -- The giant at time e (its centre, upside down under the strand, facing down it) and how
+ -- see-through it is.
+ local function giantAt(e:number):(CFrame,number)
+  local r=span*sine((e-CRAWL)/(LOWER-CRAWL))
+  local drop,alpha=0,0
+  if e>=FALL then
+   local x=math.min((e-FALL)/(GONE-FALL),1)
+   drop=LOWERING+falling*x*x;alpha=smooth((x-.3)/.7)
+  elseif e>=LOWER then drop=LOWERING*sine((e-LOWER)/(FALL-LOWER))end
+  local centre=strand(r)-up*(HALF+drop)
+  return CFrame.lookAt(centre,centre+slope,-up),alpha
+ end
+
+ -- 0: the island goes dark. The sun drops out of the sky; the music sinks under a slowed drone.
+ scope:Duck(.25,1)
+ scope:Drone('Drone',low and .2 or .3,.45,fresh and 1.5 or .4)
+ local sky=scope:Sky(NIGHT,fresh and 2.6 or .6,2)
+ if due(0)then Kit.Cue('Whoosh',nil,.45)end
+ local film,glance,wisps,blackout=nil,nil,nil,nil
+ -- What every dog on the island looks at: the giant's eyes.
+ local gaze=apex-up*60
+
+ -- Plays a tween as if it began at `at` on the arrival clock (a late client jumps ahead).
+ local function cue(o:Instance,at:number,seconds:number,props:{[string]:any},style:Enum.EasingStyle?)
+  local e=ctx:Elapsed()
+  if e>=at+seconds then for k,v in pairs(props)do (o::any)[k]=v end;return end
+  TweenService:Create(o,TweenInfo.new(math.min(seconds,at+seconds-e),style or Enum.EasingStyle.Quad,Enum.EasingDirection.Out,
+   0,false,math.max(at-e,0)),props):Play()
+ end
+ -- The sky web: every end an Attachment on one anchor at the hub, moved by tweens (nothing
+ -- runs per frame). Radial strands fly up from the horizon one after another round the
+ -- compass; then the spiral is laid strand to strand, round and round, outside in.
+ local canopy:BasePart?=nil
+ local rays:{[number]:any},spun:{Beam}={},{}
+ local function weave()
+  local web=scope:Anchor(apex,'SkyWeb')
+  canopy=web
+  local function fix(p:Vector3):Attachment
+   local a=Instance.new('Attachment');a.CFrame=CFrame.new(p-apex)*DOWN;a.Parent=web
+   return a
+  end
+  local step=N==12 and 5 or 3
+  for k=0,N-1 do
+   local i=k*step%N+1
+   local far,tip=fix(horizon[i]),fix(horizon[i])
+   rays[i]={Tip=tip,Beam=scope:Beam(far,tip,SILK,1.8,{Width0=5.5,Width1=1.8,Transparency=NumberSequence.new(.35),LightEmission=.8,Segments=2})}
+   cue(tip,SPIN+k*.17,.45,{Position=Vector3.zero})
+  end
+  for k,u in ipairs(laps)do
+   for j=1,N do
+    local a,b=apex+(horizon[j]-apex)*u,apex+(horizon[j%N+1]-apex)*u
+    local to=fix(a)
+    local sag=(b-a).Magnitude*.05
+    local beam=scope:Beam(fix(a),to,SILK,1+u*4,{Transparency=NumberSequence.new(.45),LightEmission=.8,Segments=6})
+    local at=SPIRAL+(k-1)*.16+(j-1)*.5/N
+    cue(to,at,.75/N,{Position=b-apex},Enum.EasingStyle.Linear)
+    cue(beam,at,.75/N,{CurveSize0=sag,CurveSize1=-sag},Enum.EasingStyle.Linear)
+    table.insert(spun,beam)
+   end
+  end
+ end
+ -- The landing: the sky web falls. The spiral lets go first, then every strand's hub end
+ -- drops through the island and the strand fades.
+ local function tearDown()
+  local web=canopy
+  if not web then return end
+  canopy=nil
+  for _,beam in ipairs(spun)do Kit.Tween(beam,.5,{Width0=0,Width1=0})end
+  for i,ray in pairs(rays)do
+   local under=apex+(horizon[i]-apex)*.3
+   TweenService:Create(ray.Tip,TweenInfo.new(1.6,Enum.EasingStyle.Quad,Enum.EasingDirection.In,0,false,(i-1)*.03),
+    {Position=Vector3.new(under.X,island.Y-40,under.Z)-apex}):Play()
+   TweenService:Create(ray.Beam,TweenInfo.new(1.7,Enum.EasingStyle.Quad,Enum.EasingDirection.In,0,false,.1),{Width0=0,Width1=0}):Play()
+  end
+  task.delay(2.2,function()
+   if not scope.Alive then return end
+   web:Destroy()
+   for _,ray in pairs(rays)do ray.Beam:Destroy()end
+   for _,beam in ipairs(spun)do beam:Destroy()end
+  end)
+ end
+
+ -- Little Spiderdogs on silk threads round this player. One copy is shrunk once and cloned;
+ -- its parts are welded to its root, so a single tween moves each one (no per-frame work).
+ local brood:Model?,broodRel,broodBelly=nil,CFrame.identity,Vector3.zero
+ local hatched=false
+ local mites:{any}={}
+ local function hatch():Model?
+  if hatched then return brood end
+  hatched=true
+  local copy=Kit.DogCopy(ctx.DogId)
+  local root=copy and copy.PrimaryPart
+  if not(copy and root)then return nil end
+  local _,raw=Kit.Bounds(copy)
+  pcall(function()copy:ScaleTo(copy:GetScale()*2.4/math.max(raw.Y,.1))end)
+  local centre,box=Kit.Bounds(copy)
+  local pivot=copy:GetPivot()
+  broodRel=(pivot*CFrame.new(centre)):ToObjectSpace(root.CFrame)
+  broodBelly=root.CFrame:PointToObjectSpace(pivot:PointToWorldSpace(centre-Vector3.new(0,box.Y*.14,0)))
+  -- Two glowing eyes on its own (the bones' rest pose).
+  for _,name in ipairs({'Eye_L','Eye_R'})do
+   local bone=copy:FindFirstChild(name,true)
+   if bone and bone:IsA('Bone')then
+    local cf,parent=bone.CFrame,bone.Parent
+    while parent and parent:IsA('Bone')do cf=parent.CFrame*cf;parent=parent.Parent end
+    if parent and parent:IsA('BasePart')then
+     scope:Part({Name='Eye',Shape=Enum.PartType.Ball,Color=ORANGE,Size=Vector3.one*.3,Massless=true,
+      CFrame=CFrame.new((parent.CFrame*cf).Position+pivot.LookVector*.06),Parent=copy})
+    end
+   end
+  end
+  for _,p in ipairs(copy:GetDescendants())do
+   if p:IsA('BasePart')and p~=root then
+    local w=Instance.new('WeldConstraint');w.Part0=root;w.Part1=p;w.Parent=p
+    p.Anchored=false
+   end
+  end
+  root.Anchored=true
+  brood=copy;scope:Add(function()copy:Destroy()end)
+  return copy
+ end
+ local probe:RaycastParams?
+ -- One drops: the first right in the middle of this player's view (between the camera and
+ -- them), the rest within 40 studs ahead of them; from the ceiling if there is one, else
+ -- out of the dark.
+ local function drop(first:boolean)
+  local camera=workspace.CurrentCamera
+  local template=hatch()
+  if not camera or not template then return end
+  if not probe then
+   local skip:{any}={model,scope.Folder}
+   for _,player in ipairs(Players:GetPlayers())do if player.Character then table.insert(skip,player.Character)end end
+   local made=RaycastParams.new();made.FilterType=Enum.RaycastFilterType.Exclude;made.RespectCanCollide=true
+   made.FilterDescendantsInstances=skip;probe=made
+  end
+  local eye=camera.CFrame.Position
+  local me=Kit.Me()
+  local look=Vector3.new(camera.CFrame.LookVector.X,0,camera.CFrame.LookVector.Z)
+  look=look.Magnitude>.05 and look.Unit or Vector3.zAxis
+  local at=first and eye+camera.CFrame.LookVector*math.clamp((me-eye).Magnitude*.45,5,9)
+   or me+CFrame.Angles(0,Kit.Random(-1.1,1.1),0):VectorToWorldSpace(look)*Kit.Random(9,40)
+  local floor=workspace:Raycast(Vector3.new(at.X,math.max(me.Y,at.Y)+6,at.Z),Vector3.new(0,-80,0),probe)
+  if not floor then return end
+  local ground=floor.Position
+  local hang=first and Vector3.new(at.X,math.max(at.Y,ground.Y+2.5),at.Z)or ground+up*Kit.Random(4.5,8)
+  local ceiling=workspace:Raycast(hang,up*34,probe)
+  local top=ceiling and ceiling.Position-up*.4 or hang+up*Kit.Random(26,34)
+  -- Upside down, facing this player.
+  local face=Vector3.new(eye.X,hang.Y,eye.Z)
+  local hung=((face-hang).Magnitude>.1 and CFrame.lookAt(hang,face)or CFrame.new(hang))*CFrame.Angles(0,0,math.pi)
+  local mite=template:Clone()
+  local root=mite.PrimaryPart
+  if not root then mite:Destroy();return end
+  -- Its welds hold only in the workspace: parent it first, then move its root (in the same
+  -- frame, so it is never drawn where the template was).
+  mite.Parent=scope.Folder
+  root.CFrame=(hung-hang+top)*broodRel
+  local tip=Instance.new('Attachment');tip.Position=broodBelly;tip.Parent=root
+  local anchor=scope:Anchor(top,'Thread')
+  local hook=Instance.new('Attachment');hook.Parent=anchor
+  local entry:any={Model=mite,Root=root,Top=top,Anchor=anchor,Thread=scope:Beam(hook,tip,SILK,.07,{Transparency=NumberSequence.new(.2),LightEmission=.6,Segments=1})}
+  table.insert(mites,entry)
+  local fall=TweenService:Create(root,TweenInfo.new(1.1,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{CFrame=hung*broodRel})
+  -- Then it turns slowly on its thread.
+  fall.Completed:Connect(function(state)
+   if state~=Enum.PlaybackState.Completed or entry.Fled or not root.Parent then return end
+   local turn=Kit.Random(.5,.9)*(math.random()<.5 and -1 or 1)
+   entry.Turn=TweenService:Create(root,TweenInfo.new(Kit.Random(1.4,2.2),Enum.EasingStyle.Sine,Enum.EasingDirection.InOut,-1,true),
+    {CFrame=hung*CFrame.Angles(0,turn,0)*broodRel})
+   entry.Turn:Play()
+  end)
+  fall:Play()
+  pip(Kit.Random(2.2,3),.1,root)
+ end
+ -- The landing: they all climb back up their threads, into the dark.
+ local function scatter()
+  for _,m in ipairs(mites)do
+   if not m.Fled and m.Root.Parent then
+    m.Fled=true
+    if m.Turn then m.Turn:Cancel()end
+    local held=m.Root.CFrame*broodRel:Inverse()
+    TweenService:Create(m.Root,TweenInfo.new(Kit.Random(.45,.7),Enum.EasingStyle.Quad,Enum.EasingDirection.In),
+     {CFrame=(held-held.Position+m.Top)*broodRel}):Play()
+   end
+  end
+  task.delay(.8,function()
+   if not scope.Alive then return end
+   for _,m in ipairs(mites)do m.Model:Destroy();m.Anchor:Destroy();m.Thread:Destroy()end
+   table.clear(mites)
+  end)
+ end
+
+ -- The giant (a colossal local copy), hidden until it takes shape round its eyes; one
+ -- stepper poses it on its strand, keeps its eight eyes on its face, and the silk it hangs
+ -- from on its belly. Without a copy its eyes crawl down the web alone.
+ local giant,aura:Highlight?=nil,nil
+ local function summon()
+  local start=giantAt(0)
+  giant=ctx:Colossus({Height=GIANT,At=start,Style='Solid',Clip='Run'})
+  local frame0,boneL,boneR=CFrame.identity,nil,nil
+  if giant then
+   giant:Fade(1,0)
+   frame0=start:ToObjectSpace(giant.Model:GetPivot())
+   local l,r=giant.Model:FindFirstChild('Eye_L',true),giant.Model:FindFirstChild('Eye_R',true)
+   if l and r and l:IsA('Bone')and r:IsA('Bone')then boneL,boneR=l,r end
+  end
+  local eyes:{BasePart},frames:{CFrame},shown:{number}={},{},{}
+  for i=1,#GIANT_EYES do
+   eyes[i]=scope:Part({Name='GiantEye',Shape=Enum.PartType.Ball,Color=i<=2 and EMBER or ORANGE,Size=Vector3.one*.05,Transparency=1,CFrame=start})
+   frames[i]=start;shown[i]=0
+  end
+  local top,belly=scope:Anchor(perch,'GiantSilk'),scope:Anchor(perch,'GiantSilkEnd')
+  local a0,a1=Instance.new('Attachment'),Instance.new('Attachment');a0.Parent=top;a1.Parent=belly
+  local line=scope:Beam(a0,a1,SILK,1,{Transparency=NumberSequence.new(1),LightEmission=.8,Segments=2})
+  local hanging,shivering=false,false
+  scope:Every(function()
+   local e=ctx:Elapsed()
+   if e<OPEN-.05 then return true end
+   local cf,alpha=giantAt(e)
+   if giant then
+    giant:Pose(cf)
+    if e>=FALL then giant:Fade(alpha,0)end
+   end
+   if aura and e>=FALL then aura.FillTransparency=.8+.2*alpha;aura.OutlineTransparency=.3+.7*alpha end
+   -- Its eyes: on its own eye bones (as they move this frame), else where they would be.
+   local look,crown=cf.LookVector,cf.UpVector
+   local mid,across
+   if giant and boneL and boneR and boneL.Parent and boneR.Parent then
+    local pivot,frame=giant.Model:GetPivot(),cf*frame0
+    local l,r=boneL.TransformedWorldCFrame.Position,boneR.TransformedWorldCFrame.Position
+    mid=frame:PointToWorldSpace(pivot:PointToObjectSpace((l+r)/2))
+    across=frame:VectorToWorldSpace(pivot:VectorToObjectSpace(r-l))
+   else
+    mid=cf.Position+look*(GIANT*.38)+crown*(GIANT*.23);across=cf.RightVector*(GIANT*.218)
+   end
+   local s=across.Magnitude
+   gaze=mid
+   local blink=(e>6.35 and e<6.47)and .12 or 1
+   for i=1,#GIANT_EYES do
+    local d=GIANT_EYES[i]
+    local want=d[3]*s*backOut(math.clamp((e-OPEN-math.floor((i-1)/2)*.1)/.22,0,1))*blink*(1-alpha)
+    if math.abs(want-shown[i])>.02 then
+     shown[i]=want
+     local p=eyes[i]
+     p.Size=Vector3.one*math.max(want,.05);p.Transparency=want>.1 and 0 or 1
+    end
+    frames[i]=CFrame.new(mid+across*d[1]+crown*(d[2]*s)+look*(.12*s))
+   end
+   workspace:BulkMoveTo(eyes,frames,Enum.BulkMoveMode.FireCFrameChanged)
+   -- The strand it crawls down shivers under it.
+   local ray=rays[1]
+   if ray then
+    if e>=CRAWL and e<LOWER then
+     local w=(calm and 2 or 5)*math.sin(e*14)
+     ray.Beam.CurveSize0=w;ray.Beam.CurveSize1=-w;shivering=true
+    elseif shivering then shivering=false;ray.Beam.CurveSize0=0;ray.Beam.CurveSize1=0 end
+   end
+   if e>=LOWER then
+    belly.CFrame=CFrame.new(cf.Position+up*(HALF-GIANT*.36))
+    if not hanging then hanging=true;line.Transparency=NumberSequence.new(.2)end
+   end
+   if e<GONE then return true end
+   -- Gone into the roof: its eyes go with it and the silk it hung from fades.
+   for _,p in ipairs(eyes)do p:Destroy()end
+   if giant then giant:Stop(.1)end
+   if aura then aura:Destroy()end
+   Kit.Tween(line,.9,{Width0=0,Width1=0})
+   return false
+  end)
+ end
+ local function reveal()
+  if giant then
+   giant:Fade(0,due(REVEAL,.3)and .9 or .2)
+   aura=scope:Highlight(giant.Model,ORANGE,EMBER,1,1)
+   if aura then Kit.Tween(aura,.9,{FillTransparency=.8,OutlineTransparency=.3})end
+  end
+  if due(REVEAL)then Kit.Cue('Whoosh',nil,.6);pip(.24,.45,nil,true)end
+ end
+ -- Every camera: wide on the giant crawling over the island, closer as it lowers itself, down
+ -- with it into the roof, then a cut into the stage for the drop, the snap and the landing.
+ local function shots()
+  local passing,hanging=giantAt(CUT+.4).Position,giantAt(LOWER+.3).Position
+  return {
+   {At=CUT,CFrame=Kit.Frame(nest+fwd*235+up*95+right*70,passing),Fov=70},
+   {At=LOWER+.3,CFrame=Kit.Frame(nest+fwd*150+up*120+right*40,hanging-up*10),Fov=66},
+   {At=GONE-.05,CFrame=Kit.Frame(nest+fwd*120+up*100+right*28,nest+up*10),Fov=60},
+   {At=GONE,CFrame=Kit.Frame(origin+fwd*26+up*6,R:Lerp(origin,.45)),Fov=64,Cut=true},
+   {At=STAGE+SNAP,CFrame=Kit.Frame(origin+fwd*20+up*5.5+right*1.5,origin+up*7),Fov=58},
+   {At=STAGE+LAND+.6,CFrame=Kit.Frame(origin+fwd*24+up*6.5,origin+up*3.5),Fov=62},
+  }
+ end
+ -- The landing's shockwave rolls out across the whole island and shakes each player as it
+ -- passes them.
+ local function shockwave()
+  local at=Vector3.new(origin.X,island.Y+3,origin.Z)
+  local reach=MAP.Radius*1.3
+  scope:Ring(at,ORANGE,6,reach,2.4,{Thickness=3,Alpha=.2,Segments=48})
+  if not low then
+   task.delay(.15,function()if scope.Alive then scope:Ring(at+up*.8,SILK,4,reach*.9,2.2,{Thickness=1.4,Alpha=.4,Segments=40})end end)
+  end
+  local me=Kit.Me()
+  local d=Vector3.new(me.X-at.X,0,me.Z-at.Z).Magnitude
+  if d>24 and d<reach then
+   task.delay(2.4*(1-(1-(d-6)/(reach-6))^(1/3)),function()if scope.Alive then Kit.Shake(.22,.35)end end)
+  end
+ end
+
+ -- The mouth goes dark with the island (OUT). The runes wait for the legs; the lamps come
+ -- back on the landing.
  local saved,dark={},{}
  local function tint(o:Instance,props:{[string]:any})
   local before={}
@@ -172,32 +553,35 @@ return function(ctx)
   for k,v in pairs(props)do if typeof(v)=='EnumItem'then (o::any)[k]=v else eased[k]=v end end
   ease(o,seconds,eased)
  end
- local runes,lamps={},{}
+ local runes,lamps,dims={},{},{}
  if venue=='Tongue'then
   local district=workspace:FindFirstChild('DOGROTS_District')
   local factory=district and district:FindFirstChild('02_DogFactory')
   local tunnel=factory and factory:FindFirstChild('DarkMouthTunnel')
   local line=district and district:FindFirstChild('03_DogLine')
   for _,o in ipairs(tunnel and tunnel:GetChildren()or {})do
-   if o.Name=='MouthRune'and o:IsA('BasePart')then tint(o,{Color=DARK});table.insert(runes,o)end
+   if o.Name=='MouthRune'and o:IsA('BasePart')then table.insert(dims,{o,{Color=DARK}});table.insert(runes,o)end
   end
   -- The light's Color only: WorldDetailQuality owns its Enabled, and the world-event
   -- lighting saves and restores its Brightness (it would keep our dimmed value).
   for _,lantern in ipairs(line and line:GetChildren()or {})do
    local lens=lantern.Name=='PromenadeLantern'and lantern:FindFirstChild('WarmLens')
    if lens and lens:IsA('BasePart')and (lens.Position-origin).Magnitude<26 then
-    tint(lens,{Color=C(48,34,26)});table.insert(lamps,{O=lens,At=lens.Position})
+    table.insert(dims,{lens,{Color=C(48,34,26)}});table.insert(lamps,{O=lens,At=lens.Position})
     for _,l in ipairs(lantern:GetDescendants())do
-     if l:IsA('PointLight')then tint(l,{Color=C(14,10,7)});table.insert(lamps,{O=l,At=lens.Position})end
+     if l:IsA('PointLight')then table.insert(dims,{l,{Color=C(14,10,7)}});table.insert(lamps,{O=l,At=lens.Position})end
     end
    end
   end
   local strip=line and line:FindFirstChild('Tongue')
   for _,g in ipairs(strip and strip:GetChildren()or {})do
    if g.Name=='WarmEdgeGuide'and g:IsA('BasePart')and math.abs((g.Position-origin):Dot(fwd))<30 then
-    tint(g,{Color=C(58,40,36),Material=Enum.Material.SmoothPlastic});table.insert(lamps,{O=g,At=g.Position})
+    table.insert(dims,{g,{Color=C(58,40,36),Material=Enum.Material.SmoothPlastic}});table.insert(lamps,{O=g,At=g.Position})
    end
   end
+ end
+ local function darken()
+  for _,d in ipairs(dims)do if d[1].Parent then tint(d[1],d[2])end end
  end
  -- In the open there are no runes: eight dark stakes ring the pad instead, half a step off
  -- its facing (none stands in front of whoever opened it), for the legs to light.
@@ -217,9 +601,9 @@ return function(ctx)
   place();table.insert(placers,place)
  end
 
- -- The web: radial strands shot from the roof point, then spiral threads between them.
+ -- The stage web: radial strands shot from the roof point, then spiral threads between them.
  -- Every end is an Attachment on one anchor, moved each frame while the web is alive.
- local webbed=ctx:Elapsed()<LAND+1.2
+ local webbed=clock()<LAND+1.2
  local hub=webbed and scope:Anchor(R,'Web')or nil
  local function pin(p:Vector3):Attachment
   local a=Instance.new('Attachment');a.CFrame=CFrame.new(p-R)*DOWN;a.Parent=hub
@@ -253,8 +637,9 @@ return function(ctx)
   local floorY=origin.Y+.1
   local settled=false
   scope:Every(function()
-   local e=ctx:Elapsed()
-   if settled and e<LAND then return true end
+   local e=clock()
+   -- Nothing to do until the first strand flies (the whole map-wide act before it).
+   if e<0 or settled and e<LAND then return true end
    for _,s in ipairs(strands)do
     local go=math.clamp((e-s.At)/.13,0,1)
     if go>0 and not s.Shot then
@@ -303,8 +688,8 @@ return function(ctx)
   end)
  end
 
- -- 0.2: something in the roof opens its eyes. They blink once and close as it drops.
- if ctx:Elapsed()<DROP+.2 then
+ -- Stage 0.2: something in the roof opens its eyes. They blink once and close as it drops.
+ if clock()<DROP+.2 then
   local eyes={}
   for i,d in ipairs(EYES)do
    local p=scope:Part({Name='Eye',Shape=Enum.PartType.Ball,Color=i<=2 and EMBER or ORANGE,Size=Vector3.one*.05,Transparency=1,
@@ -327,7 +712,8 @@ return function(ctx)
   end)
   local knotted=false
   scope:Every(function()
-   local e=ctx:Elapsed()
+   local e=clock()
+   if e<0 then return true end
    local close=1-math.clamp((e-DROP)/.12,0,1)
    local blink=(e>.56 and e<.63)and .15 or 1
    for _,eye in ipairs(eyes)do
@@ -345,8 +731,9 @@ return function(ctx)
   end)
  end
 
- -- The dog: hidden in the roof until the drop, then on the silk until it lands.
- local hang=ctx:Elapsed()<LAND
+ -- The dog: hidden from the start (the whole map-wide act) until the drop, then on the silk
+ -- until it lands.
+ local hang=clock()<LAND
  local silkEnd=hub and scope:Anchor(R,'SilkEnd')or nil
  local silk,silkPart,lamp,shadow
  -- Off the tongue, until its root (and with it its facing) streams in, the pose waits in a
@@ -371,7 +758,9 @@ return function(ctx)
    Size=Vector3.new(.05,1,1),Transparency=1,CFrame=CFrame.new(origin+up*.07)*FLAT})
   local shown=1
   scope:Every(function()
-   local e=ctx:Elapsed()
+   local e=clock()
+   -- Up in the roof, hidden, until just before the drop.
+   if e<DROP-.15 then return true end
    if e>=LAND then
     lift.CFrame=CFrame.identity
     if shown~=0 then shown=0;vis.Set(0)end
@@ -416,54 +805,139 @@ return function(ctx)
   scope:Every(function()
    if not Kit.Root(model)then return true end
    aim(model:GetPivot())
-   if lift and lift.Stand and ctx:Elapsed()<LAND then
+   if lift and lift.Stand and clock()<LAND then
     local handle=scope:Offset(model);handle.CFrame=lift.CFrame;lift=handle
    end
    return false
   end)
  end
 
+ ---------------------------------------------------------------- the map-wide act
+ task.spawn(function()
+  if not ctx:Wait(.6)then return end
+  weave()
+  -- OUT: every light in the district dies with a crackle, the mouth's lamps and runes too.
+  if not ctx:Wait(OUT)then return end
+  darken()
+  blackout=scope:TintLights(Color3.new(0,0,0),.2)
+  if due(OUT)then Kit.Cue('Glitch',nil,.3);pip(.3,.4,nil,true);task.delay(.12,pip,.22,.3,nil,true)end
+  -- Silk drifts down round every player while the web is spun.
+  if not ctx:Wait(1.5)then return end
+  wisps=scope:Rain({Texture=Kit.Textures.Spark,Color=ColorSequence.new(SILK),LightEmission=.5,Rate=22,Size=NumberSequence.new(.32,.12),
+   Speed=NumberRange.new(4,8),Lifetime=NumberRange.new(6,8),SpreadAngle=Vector2.new(30,30),Rotation=NumberRange.new(0,360),
+   RotSpeed=NumberRange.new(-90,90),Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(.12,.3),
+    NumberSequenceKeypoint.new(.8,.45),NumberSequenceKeypoint.new(1,1)}),Area=140,Height=50})
+  -- The giant is made (hidden) a second early, so its eyes can open on its face.
+  if not ctx:Wait(OPEN-1)then return end
+  summon()
+  if not ctx:Wait(OPEN)then return end
+  if due(OPEN)then
+   Kit.Cue('Sting',nil,.75);Kit.Flash(C(255,150,70),.86,.7)
+   task.delay(.25,function()if scope.Alive then Kit.Cue('Heartbeat',nil,.9)end end)
+  end
+  -- Every dog on the island looks up at its eyes, and follows them down the web.
+  if not ctx:Wait(OPEN+.15)then return end
+  glance=scope:Glance(function()return gaze end,{Exclude=model,Turn=.7,Ripple=600})
+  if not ctx:Wait(REVEAL)then return end
+  reveal()
+  if not ctx:Wait(CUT-.5)then return end
+  film=ctx:Cutaway(shots(),{Bars=.09,Shake=.1})
+  -- It lowers itself on a silk line over the roof...
+  if not ctx:Wait(LOWER)then return end
+  if due(LOWER)then for i=0,4 do task.delay(i*.08,pip,1.2+i*.25,.07,nil)end end
+  -- ...lets go, and every dog cowers...
+  if not ctx:Wait(FALL)then return end
+  if due(FALL)then Kit.Cue('Whoosh',nil,.7)end
+  if glance then glance:Bow(.5,1.6)end
+  -- ...and it is gone into the roof.
+  if not ctx:Wait(GONE)then return end
+  if due(GONE)then Kit.Cue('Impact',nil,.5);pip(.26,.4,nil,true);Kit.Shake(.18,.4)end
+  if not ctx:Wait(STAGE+.4)then return end
+  if glance then glance:Stop(1.2)end
+  -- After the landing the night lifts.
+  if not ctx:Wait(STAGE+LAND+.85)then return end
+  sky:Release(3.4)
+ end)
+ -- The strands fly up with a thwip each (every player hears them); the spiral zips round.
+ task.spawn(function()
+  for k=0,N-1 do
+   local t=SPIN+k*.17
+   if not ctx:Wait(t)then return end
+   if due(t,.1)then pip(Kit.Random(2.4,3.2),.12,nil)end
+  end
+  for k=1,#laps do
+   local t=SPIRAL+(k-1)*.16
+   if not ctx:Wait(t)then return end
+   if due(t,.1)then pip(1.5+k*.3,.08,nil)end
+  end
+ end)
+ -- The little ones drop, one by one, round this player.
+ task.spawn(function()
+  local count,gap=low and 5 or 14,low and .95 or .34
+  for i=1,count do
+   local t=BROOD+(i-1)*gap
+   if not ctx:Wait(t)then return end
+   if due(t,1)then drop(i==1)end
+  end
+ end)
+ -- The giant's legs on the web: a skitter every player hears while it crawls.
+ task.spawn(function()
+  local t,step=CRAWL,low and .14 or .075
+  while t<LOWER do
+   if not ctx:Wait(t)then return end
+   if due(t,.1)then pip(Kit.Random(.5,.9),Kit.Random(.04,.075),nil,true)end
+   t+=step
+  end
+ end)
+
+ ---------------------------------------------------------------- the stage act
+ if not waitStage(0)then return end
  if live(0)then Kit.Cue('Whoosh',hub,.3)end
- if not ctx:Wait(.2)then return end
+ if not waitStage(.2)then return end
  if live(.2)then Kit.Cue('Glitch',hub,.2)end
- if not ctx:Wait(.56)then return end
+ if not waitStage(.56)then return end
  if live(.56,.1)then pip(1.6,.12,hub)end
  -- 0.7: it drops in, upside down, legs going (the Run clip).
- if not ctx:Wait(DROP)then return end
+ if not waitStage(DROP)then return end
  local hl=hang and scope:Highlight(model,ORANGE,C(255,190,140),.92,.5)or nil
  if hang and live(DROP)then
   Kit.Cue('Whoosh',nil,.5);pip(.8,.2,silkEnd,true)
   local n=near();if n>.25 then Kit.FOVPunch(-2.5*n,.25,.9)end
  end
- if not ctx:Wait(1.25)then return end
+ if not waitStage(1.25)then return end
  if live(1.25)then Kit.Cue('Heartbeat',nil,.5)end
- if not ctx:Wait(1.95)then return end
+ if not waitStage(1.95)then return end
  if live(1.95)then Kit.Cue('Heartbeat',nil,.6)end
  -- 2.5: the line snaps.
- if not ctx:Wait(SNAP)then return end
+ if not waitStage(SNAP)then return end
  if hang and live(SNAP)then
   pip(4.4,.32,silkEnd);task.delay(.05,pip,3.2,.2,silkEnd)
   scope:Burst(cut,SILK,12,{Speed=NumberRange.new(4,9),Lifetime=NumberRange.new(.25,.5),Size=NumberSequence.new(.3,0)})
  end
- -- 2.85: it lands. The web tears down (its own stepper) and the lamps flicker back on.
- if not ctx:Wait(LAND)then return end
+ -- 2.85: it lands. The web tears down (its own stepper) and the mouth's lamps flicker back
+ -- on. Map-wide: the power comes back everywhere (released first, so the mouth's lamps
+ -- flicker from dark), the sky web falls, the little ones run and a shockwave rolls out.
+ if not waitStage(LAND)then return end
+ if blackout then blackout()end
+ if wisps then wisps.Rate=0 end
+ tearDown();scatter()
  if live(LAND)then
   local n=near()
   Kit.Cue('Impact',nil,.7);Kit.Cue('Sting',nil,.45)
+  for i=0,3 do task.delay(.1+i*.09,pip,Kit.Random(3.4,4.4),.08,nil)end
+  if film and film.Active then film:Shake(.8,.5)end
   if n>.05 then Kit.Shake(.35*n,.4);Kit.Flash(C(255,206,170),1-.22*n,.35)end
   if n>.25 then Kit.FOVPunch(-4*n,.06,.6)end
+  shockwave()
   scope:Ring(origin+up*.15,DUST,2,14,.6,{Thickness=.32,Alpha=.45})
   if not low then scope:Ring(origin+up*.2,ORANGE,1,9,.45,{Thickness=.18,Alpha=.3,Segments=24})end
   scope:Burst(origin+up*.4,DUST,20,{Texture=Kit.Textures.Smoke,LightEmission=.05,Drag=4,Speed=NumberRange.new(6,12),
    SpreadAngle=Vector2.new(80,80),Lifetime=NumberRange.new(.6,1.1),Size=NumberSequence.new(1.2,3.4),Transparency=NumberSequence.new(.45,1)})
-  -- A warm pulse on the grade, like the flash: only near the stage.
-  grade.TintColor=C(226,232,255):Lerp(C(255,214,182),n);grade.Brightness=-.1+.15*n
   local flash=hl or scope:Highlight(model,EMBER,ORANGE,.3,.2)
   flash.FillColor=EMBER;flash.FillTransparency=.3;flash.OutlineTransparency=.1
   Kit.Tween(flash,.9,{FillTransparency=1,OutlineTransparency=1})
   task.delay(1,function()if scope.Alive and flash.Parent then flash:Destroy()end end)
  elseif hl then hl:Destroy()end
- Kit.Tween(grade,1.4,{Brightness=-.03,Contrast=.07,Saturation=-.12,TintColor=C(250,242,236)})
  if shadow then Kit.Tween(shadow,.3,{Transparency=1})end
  for _,entry in ipairs(lamps)do
   local o=entry.O
@@ -509,16 +983,15 @@ return function(ctx)
   faded=true
   for _,r in ipairs(runes)do switch(r,true,.7)end
   for _,p in ipairs(stakes)do ease(p,.7,{Transparency=1})end
-  Kit.Tween(grade,.8,{Brightness=0,Contrast=0,Saturation=0,TintColor=C(255,255,255)})
  end
  for k=0,29 do
   local t=DIG+k*.1
-  if t>hold-.3 then break end
-  if not faded and t>=hold-.8 then
-   if not ctx:Wait(hold-.8)then return end
+  if t>DUG-.3 then break end
+  if not faded and t>=DUG-.8 then
+   if not waitStage(DUG-.8)then return end
    settle()
   end
-  if not ctx:Wait(t)then return end
+  if not waitStage(t)then return end
   local i=k%8+1
   local at=paw(i)
   if k<8 then
@@ -551,7 +1024,7 @@ return function(ctx)
   end
  end
  if not faded then
-  if not ctx:Wait(hold-.8)then return end
+  if not waitStage(DUG-.8)then return end
   settle()
  end
  if not ctx:Wait(hold)then return end

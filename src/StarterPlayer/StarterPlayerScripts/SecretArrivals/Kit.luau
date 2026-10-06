@@ -18,10 +18,12 @@ local function fxRoot()
  if not root then root=Instance.new('Folder');root.Name='DOGROTS_SecretArrivalFX';root.Parent=workspace end
  return root
 end
+-- Phones and tablets get the light version unless their player chose High effects
+-- (their world-event FX setting defaults to Medium).
 function K.Low()
  local fx=player:GetAttribute('WorldEventFX')
  return fx=='Low'or player:GetAttribute('LowFX')==true or player:GetAttribute('ReducedMotion')==true
-  or (fx==nil and UIS.TouchEnabled)
+  or (UIS.TouchEnabled and fx~='High')
 end
 function K.ReducedMotion()return player:GetAttribute('ReducedMotion')==true end
 function K.Tween(o,seconds,props,style,direction)
@@ -357,29 +359,32 @@ end
 -- owns the FOV: never start over one, and let go (without restoring) the moment anything
 -- else writes the FOV. While it runs, the camera's SecretZoom attribute holds the true
 -- FOV, which the other FOV owners save instead of the punched one.
+-- SecretPunch marks the zoom as this punch's, so a cutaway may take over from it.
 function K.FOVPunch(delta,inSeconds,outSeconds)
  if K.ReducedMotion()then return end
  local c=workspace.CurrentCamera
  if not c or c:GetAttribute('SecretZoom')or c:GetAttribute('DiscoveryZoom')or c.CameraType==Enum.CameraType.Scriptable then return end
  local base=c.FieldOfView
- c:SetAttribute('SecretZoom',base)
+ c:SetAttribute('SecretZoom',base);c:SetAttribute('SecretPunch',true)
  local peak=math.clamp(base+delta,20,110)
  local written=base
  local started=os.clock()
  local connection
+ local function done()
+  connection:Disconnect()
+  c:SetAttribute('SecretPunch',nil)
+  -- A cutaway that took over keeps the zoom marker it set.
+  if c:GetAttribute('SecretCutaway')==nil then c:SetAttribute('SecretZoom',nil)end
+ end
  connection=Run.RenderStepped:Connect(function()
   local age=os.clock()-started
-  if math.abs(c.FieldOfView-written)>.01 or c.CameraType==Enum.CameraType.Scriptable then
-   connection:Disconnect();c:SetAttribute('SecretZoom',nil);return
-  end
+  if math.abs(c.FieldOfView-written)>.01 or c.CameraType==Enum.CameraType.Scriptable then done();return end
   local a
   if age<inSeconds then a=1-(1-age/inSeconds)^2
   else a=1-math.min((age-inSeconds)/outSeconds,1);a=a*a*(3-2*a)end
   written=base+(peak-base)*a
   c.FieldOfView=written
-  if age>=inSeconds+outSeconds then
-   c.FieldOfView=base;connection:Disconnect();c:SetAttribute('SecretZoom',nil)
-  end
+  if age>=inSeconds+outSeconds then c.FieldOfView=base;done()end
  end)
 end
 

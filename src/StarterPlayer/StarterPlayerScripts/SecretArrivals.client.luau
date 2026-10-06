@@ -31,12 +31,16 @@ local function play(model)
  -- A dog whose module failed to load still gets its whispers and reveal card.
  run=run or function(c)if c:Wait(c.Config.Hold*.55)then c:Title()end;c:Wait(c.Config.Hold)end
  local late=now()-at
- -- Too late for this arrival (joined or streamed in afterwards). THE DOG is the
- -- exception: its stare lasts as long as it is around.
- if late>Config.LateGrace and not config.StareSeconds then return end
+ -- Too late for this arrival (joined or streamed in afterwards): the rest of a long
+ -- map-wide arrival still plays (modules skip the one-shots already past), a short one
+ -- does not. THE DOG's stare lasts as long as it is around.
+ local grace=config.LateGrace or math.max(Config.LateGrace,config.Hold*.6)
+ if late>grace and not config.StareSeconds then return end
  if late>(config.StareSeconds or 0)+config.Hold then return end
  played[uid]=true
  local scope=Kit.Scope('Arrival_'..id)
+ -- When it ends on the server clock (Scope:Sky keeps clear of world events until then).
+ scope.EndsAt=at+config.Hold
  local origin=model:GetAttribute('ArrivalOrigin')
  -- Venue: 'Tongue' (the conveyor), or off it: 'Yard' (a Lucky Block pad), 'Excavation'
  -- (a dig pit), 'Machine' (the DOG-O-MATIC stand). By: who got it (off-tongue only).
