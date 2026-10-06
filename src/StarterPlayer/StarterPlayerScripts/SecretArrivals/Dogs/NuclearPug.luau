@@ -463,7 +463,7 @@ return function(ctx)
   gui.IgnoreGuiInset=true;gui.DisplayOrder=95
   -- (A second pug going critical at the same time counts down under the first.)
   local below=playerGui:FindFirstChild('DOGROTS_NuclearPugCountdown')~=nil
-  local box=Instance.new('Frame');box.Name='Countdown';box.AnchorPoint=Vector2.new(.5,.5);box.Position=UDim2.fromScale(.5,below and .86 or .7)
+  local box=Instance.new('Frame');box.Name='Countdown';box.AnchorPoint=Vector2.new(.5,.5);box.Position=UDim2.fromScale(.5,below and .84 or .7)
   box.Size=UDim2.fromOffset(250,122);box.BackgroundColor3=C(6,14,4);box.BackgroundTransparency=1;box.BorderSizePixel=0;box.Parent=gui
   local corner=Instance.new('UICorner');corner.CornerRadius=UDim.new(0,10);corner.Parent=box
   local edge=Instance.new('UIStroke');edge.Color=HAZARD;edge.Thickness=2;edge.Transparency=1;edge.Parent=box

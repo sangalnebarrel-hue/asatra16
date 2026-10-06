@@ -18,9 +18,9 @@
 -- following your camera. Handed back at 9.7 it is all still looking at you, and at 9.9
 -- your double stands right behind you. At 11 everything snaps back as if nothing
 -- happened: the lights come on, the sky eases back to day (by 14.2), the name comes up.
--- Off the tongue (a Lucky pad in the open) it faces away from the opener, lamps of its own
--- stand in for the mouth's runes and lanterns, and the colossus rises beyond the stage on
--- the far side from the island's centre.
+-- Off the tongue (a Lucky pad in the open) it faces away from the opener, and lamps of its
+-- own stand in for the mouth's runes and lanterns; the cutaway looks out from the island's
+-- centre through the stage.
 local Players=game:GetService('Players')
 local SoundService=game:GetService('SoundService')
 local TweenService=game:GetService('TweenService')
