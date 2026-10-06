@@ -18,6 +18,33 @@ C.Stage = 18
 C.Sounds = { Drone = 0, Heartbeat = 0, Impact = 0, Glitch = 0, Choir = 0, Chime = 0, Whoosh = 0, Sting = 0 }
 -- A client that sees an arrival later than this (joined late, streamed in) skips it.
 C.LateGrace = 3
+-- Every player's camera is pulled to the arrival for its big moment (Studio and live).
+-- Players with ReducedMotion, a busy camera or an open menu are never pulled.
+C.Cutaway = true
+-- The island at map scale, for the map-wide part of every arrival (studs, world space).
+C.Map = {
+	-- The yards and the tongue, where most players are.
+	Center = Vector3.new(0, 1, 0),
+	-- From Center to the yards' outer fences.
+	Radius = 190,
+	-- Altitude above Center for colossal things hung over the yards.
+	Sky = 170,
+	-- The tongue's stage, in the giant head's mouth.
+	Mouth = Vector3.new(0, 2, -150),
+	-- The giant head building (THE_DOG) the tongue comes out of, and a spot behind it where
+	-- something colossal can rise and loom over it, seen from every yard.
+	Head = Vector3.new(0, 60, -195),
+	Backdrop = Vector3.new(0, 1, -420),
+	-- The whole district (the far north holds the museum, lab and DOG-O-MATIC).
+	Min = Vector3.new(-200, 0, -260),
+	Max = Vector3.new(200, 0, 720),
+	Landmarks = {
+		Plaza = Vector3.new(-40, 1, 300),
+		Museum = Vector3.new(-130, 1, 480),
+		Lab = Vector3.new(105, 1, 480),
+		Machine = Vector3.new(-178, 1, 630),
+	},
+}
 
 C.Dogs = {
 	Cubedog = {
@@ -88,9 +115,17 @@ C.Dogs = {
 	},
 	-- Never on the tongue: these arrive where they are obtained (SecretReveal).
 	LongDog = {
-		Hold = 7,
-		Clips = { { 0, "EXP_Confused", true }, { 1.4, "Stretch" }, { 3.4, "DepthCharge" }, { 4.6, "Happy" } },
-		Whispers = { { 0.3, "the hole kept going." }, { 3.6, "it is still coming out." } },
+		-- Its body runs a lap of the whole island (Dogs/LongDog): the head is back at the hole
+		-- at 11, the tail pops out at 11.6 and the real dog appears at 13.6.
+		Hold = 17.5,
+		Clips = { { 0, "EXP_Confused", true }, { 13.6, "Happy" } },
+		Whispers = {
+			{ 0.5, "something is digging." },
+			{ 4.2, "it is still coming out." },
+			{ 8.4, "how long is a dog?" },
+			{ 11.7, "oh. there's the tail." },
+			{ 14.8, "perfectly normal dog." },
+		},
 		Title = "LONG DOG",
 		Color = Color3.fromRGB(240, 196, 120),
 	},

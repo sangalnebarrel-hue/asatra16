@@ -12,6 +12,8 @@ if Run:IsStudio()then
 end
 local Config=require(RS:WaitForChild('SecretArrivalConfig'))
 local Kit=require(script:WaitForChild('Kit'))
+-- The map-wide layer (sky, colossus, cutaway, banner...) installs itself into Kit.
+require(script:WaitForChild('Takeover'))
 local Whisper=require(script:WaitForChild('Whisper'))
 local Stare=require(script:WaitForChild('Stare'))
 local Dogs=require(script:WaitForChild('Dogs'))
@@ -43,7 +45,7 @@ local function play(model)
  local ctx={Model=model,DogId=id,Config=config,Start=at,Late=late,Scope=scope,Kit=Kit,Whisper=Whisper,Stare=Stare,
   Low=Kit.Low(),Origin=typeof(origin)=='Vector3'and origin or model:GetPivot().Position,
   Venue=type(venue)=='string'and venue or 'Tongue',By=type(by)=='string'and by~=''and by or nil,
-  WhisperStyle=nil,ManualWhispers=false}
+  WhisperStyle=nil,ManualWhispers=false,ManualBanner=false,Map=Kit.Map}
  -- Wait(t): yield until Start+t on the server clock; false once the arrival is over.
  function ctx:Wait(t)
   while scope.Alive do
@@ -68,6 +70,20 @@ local function play(model)
   if ctx.By and not options.Tier then options.Tier='SECRET · '..string.upper(ctx.By)end
   Whisper.Title(config.Title,options)
  end
+ -- Map-wide helpers bound to this arrival.
+ function ctx:Cutaway(shots,options)return scope:Cutaway(ctx,shots,options)end
+ function ctx:Colossus(options)options=table.clone(options or {});options.Ctx=ctx;return scope:Colossus(options)end
+ function ctx:Banner(options)options=table.clone(options or {});options.Ctx=ctx;return scope:Banner(options)end
+ -- The map-wide alert every player sees (SecretArrivalConfig.Dogs[id].Banner), unless the
+ -- arrival sets ctx.ManualBanner before it first yields and shows its own.
+ task.defer(function()
+  local banner=config.Banner
+  if ctx.ManualBanner or banner==false then return end
+  banner=type(banner)=='table'and banner or {}
+  if not ctx:Wait(banner.At or .15)then return end
+  if ctx:Elapsed()>(banner.At or .15)+(banner.Hold or 3)then return end
+  ctx:Banner(banner)
+ end)
  -- The config's whispers are typed on schedule in ctx.WhisperStyle (Font, Color, Glitch,
  -- Chroma, Shake, Type), unless the arrival sets ctx.ManualWhispers before it first yields.
  task.defer(function()
