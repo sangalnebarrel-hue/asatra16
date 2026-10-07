@@ -115,16 +115,28 @@ C.Dogs = {
 	},
 	-- Never on the tongue: these arrive where they are obtained (SecretReveal).
 	LongDog = {
-		-- Its body runs a lap of the whole island (Dogs/LongDog): the head is back at the hole
-		-- at 11, the tail pops out at 11.6 and the real dog appears at 13.6.
-		Hold = 17.5,
-		Clips = { { 0, "EXP_Confused", true }, { 13.6, "Happy" } },
+		-- Dug up in a yard, it comes out of the giant head's mouth for everyone
+		-- (Runtime.RevealExcavation, Dogs/LongDog): the head bursts out of the throat at 2 and
+		-- runs up the tongue to the spawn plaza by 16.5, the tail pops out at 18.5, the whole dog
+		-- snaps back into the mouth by 22, and the display dog (still long, LongDogBody) stands on
+		-- the tongue's stage until the hold ends. The tongue is frozen for the hold.
+		Hold = 26,
+		Clips = { { 0, "EXP_Confused", true }, { 22, "Happy" }, { 24.4, "Idle", true } },
+		-- Shown by the module itself (ctx.ManualBanner), as a tape measure.
+		Banner = {
+			At = 0.15,
+			Style = "Alert",
+			Kicker = "⚠  SOMETHING IS DIGGING  ⚠",
+			Title = "LONG DOG",
+			Text = "it went in somewhere... and it is coming out of the giant mouth",
+			Hold = 3.2,
+		},
 		Whispers = {
-			{ 0.5, "something is digging." },
-			{ 4.2, "it is still coming out." },
-			{ 8.4, "how long is a dog?" },
-			{ 11.7, "oh. there's the tail." },
-			{ 14.8, "perfectly normal dog." },
+			{ 0.6, "something is digging." },
+			{ 5.2, "it is still coming out." },
+			{ 10.6, "how long is a dog?" },
+			{ 18.7, "oh. there's the tail." },
+			{ 23.5, "perfectly normal dog." },
 		},
 		Title = "LONG DOG",
 		Color = Color3.fromRGB(240, 196, 120),

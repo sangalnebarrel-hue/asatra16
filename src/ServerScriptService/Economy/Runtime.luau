@@ -188,7 +188,8 @@ function Runtime.SpecialTick(now)
     local player=Players:GetPlayerByUserId(id)
     if player then
      Runtime.Refresh(player)
-     -- It first stretches out of the pit for everyone; the discovery toast follows.
+     -- It first runs out of the giant mouth for everyone; the discovery toast follows
+     -- just before the arrival's hold ends.
      local shown,model=pcall(Runtime.RevealExcavation,player,'LongDog')
      local toastAfter=(shown and model)and math.max(0,require(script.Parent.Parent.SecretReveal).Hold('LongDog')-.8)or 0
      task.delay(toastAfter,function()
@@ -220,10 +221,10 @@ function Runtime.SpecialTick(now)
   end
  end
 end
--- The Secret arrival of a dug-up dog, staged on one of the owner's dig slots.
-function Runtime.RevealExcavation(player,dogId)
- local yard=require(script.Parent.YardCommerce).Yard(player);if not yard then return end
- -- An unlocked, empty pit if there is one, so it does not stand inside a resident dog.
+-- The owner's dig pit a dug-up dog belongs to: an unlocked, empty DigSlot if there is one
+-- (so it does not stand inside a resident dog), else any unlocked one. Returns the slot and
+-- the top of its DarkExcavation (where DogKennelService stands its dogs).
+local function digPit(yard)
  local slot
  for _,s in ipairs(yard:GetDescendants())do
   if s.Name:match('^DigSlot_%d+$')and s:GetAttribute('Unlocked')~=false and typeof(s:GetAttribute('DigCenter'))=='Vector3'then
@@ -231,20 +232,70 @@ function Runtime.RevealExcavation(player,dogId)
    slot=slot or s
   end
  end
- local spawn=yard:FindFirstChild('YardSpawn',true)
- local ground=slot and slot:GetAttribute('DigCenter')or (spawn and spawn.Position)
- if not ground then return end
- -- Stand on the pit's visible top, as DogKennelService does.
- local pit=slot and slot:FindFirstChild('DarkExcavation')
+ if not slot then return nil,nil end
+ local ground=slot:GetAttribute('DigCenter')
+ local pit=slot:FindFirstChild('DarkExcavation')
  if pit and pit:IsA('BasePart')then ground=Vector3.new(ground.X,pit.Position.Y+pit.Size.Y/2,ground.Z)
- elseif slot then ground+=Vector3.new(0,((slot:GetAttribute('DigSize')or Vector3.new(12,.4,12)).Y)/2,0)end
+ else ground+=Vector3.new(0,((slot:GetAttribute('DigSize')or Vector3.new(12,.4,12)).Y)/2,0)end
+ return slot,ground
+end
+-- The giant head's mouth: the tongue's stage, where Secrets arrive on the tongue (DogSpawn
+-- + SecretArrivalConfig.Stage down the belt, as DogLineSpawner puts them), on the tongue's
+-- top surface. Returns the ground point and the direction down the tongue.
+local function mouthStage()
+ local Arrivals=require(Replicated.SecretArrivalConfig)
+ local district=workspace:FindFirstChild('DOGROTS_District')
+ local line=district and district:FindFirstChild('03_DogLine')
+ local spawn=line and line:FindFirstChild('DogSpawn')
+ local finish=line and line:FindFirstChild('DogEnd')
+ local at=(Arrivals.Map and Arrivals.Map.Mouth)or Vector3.new(0,2,-150)
+ local along=Vector3.zAxis
+ if spawn and finish and spawn:IsA('BasePart')and finish:IsA('BasePart')then
+  local flat=Vector3.new(finish.Position.X-spawn.Position.X,0,finish.Position.Z-spawn.Position.Z)
+  if flat.Magnitude>Arrivals.Stage then along=flat.Unit;at=Vector3.new(spawn.Position.X,at.Y,spawn.Position.Z)+along*Arrivals.Stage end
+ end
+ -- The tongue's surface sits a little above the belt; the conveyor's dogs are not ground.
+ local surfaces={}
+ for _,name in ipairs({'Tongue','BeltTread'})do
+  local o=line and line:FindFirstChild(name)
+  if o then table.insert(surfaces,o)end
+ end
+ if #surfaces>0 then
+  local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include;params.FilterDescendantsInstances=surfaces
+  local hit=workspace:Raycast(Vector3.new(at.X,at.Y+12,at.Z),Vector3.new(0,-30,0),params)
+  if hit then at=Vector3.new(at.X,hit.Position.Y,at.Z)end
+ end
+ return at,along
+end
+--[[ The Secret arrival of a dug-up dog (C1). Returns the display model, or nil.
+ The Long Dog comes out of the giant head's mouth for everyone (SecretArrivals/Dogs/LongDog):
+ its display dog stands on the tongue's stage (Venue 'Mouth'), the tongue stops for the hold
+ while its body lies along it, and ArrivalPit marks the owner's pit it went into (none
+ without a yard, e.g. in Studio). options.Preview (the Studio panel) stages the same act.
+ Any other dog comes up out of the owner's pit (Venue 'Excavation'). ]]
+function Runtime.RevealExcavation(player,dogId,options)
+ options=options or {}
+ local Reveal=require(script.Parent.Parent.SecretReveal)
+ local yard=require(script.Parent.YardCommerce).Yard(player)
+ local slot,pit=nil,nil
+ if yard then slot,pit=digPit(yard)end
+ if dogId=='LongDog'then
+  local stage,along=mouthStage()
+  -- Linger 0: it goes as the hold ends, when the tongue starts moving under it again.
+  return Reveal.Show(dogId,stage+Vector3.new(0,.04,0),along,{Venue='Mouth',By=player.DisplayName,FreezeLine=true,Linger=0,
+   Attributes={ArrivalPit=pit,StudioPreview=options.Preview==true or nil}})
+ end
+ if not yard then return nil end
+ local spawn=yard:FindFirstChild('YardSpawn',true)
+ local ground=pit or (spawn and spawn.Position)
+ if not ground then return nil end
  local toward=(spawn and spawn.Position or ground+Vector3.zAxis)-ground
  -- Every pit is taken: come up beside it (toward the yard's spawn), not inside its dog.
  if slot and slot:GetAttribute('AssignedDogUid')then
   local flat=Vector3.new(toward.X,0,toward.Z)
   if flat.Magnitude>1 then ground+=flat.Unit*math.min(11,flat.Magnitude*.5)end
  end
- return require(script.Parent.Parent.SecretReveal).Show(dogId,ground+Vector3.new(0,.04,0),toward,{Venue='Excavation',By=player.DisplayName})
+ return Reveal.Show(dogId,ground+Vector3.new(0,.04,0),toward,{Venue='Excavation',By=player.DisplayName})
 end
 local buckets={};local marketQueries={}
 local function allow(player,cost)

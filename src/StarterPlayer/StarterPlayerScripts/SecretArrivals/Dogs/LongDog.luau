@@ -1,69 +1,90 @@
--- LONG DOG: "IT NEVER ENDS". Dug up in its owner's yard, and it does not stop coming out.
--- The ground splits, the head bursts out and runs a lap of the WHOLE island (up the west
--- lawns, past the plaza, the museum and the DOG-O-MATIC, down the boulevard, through the
--- arches, the east lawns, and over the top of the giant head) while its body keeps pouring
--- out of the hole behind it: one dachshund, two kilometres long, lying across every yard. Every dog on the island
--- turns to follow the head, every screen counts its LENGTH, every camera rides along. Back
--- at the hole the head finds its body still coming out; the tail finally pops free, the
--- whole body snaps back along its path like a tape measure, and a perfectly normal Long Dog
--- stands at the hole.
+-- LONG DOG: "HOW LONG IS A DOG?" Its owner dug it up; it went into the ground in their yard
+-- (their pit spits dirt) and comes out of the giant head's mouth, for everyone. The head
+-- bursts out of the throat and trots up the whole tongue, through the end portal, down the
+-- boulevard to the plaza where players spawn, while its body keeps pouring out of the mouth
+-- behind it: one furry sausage lying on the ground from the throat to the spawn pad, its
+-- LENGTH on every screen. It turns, looks back and barks; the tail finally pops out of the
+-- throat; then the whole dog snaps back into the mouth like a tape measure and a perfectly
+-- normal (still long, LongDogBody) Long Dog stands on the stage.
+-- The server (Runtime.RevealExcavation) stands the display dog on the tongue's stage, hidden
+-- here until the end, and stops the tongue for the hold. Everything here is local.
 local Players=game:GetService('Players')
 local AssetService=game:GetService('AssetService')
 local RS=game:GetService('ReplicatedStorage')
 local AnimationPlayer=require(RS:WaitForChild('DogAnimationPlayer'))
-local Config=require(RS:WaitForChild('SecretArrivalConfig'))
 local C=Color3.fromRGB
-local SAND,DIRT,DUST,BONE,VOID,BAND=C(240,196,120),C(104,72,42),C(196,164,120),C(246,240,224),C(0,0,0),C(64,40,26)
--- Until the dog's own texture has been sampled (or if it cannot be).
+local SAND,DIRT,DUST=C(240,196,120),C(104,72,42),C(206,176,132)
+local TAPE,INK,METAL=C(255,204,46),C(30,22,10),C(136,142,150)
+-- The fur until the dog's own texture has been sampled (or when it cannot be read).
 local FUR=C(198,135,74)
 local TICK='rbxasset://sounds/volume_slider.ogg'
--- The runner, in template units (the template is 2.19 tall and 5.9 long): 29.5 studs long
--- and a body 4.2 studs thick, so the far end of the island still sees it.
-local SCALE=5
-local SPINE=1.02    -- the spine's height above the paws
-local RADIUS=.42    -- the body's radius
-local SEAM=1.44     -- where the tube meets a runner: LongSeg3, behind the front legs
-local REAR=4.1      -- from the front legs to the tip of the tail
-local STEP=2        -- path resolution, studs
--- Beats on the arrival clock: out of the hole, back at the hole, the tail pops out, the
--- snap starts, the tail reaches the head (the real dog appears).
-local T_OUT,T_STOP,T_POP,T_SNAP,T_JOIN=.9,11,11.6,12.3,13.6
--- The lap: its spine's path (world studs), checked against every visible part of the island
--- with room to spare: up the west lawns, the plaza, past the museum, round the DOG-O-MATIC,
--- down the boulevard and through the arches, the east lawns, then over the giant head.
--- It starts and ends wherever it passes closest to the hole. (SecretArrivalConfig.Map.LongDogLap
--- overrides it.)
-local LAP:{Vector3}={
- Vector3.new(-110,6.1,-112),Vector3.new(-110,6.1,-40),Vector3.new(-110,6.1,40),Vector3.new(-110,7.1,112),
- Vector3.new(-118,30.1,205),Vector3.new(-60,23.1,300),Vector3.new(-40,23.1,400),Vector3.new(-35,25.1,470),
- Vector3.new(-48,26.1,530),Vector3.new(-80,19.1,575),Vector3.new(-88,13.1,630),Vector3.new(-80,14.1,676),
- Vector3.new(-52,15.1,690),Vector3.new(-20,17.1,650),Vector3.new(0,17.1,580),Vector3.new(0,17.1,520),
- Vector3.new(0,19.1,440),Vector3.new(20,33.1,405),Vector3.new(50,23.1,330),Vector3.new(40,23.1,240),
- Vector3.new(-25,35.1,190),Vector3.new(-22,39.1,152),Vector3.new(22,39.1,142),Vector3.new(72,23.1,140),
- Vector3.new(110,7.1,112),Vector3.new(110,6.1,40),Vector3.new(110,6.1,-40),Vector3.new(110,6.1,-112),
- Vector3.new(85,44.1,-175),Vector3.new(0,99.1,-205),Vector3.new(-85,44.1,-175),
-}
--- High behind the giant head, looking up the whole island.
-local OVERVIEW=CFrame.lookAt(Vector3.new(0,150,-280),Vector3.new(0,20,420))
-local function smooth(x)x=math.clamp(x,0,1);return x*x*(3-2*x)end
 
--- Centripetal Catmull-Rom between p1 and p2 (no loops or overshoot at sharp corners).
-local function spline(p0:Vector3,p1:Vector3,p2:Vector3,p3:Vector3,t:number):Vector3
- local function knot(k,a,b)return k+math.max((b-a).Magnitude,1e-3)^.5 end
- local t0=0;local t1=knot(t0,p0,p1);local t2=knot(t1,p1,p2);local t3=knot(t2,p2,p3)
- local u=t1+(t2-t1)*t
- local a1=p0*((t1-u)/(t1-t0))+p1*((u-t0)/(t1-t0))
- local a2=p1*((t2-u)/(t2-t1))+p2*((u-t1)/(t2-t1))
- local a3=p2*((t3-u)/(t3-t2))+p3*((u-t2)/(t3-t2))
- local b1=a1*((t2-u)/(t2-t0))+a2*((u-t0)/(t2-t0))
- local b2=a2*((t3-u)/(t3-t1))+a3*((u-t1)/(t3-t1))
- return b1*((t2-u)/(t2-t1))+b2*((u-t1)/(t2-t1))
+-- The runners are local copies of the dog (ReplicatedStorage.MenuModels), in template units:
+-- the template is 2.19 tall and 5.9 long, faces -Z and its pivot sits .05 under its soles.
+local SCALE=5            -- 11 studs tall: under the mouth's roof (23.5) and the end portal (~17)
+local HEIGHT=2.19
+local SPINE,SOLE=1.02,.05
+local TUBE=.465          -- the body's radius, just over the torso's (~.43): it covers the tucked
+                         -- half of each runner
+local SEAM=1.44          -- LongSeg3, behind the front legs: where the body meets a runner
+local NOSE,TAILTIP=1.585,4.315
+local RAMP=3.2           -- the body sags from the spine's height onto the ground over this
+local STRIDE=.475*1.5    -- what one Walk cycle covers (DogWalkProfiles: NativeSpeed x Duration)
+local REACH=2.1          -- the legs swing this much wider than the Walk clip: a long, low trot
+local MAXHZ=3.4          -- strides per second at most (beyond it the paws slide a little)
+local M_PER_STUD=.28
+-- The route, checked against every part on the map: straight up x=0 from inside the throat
+-- (its wall's face is at z -182.5), along the tongue (top 2.08), through the end portal
+-- (z 136, opening x +-8.5, 17 high), the portal court, the boulevard and the welcome plaza,
+-- then a hook to the west round the spawn pad, so the head ends up looking back down its own
+-- body. Nothing stands within 4 studs of x=0 from the throat to the plaza.
+local THROAT=-192
+local FACE=-182.5
+local TURN_Z,TURN_R,TURN_A=372,11,math.rad(120)
+local STRAIGHT=TURN_Z-THROAT
+local ROUTE=STRAIGHT+TURN_R*TURN_A
+local STEP=2
+-- The act on the arrival clock (SecretArrivalConfig.Dogs.LongDog: Hold 26, Happy at 22).
+local T_BURST=2       -- the head bursts out of the throat
+local T_RUN=2.5       -- ...lands and runs
+local T_STOP=16.5     -- at the spawn plaza: it looks back down its body and barks
+local T_POP=18.5      -- the tail pops out of the throat
+local T_TENSE=19.5    -- the tape measure catches...
+local T_YANK=19.85    -- ...and snaps back
+local T_SHRINK=21.25  -- back to its normal size as it reaches the stage
+local T_SETTLE=21.45
+local T_JOIN=22       -- the display dog takes over
+local T_TITLE=22.6
+local RUN_FROM=14     -- where the burst lands (path studs)
+local ACC,DEC=1.2,2.8 -- the run eases in and out over these
+local START=FACE-NOSE*SCALE-THROAT   -- the head's nose at the throat wall
+local TAIL_IN,TAIL_OUT=6,25          -- the tail runner inside the throat / its hind legs out
+
+local function smooth(x)x=math.clamp(x,0,1);return x*x*(3-2*x)end
+local function backOut(u)u=math.clamp(u,0,1);local v=u-1;return 1+2.7*v*v*v+1.7*v*v end
+-- Where the path is at s (y=0): straight up x=0, then the hook, then on along its end.
+local function flat(s)
+ if s<=STRAIGHT then return Vector3.new(0,0,THROAT+s)end
+ local a=math.min(s-STRAIGHT,TURN_R*TURN_A)/TURN_R
+ local p=Vector3.new(-TURN_R+TURN_R*math.cos(a),0,TURN_Z+TURN_R*math.sin(a))
+ if s>ROUTE then p+=Vector3.new(-math.sin(TURN_A),0,math.cos(TURN_A))*(s-ROUTE)end
+ return p
+end
+-- The map's own ground along the route (parts.tsv), for whatever is not streamed in.
+local function profile(p)
+ local z=p.Z
+ if z<-168 then return 2 elseif z<136.7 then return 2.08 elseif z<146 then return .36
+ elseif z<322 then return .5 elseif z<362 then return .64
+ elseif Vector3.new(p.X,0,p.Z-377).Magnitude<7.9 then return .57 end
+ return .5
 end
 
--- The average colour of the dog's own fur texture (an EditableImage of its ColorMap), so
--- the long body matches the head. Yields; falls back to FUR when the image is not readable.
-local function sampleFur(model:Model?):Color3?
- local sa=model and model:FindFirstChildWhichIsA('SurfaceAppearance',true)
+-- The average colour of the dog's own fur texture (an EditableImage of its ColorMap), so the
+-- body matches the head. Yields; nil when the image cannot be read (asset permissions).
+local furCache=nil
+local function sampleFur(source)
+ if furCache~=nil then return furCache or nil end
+ local sa=source and source:FindFirstChildWhichIsA('SurfaceAppearance',true)
  if not sa then return nil end
  local ok,color=pcall(function()
   local image=AssetService:CreateEditableImageAsync((sa::any).ColorMapContent)
@@ -85,657 +106,864 @@ local function sampleFur(model:Model?):Color3?
   if n<40 then return nil end
   return C(r/n,g/n,b/n)
  end)
- return ok and color or nil
+ furCache=ok and color or false
+ return furCache or nil
 end
 
-return function(ctx:any)
+local running=0
+return function(ctx)
  ctx.ManualBanner=true
  ctx.WhisperStyle={Font=Enum.Font.Kalam,Color=C(255,230,186),Type=.05}
  local Kit,scope,config=ctx.Kit,ctx.Scope,ctx.Config
- local model:Model=ctx.Model
- local low,calm,origin,hold=ctx.Low,Kit.ReducedMotion(),ctx.Origin,config.Hold
- local function live(t)return ctx:Elapsed()-t<.35 end
+ local model=ctx.Model
+ local low,calm,hold=ctx.Low,Kit.ReducedMotion(),config.Hold
  local player=Players.LocalPlayer
+ local origin=ctx.Origin
+ local function live(t)return ctx:Elapsed()-t<.35 end
+ running+=1
+ scope:Add(function()running-=1 end)
+ local district=workspace:FindFirstChild('DOGROTS_District')
 
- -- The real (display) dog waits, hidden, until the very end.
+ -- The real (display) dog waits, hidden, until the very end: at `at` it appears in a puff
+ -- of dust and the reveal card follows.
  local vis=scope:Visibility(model);vis.Set(1)
- -- A dog already digging in this pit would stand inside the arrival: it steps aside
- -- (hidden here, for this arrival only).
- do
-  local district=workspace:FindFirstChild('DOGROTS_District')
-  local kennels=district and district:FindFirstChild('KennelDogs')
-  for _,m in ipairs(kennels and kennels:GetChildren()or {})do
-   if m:IsA('Model')then
-    local p=m:GetPivot().Position
-    if Vector2.new(p.X-origin.X,p.Z-origin.Z).Magnitude<10 then scope:Visibility(m).Set(1)end
+ local function reveal(at)
+  task.spawn(function()
+   if not ctx:Wait(at)then return end
+   vis.Set(0)
+   if live(at)then
+    scope:Burst(origin+Vector3.new(0,1.5,0),DUST,30,{Texture=Kit.Textures.Smoke,LightEmission=0,LightInfluence=1,Speed=NumberRange.new(4,10),
+     SpreadAngle=Vector2.new(80,80),Drag=3,Lifetime=NumberRange.new(.8,1.4),Size=NumberSequence.new(3,7),Transparency=NumberSequence.new(.35,1)})
+    Kit.Cue('Impact',nil,.7);task.delay(.1,function()Kit.Cue('Chime',nil,.6)end)
+    local shine=scope:Highlight(model,SAND,C(255,244,214),.35,0)
+    Kit.Tween(shine,1.2,{FillTransparency=1,OutlineTransparency=1})
    end
-  end
+   local card=at+(T_TITLE-T_JOIN)
+   if ctx:Wait(card)and ctx:Elapsed()<card+2 then ctx:Title({Hold=3.2})end
+  end)
  end
+ -- Another Long Dog is already running here (two found at once), or its display dog stands
+ -- somewhere other than the giant mouth's stage (the act ends on it): it just appears.
+ if running>1 or math.abs(origin.X)>6 or origin.Z<FACE or origin.Z>TURN_Z then reveal(T_BURST);ctx:Wait(hold);return end
 
- ---------------------------------------------------------------- the path
- -- Join the lap where it passes closest to the hole, slanting on in its direction of travel,
- -- go all the way round, and slant back off to stop beside the hole (beside the body still
- -- pouring out of it).
- local function flatten(v:Vector3):Vector3 return Vector3.new(v.X,0,v.Z)end
- local here=flatten(origin)
- local route=(Config.Map and Config.Map.LongDogLap)or LAP
- local n=#route
- local along={0}
- for i=1,n do along[i+1]=along[i]+flatten(route[i%n+1]-route[i]).Magnitude end
- local lap=along[n+1]
- local function lapPoint(s:number):Vector3
-  s=s%lap
-  for i=1,n do
-   if s<=along[i+1]then return route[i]:Lerp(route[i%n+1],(s-along[i])/math.max(along[i+1]-along[i],1e-6))end
-  end
-  return route[1]
- end
- -- Where the lap passes closest to the hole.
- local nearest,best=0,math.huge
- for i=1,n do
-  local a,b=flatten(route[i]),flatten(route[i%n+1])
-  local ab=b-a
-  local u=math.clamp((here-a):Dot(ab)/math.max(ab:Dot(ab),1e-6),0,1)
-  local d=(a+ab*u-here).Magnitude
-  if d<best then nearest,best=along[i]+ab.Magnitude*u,d end
- end
- local on,off=nearest+30,nearest-40+lap
- local onPoint,offPoint=lapPoint(on),lapPoint(off)
- local out=flatten(onPoint)-here
- if out.Magnitude<1 then out=flatten(onPoint-lapPoint(on-1))end
- local side=Vector3.new(-out.Unit.Z,0,out.Unit.X)
- local back=flatten(offPoint)-here
- local start=Vector3.new(origin.X,onPoint.Y,origin.Z)
- local points:{Vector3}={start,start+out.Unit*math.min(6,out.Magnitude*.3),onPoint}
- -- Every corner of the lap between the two, in its direction of travel.
- for j=1,2*n do
-  local i=(j-1)%n+1
-  local s=along[i]+(j>n and lap or 0)
-  if s>on+4 and s<off-4 then table.insert(points,route[i])end
- end
- table.insert(points,offPoint)
- table.insert(points,Vector3.new(origin.X,offPoint.Y,origin.Z)+back.Unit*math.min(22,back.Magnitude*.5))
- -- The curve through the points, about every 3 studs (its heights are the lap's own).
- local curve:{Vector3}={}
- -- The legs between the hole and the lap cross this yard (kennels, fences): only those are
- -- measured against the ground. The lap's own heights already clear the island.
- local leg:{boolean}={}
- for i=1,#points-1 do
-  local p1,p2=points[i],points[i+1]
-  local p0=points[i-1]or p1*2-p2
-  local p3=points[i+2]or p2*2-p1
-  local steps=math.max(2,math.ceil(flatten(p2-p1).Magnitude/3))
-  for k=0,steps-1 do
-   table.insert(curve,spline(p0,p1,p2,p3,k/steps))
-   leg[#curve]=i<=2 or i>=#points-1
-  end
- end
- table.insert(curve,points[#points]);leg[#curve]=true
- local flat:{Vector2}={}
- for i,p in ipairs(curve)do flat[i]=Vector2.new(p.X,p.Z)end
- -- Ground under it (roofs, arches and fences included: it goes over them).
- local skip:{Instance}={model}
- for _,name in ipairs({'DOGROTS_SecretArrivalFX','DOGROTS_SecretReveals','DogDexLocalDisplays'})do
+ ---------------------------------------------------------------- the ground along the route
+ local skip={model}
+ for _,name in ipairs({'DOGROTS_SecretArrivalFX','DOGROTS_SecretReveals','DogDexLocalDisplays','DOGROTS_SecretAuraFX'})do
   local o=workspace:FindFirstChild(name);if o then table.insert(skip,o)end
  end
- local district=workspace:FindFirstChild('DOGROTS_District')
- for _,path in ipairs({{'03_DogLine','ActiveDogs'},{'KennelDogs'}})do
-  local o:Instance?=district
-  for _,step in ipairs(path)do o=o and o:FindFirstChild(step)end
-  if o then table.insert(skip,o)end
- end
+ local line=district and district:FindFirstChild('03_DogLine')
+ local conveyor=line and line:FindFirstChild('ActiveDogs')
+ if conveyor then table.insert(skip,conveyor)end
+ local kennels=district and district:FindFirstChild('KennelDogs')
+ if kennels then table.insert(skip,kennels)end
  for _,p in ipairs(Players:GetPlayers())do if p.Character then table.insert(skip,p.Character)end end
  local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
- local function ground(x:number,z:number,fallback:number):number
-  local ignore=table.clone(skip)
-  for _=1,4 do
-   params.FilterDescendantsInstances=ignore
-   local hit=workspace:Raycast(Vector3.new(x,240,z),Vector3.new(0,-320,0),params)
-   if not hit then return fallback end
+ -- From under the mouth's roof and the arches (it walks under them), down to the first
+ -- visible, solid part. Parts that are not streamed in fall back to the map's profile.
+ local function cast(p)
+  for _=1,5 do
+   params.FilterDescendantsInstances=skip
+   local hit=workspace:Raycast(Vector3.new(p.X,14,p.Z),Vector3.new(0,-30,0),params)
+   if not hit then return nil end
    local part=hit.Instance
    if part:IsA('Terrain')then return hit.Position.Y end
-   local size=(part::BasePart).Size
-   -- Poles, lamp posts and glass are not ground (walls and signs are: it goes over them).
-   if (part::BasePart).Transparency<.9 and math.max(size.X,size.Z)>=2.5 then return hit.Position.Y end
-   table.insert(ignore,part)
+   if part:IsA('BasePart')and part.Transparency<.95 and part.CanCollide then return hit.Position.Y end
+   table.insert(skip,part)
   end
-  return fallback
+  return nil
  end
- local count=#flat
- local spine=SPINE*SCALE
- local radius=RADIUS*SCALE
- -- The spine never dips below the lap's own height, nor below what this client's island
- -- needs (a kennel next to the pit, anything the lap itself does not pass over).
- local floor=table.create(count,0)
- local last=origin.Y
- for i,p in ipairs(flat)do
-  if leg[i]then
-   -- Across the body's whole width, so it does not graze a wall it runs beside.
-   local d=flat[math.min(i+1,count)]-flat[math.max(i-1,1)]
-   local across=d.Magnitude>1e-3 and Vector2.new(-d.Y,d.X).Unit*radius or Vector2.zero
-   local g=ground(p.X,p.Y,last)
-   g=math.max(g,ground(p.X+across.X,p.Y+across.Y,g),ground(p.X-across.X,p.Y-across.Y,g))
-   last=g
-   floor[i]=math.max(g,curve[i].Y-spine)
-  else
-   floor[i]=curve[i].Y-spine
+ local count=math.ceil((ROUTE+48)/STEP)
+ local raw={}
+ for i=0,count do
+  local p=flat(i*STEP)
+  local h=(p.Z>FACE+1 and i%2==0)and cast(p)or nil
+  -- Something odd under it (a hole, a prop left on the path): the map knows better.
+  if h then h=math.clamp(h,profile(p)-1.5,profile(p)+8)end
+  raw[i]=h or false
+ end
+ for i=0,count do
+  if not raw[i]then
+   local a,b=raw[i-1],raw[i+1]
+   raw[i]=(a and b)and(a+b)/2 or profile(flat(i*STEP))
   end
  end
- -- Over obstacles in long arcs: widen bumps, cap the slope, then smooth.
- local heights=table.create(count,0)
- for i=1,count do
-  local v=floor[i]
-  for j=math.max(1,i-2),math.min(count,i+2)do v=math.max(v,floor[j])end
-  heights[i]=v
+ -- Over bumps and off steps (the tongue's tip drops 1.7) rather than through their edges:
+ -- the highest ground within 4 studs, smoothed, never below the ground itself.
+ local heights={}
+ for i=0,count do
+  local h=raw[i]
+  for j=math.max(i-2,0),math.min(i+2,count)do h=math.max(h,raw[j])end
+  heights[i]=h
  end
- for i=2,count do heights[i]=math.max(heights[i],heights[i-1]-2.2)end
- for i=count-1,1,-1 do heights[i]=math.max(heights[i],heights[i+1]-2.2)end
  for _=1,3 do
   local was=table.clone(heights)
-  for i=2,count-1 do heights[i]=(was[i-1]+2*was[i]+was[i+1])/4 end
+  for i=1,count-1 do heights[i]=(was[i-1]+2*was[i]+was[i+1])/4 end
  end
- -- Smoothing must not pull it back down into what it is clearing.
- for i=1,count do
-  local need=floor[i]
-  if i>1 then need=math.max(need,floor[i-1])end
-  if i<count then need=math.max(need,floor[i+1])end
-  heights[i]=math.max(heights[i],need)
+ for i=0,count do heights[i]=math.max(heights[i],raw[i])end
+ local function ground(s)
+  local f=math.clamp(s/STEP,0,count)
+  local i=math.floor(f);local j=math.min(i+1,count)
+  return heights[i]+(heights[j]-heights[i])*(f-i)
  end
- -- The spine floats at the runner's height (it is only held up at its ends, like every
- -- photo of a long dog), rising out of the hole over the first few studs.
- local raw:{Vector3}={}
- local run=0
- for i,p in ipairs(flat)do
-  if i>1 then run+=(p-flat[i-1]).Magnitude end
-  local y=heights[i]+spine
-  if run<20 then y=origin.Y-radius*2+(y-origin.Y+radius*2)*smooth(run/20)end
-  raw[i]=Vector3.new(p.X,y,p.Y)
- end
- -- Even spacing along the 3D curve: point(s) is a table lookup.
- local P:{Vector3}={raw[1]}
- local total=0
- do
-  local carry=0
-  for i=2,#raw do
-   local a,b=raw[i-1],raw[i]
-   local d=(b-a).Magnitude
-   while carry+d>=STEP do
-    local u=(STEP-carry)/d
-    a=a:Lerp(b,u);d=(b-a).Magnitude;carry=0
-    table.insert(P,a);total+=STEP
-   end
-   carry+=d
+
+ ---------------------------------------------------------------- the act's geometry
+ -- The display dog the act ends on (VisualSize is its stretched size), on the stage.
+ local display=Kit.Size(model)
+ local sizeEnd=math.clamp(display.Y/HEIGHT,.4,SCALE)
+ local stage=origin.Z-THROAT
+ local JOIN_H=stage+display.Z/2-NOSE*sizeEnd
+ local JOIN_T=stage-display.Z/2+TAILTIP*sizeEnd
+ -- A display dog that is not stretched (or not sized) is shorter than two half dogs.
+ if JOIN_T>JOIN_H then JOIN_H=(JOIN_H+JOIN_T)/2;JOIN_T=JOIN_H end
+ local S_END=ROUTE
+ -- The pose this frame: head and tail runner positions (path studs), their bounce, the scale.
+ local pose={H=START,T=nil,S=SCALE,HeadLift=0,TailLift=0}
+ -- The body's centre above the ground at s: held up at the spine's height behind each
+ -- runner's legs, lying on the ground in between.
+ local function lift(s)
+  local S=pose.S
+  local rt=TUBE*S
+  local spine=(SPINE-SOLE)*S
+  local ramp=RAMP*S
+  local d=(pose.H-SEAM*S)-s
+  local k=d<=0 and 1 or 1-smooth(d/ramp)
+  local up=k*(spine+pose.HeadLift-rt)
+  if pose.T then
+   local e=s-(pose.T+(NOSE+.4)*S)
+   local q=e<=0 and 1 or 1-smooth(e/ramp)
+   up=math.max(up,q*(spine+pose.TailLift-rt))
   end
-  total+=carry;table.insert(P,raw[#raw])
+  return rt+math.max(up,0)
  end
- local function point(s:number):Vector3
-  local f=math.clamp(s,0,total)/STEP
-  local i=math.min(math.floor(f),#P-2)
-  return P[i+1]:Lerp(P[i+2],math.clamp(f-i,0,1))
+ local function center(s)local p=flat(s);return Vector3.new(p.X,ground(s)+lift(s),p.Z)end
+ local function along(s)
+  local d=center(s+1.5)-center(s-1.5)
+  return d.Magnitude>1e-4 and d.Unit or Vector3.zAxis
  end
- local function tangent(s:number):Vector3
-  local d=point(s+3)-point(s-3)
-  return d.Magnitude>1e-3 and d.Unit or Vector3.zAxis
- end
- -- A runner's pivot (its paws) with its spine on the path at s, facing along it.
- local function frame(s:number,back:boolean?):CFrame
-  local p,d=point(s),tangent(s)
-  if back then d=-d end
+ local function frame(s)local p=center(s);return CFrame.lookAt(p,p+along(s))end
+ -- A runner's pivot at s, standing on the ground, raised by lift.
+ local function pivotAt(s,up,S)
+  local p=flat(s)
+  local d=flat(s+2)-flat(s-2)
   local level=Vector3.new(d.X,0,d.Z)
-  if level.Magnitude<1e-3 then level=Vector3.zAxis end
-  local pitch=math.clamp(math.atan2(d.Y,level.Magnitude),-.6,.6)
-  return CFrame.lookAt(p,p+level.Unit)*CFrame.Angles(pitch,0,0)*CFrame.new(0,-spine,0)
+  level=level.Magnitude>1e-4 and level.Unit or Vector3.zAxis
+  local pitch=math.clamp(math.atan2(ground(s+2)-ground(s-2),4),-.3,.3)
+  local at=Vector3.new(p.X,ground(s)+up-SOLE*S,p.Z)
+  return CFrame.lookAt(at,at+level)*CFrame.Angles(pitch,0,0)
  end
 
- ---------------------------------------------------------------- the head over everything
- -- The head runs from T_OUT to T_STOP; mostly at full tilt.
- local headEnd=total
- local function headAt(t:number):number
-  local u=math.clamp((t-T_OUT)/(T_STOP-T_OUT),0,1)
-  return headEnd*(.7*u+.3*smooth(u))
+ ---------------------------------------------------------------- the timeline
+ local function runS(t)
+  local T=T_STOP-T_RUN
+  local V=(S_END-RUN_FROM)/(T-(ACC+DEC)/2)
+  local u=t-T_RUN
+  if u<=0 then return RUN_FROM,0 end
+  if u<ACC then return RUN_FROM+V*u*u/(2*ACC),V*u/ACC end
+  local a=RUN_FROM+V*ACC/2
+  if u<T-DEC then return a+V*(u-ACC),V end
+  local b=a+V*(T-DEC-ACC)
+  local w=math.min(u-(T-DEC),DEC)
+  return b+V*w-V*w*w/(2*DEC),V*(1-w/DEC)
  end
- -- The tail sits in the hole until it pops out, then snaps all the way to the head.
- local tailRest=REAR*SCALE+2
- local function tailAt(t:number):number
-  if t<T_POP then return REAR*SCALE-8 end
-  if t<T_SNAP then return REAR*SCALE-8+(tailRest-REAR*SCALE+8)*smooth((t-T_POP)/.45)end
-  local u=math.clamp((t-T_SNAP)/(T_JOIN-T_SNAP),0,1)
-  return tailRest+(headEnd-tailRest)*u^2.4
- end
-
- -- Runners: local copies of the dog that every client has.
- local function runner(tuck:{[string]:Vector3}):(Model?,any)
-  local copy=Kit.DogCopy('LongDog',model)
-  if not copy then return nil,nil end
-  local m:Model=copy
-  pcall(function()m:ScaleTo(m:GetScale()*SCALE)end)
-  for _,p in ipairs(m:GetDescendants())do
-   if p:IsA('BasePart')then p.CastShadow=not low;if p.Name=='RootPart'then p.Transparency=1 end end
+ local function headS(t)
+  if t<T_BURST then return START end
+  if t<T_RUN then local u=(t-T_BURST)/(T_RUN-T_BURST);return START+(RUN_FROM-START)*(1-(1-u)^3)end
+  if t<T_STOP then return(runS(t))end
+  if t<T_TENSE then return S_END end
+  if t<T_YANK then return S_END-3*smooth((t-T_TENSE)/(T_YANK-T_TENSE))end
+  local from,to=S_END-3,JOIN_H+8
+  if t<T_SETTLE then
+   -- A tape measure: it picks up speed all the way and clacks home.
+   local u=(t-T_YANK)/(T_SETTLE-T_YANK)
+   local f=u<.7 and .75*(u/.7)^2 or .75+.25*(1-(1-(u-.7)/.3)^2)
+   return from+(to-from)*f
   end
+  return JOIN_H+8*(1-backOut((t-T_SETTLE)/(T_JOIN-.15-T_SETTLE)))
+ end
+ local function tailS(t)
+  if t<T_POP then return nil end
+  if t<T_POP+.45 then return TAIL_IN+(TAIL_OUT-TAIL_IN)*backOut((t-T_POP)/.45)end
+  if t<T_SHRINK then return TAIL_OUT end
+  return TAIL_OUT+(JOIN_T-TAIL_OUT)*smooth((t-T_SHRINK)/(T_JOIN-.15-T_SHRINK))
+ end
+ local function scaleAt(t)
+  if t<T_SHRINK then return SCALE end
+  return SCALE+(sizeEnd-SCALE)*smooth((t-T_SHRINK)/(T_JOIN-.15-T_SHRINK))
+ end
+
+ ---------------------------------------------------------------- the runners
+ local PIN={'LongSeg1','LongSeg2','LongSeg3','LongSeg4','LongSeg5','LongSeg6'}
+ local function restWorld(bone)
+  local parent=bone.Parent
+  if parent and parent:IsA('Bone')then
+   local up=restWorld(parent)
+   return up and up*bone.CFrame
+  end
+  if parent and parent:IsA('BasePart')then return parent.CFrame*bone.CFrame end
+  return nil
+ end
+ -- role 'Head': the front half shows (head, forelegs, chest); hind legs and tail tuck up into
+ -- the body. role 'Tail': the back half shows (hind legs, tail); head and forelegs tuck in.
+ local function build(role)
+  local menu=RS:FindFirstChild('MenuModels')
+  if not menu then return nil end
+  local copy=Kit.DogCopy('LongDog')
+  if not copy then return nil end
+  local m=copy
+  local bones={}
+  for _,o in ipairs(m:GetDescendants())do if o:IsA('Bone')then bones[o.Name]=bones[o.Name]or o end end
+  local pivot=m:GetPivot()
+  local base=m:GetScale()
+  local rest={}
+  for _,name in ipairs(PIN)do
+   local bone=bones[name]
+   local w=bone and restWorld(bone)
+   if not w then m:Destroy();return nil end
+   rest[name]={Z=pivot:ToObjectSpace(w).Position.Z/base,Rotation=pivot:ToObjectSpace(w).Rotation}
+  end
+  local parts={}
+  for _,p in ipairs(m:GetDescendants())do
+   if p:IsA('BasePart')then
+    p.CastShadow=not low
+    if p.Name=='RootPart'then p.Transparency=1 else p.LocalTransparencyModifier=1;table.insert(parts,p)end
+   end
+  end
+  local okScale=pcall(function()m:ScaleTo(base*SCALE)end)
+  if not okScale then m:Destroy();return nil end
   m.Parent=scope.Folder
   local animator
   pcall(function()animator=AnimationPlayer.new(m,'LongDog')end)
-  -- Bones pushed (template units, in the runner's own frame) inside the body tube.
-  local bones={}
-  for name,offset in pairs(tuck)do
-   local b=m:FindFirstChild(name,true)
-   if b and b:IsA('Bone')then table.insert(bones,{b,offset*SCALE})end
+  local r={Model=m,Bones=bones,Animator=animator,Shown=false,Phase=0,Walking=false,S=SCALE}
+  -- Tucked bones (template units in the runner's frame) and the legs that trot.
+  if role=='Head'then
+   r.Tucks={{'Leg.BL',Vector3.new(-.18,.5,0)},{'Leg.BR',Vector3.new(.18,.5,0)},{'Tail',Vector3.new(0,-.32,-.55)}}
+   r.Legs={'Leg.FL','Leg.FR'};r.Shins={'Shin.FL','Shin.FR'}
+  else
+   r.Tucks={{'Chest',Vector3.new(0,-.5,.75)},{'Ear.L',Vector3.new(-.3,-.12,.05)},{'Ear.R',Vector3.new(.3,-.12,.05)},
+    {'Leg.FL',Vector3.new(-.18,.5,0)},{'Leg.FR',Vector3.new(.18,.5,0)}}
+   r.Legs={'Leg.BL','Leg.BR'};r.Shins={'Shin.BL','Shin.BR'}
   end
-  local r={Model=m,Animator=animator,Bones=bones,Hidden=true}
-  function r.Pose(cf:CFrame)
+  function r.Show(on)
+   if on==r.Shown then return end
+   r.Shown=on
+   for _,p in ipairs(parts)do p.LocalTransparencyModifier=on and 0 or 1 end
+  end
+  function r.Play(name,looped,fade)
+   r.Walking=false
+   if animator then pcall(function()animator:Play(name,{Looped=looped==true,FadeTime=fade or .2})end)end
+  end
+  function r.Walk()
+   if r.Walking then return end
+   r.Walking=true
+   if animator then pcall(function()animator:Play('Walk',{Looped=true,FadeTime=.15})end)end
+  end
+  function r.Scale(S)
+   if math.abs(S-r.S)<1e-3 then return end
+   r.S=S
+   pcall(function()m:ScaleTo(base*S)end)
+  end
+  function r.Look(target)
+   if animator then animator.Look=target and{Target=target,Body=0,Head=1}or nil end
+  end
+  -- Pivot at cf, path position s: the clip, then the spine laid along the body, the trot,
+  -- and the tucked bones.
+  function r.Pose(cf,s,S)
    m:PivotTo(cf)
-   if animator and animator.Clip then pcall(function()animator:Step()end)end
-   local tracks=animator and animator.Clip and animator.Clip.Tracks or {}
-   for _,pair in ipairs(bones)do
-    local bone,offset=pair[1],pair[2]
-    if bone.Parent then
-     -- A bone the clip does not drive keeps its last Transform: start it from rest.
-     if not tracks[bone.Name]then bone.Transform=CFrame.identity end
-     local world=cf:VectorToWorldSpace(offset)
-     bone.Transform*=CFrame.new(bone.TransformedWorldCFrame:VectorToObjectSpace(world))
+   if animator and animator.Clip then
+    if r.Walking then
+     local now=workspace:GetServerTimeNow()
+     local blend=1
+     if animator.BlendFrom then blend=smooth((now-(animator.BlendStartedAt or now))/math.max(.001,animator.BlendDuration or .001))end
+     -- The authored Walk steps backward (DogWalkProfiles: Reverse): play it the other way.
+     animator:Sample((1-r.Phase%1)*animator.Clip.Duration,blend)
+     if blend>=1 then animator.BlendFrom=nil end
+    else
+     animator:Step()
+    end
+   end
+   for _,name in ipairs(PIN)do
+    local bone=bones[name]
+    local parent=bone.Parent
+    if parent then
+     local R=rest[name]
+     local target=frame(s-R.Z*S)*R.Rotation
+     local above=parent:IsA('Bone')and parent.TransformedWorldCFrame or(parent::BasePart).CFrame
+     bone.Transform=(above*bone.CFrame):Inverse()*target
+    end
+   end
+   if r.Walking then
+    for i,list in ipairs({r.Legs,r.Shins})do
+     local gain=i==1 and REACH or 1.4
+     for _,name in ipairs(list)do
+      local bone=bones[name]
+      if bone and bone.Parent then
+       local t=bone.Transform
+       local axis,angle=t:ToAxisAngle()
+       bone.Transform=CFrame.new(t.Position)*CFrame.fromAxisAngle(axis,angle*gain)
+      end
+     end
+    end
+   end
+   for _,tuck in ipairs(r.Tucks)do
+    local bone=bones[tuck[1]]
+    if bone and bone.Parent then
+     bone.Transform*=CFrame.new(bone.TransformedWorldCFrame:VectorToObjectSpace(cf:VectorToWorldSpace(tuck[2]*S)))
     end
    end
   end
-  function r.Play(name:string,speed:number?,looped:boolean?)
-   if animator then pcall(function()animator:Play(name,{Speed=speed,Looped=looped,FadeTime=.15})end)end
+  function r.HeadPosition()
+   local b=bones.Head
+   if b and b.Parent then return b.TransformedWorldCFrame.Position end
+   return m:GetPivot().Position
   end
-  function r.Show(on:boolean)
-   r.Hidden=not on
-   for _,p in ipairs(m:GetDescendants())do
-    if p:IsA('BasePart')and p.Name~='RootPart'then p.LocalTransparencyModifier=on and 0 or 1 end
-   end
-  end
-  return m,r
+  -- Decode both clips now, not the moment it bursts out.
+  if animator then pcall(function()animator:Play('Happy',{FadeTime=0});animator:Play('Walk',{Looped=true,FadeTime=0})end)end
+  return r
  end
- -- The head runner hides its hind legs and tail in the tube; the tail runner hides its
- -- head and forelegs (dogs face -Z: +Z is toward the tail).
- local _,head=runner({['Leg.BL']=Vector3.new(0,.52,0),['Leg.BR']=Vector3.new(0,.52,0),Tail=Vector3.new(0,-.42,-.9)})
- local _,tail=runner({Chest=Vector3.new(0,-.5,.75),['Leg.FL']=Vector3.new(0,.5,0),['Leg.FR']=Vector3.new(0,.5,0)})
- if head then head.Show(false);head.Play('Walk',5,true)end
- if tail then tail.Show(false);tail.Play('Walk',5,true)end
+ local head=build('Head')
+ local tail=head and build('Tail')
+ if not(head and tail)then
+  -- No copy of the dog to run with (MenuModels missing): it simply comes out of the mouth.
+  if head then head.Model:Destroy()end
+  reveal(T_BURST);ctx:Wait(hold);return
+ end
+ reveal(T_JOIN)
 
  ---------------------------------------------------------------- the body
- local SEG=low and 10 or 5
- local segments:{BasePart}={}
+ local SEG=low and 8 or 4
+ local BUDGET=low and 6 or 12   -- new segments per frame (a late joiner's body builds up)
  local fur=FUR
- local function segment(k:number):BasePart
-  local p=segments[k]
-  if p then return p end
-  local a,b=(k-1)*SEG,math.min(k*SEG,total)
-  local pa,pb=point(a),point(b)
-  local length=(pb-pa).Magnitude+1
-  p=scope:Part({Name='LongBody',Shape=Enum.PartType.Cylinder,Material=Enum.Material.SmoothPlastic,Color=fur,
-   Size=Vector3.new(length,radius*2,radius*2),CFrame=Kit.LookAt((pa+pb)/2,pb)*CFrame.Angles(0,math.pi/2,0),
-   Transparency=1,CastShadow=not low})
-  segments[k]=p
-  return p
+ local function stripeOf(c)return c:Lerp(C(46,26,14),.32)end
+ local function bellyOf(c)return c:Lerp(C(255,236,206),.45)end
+ local body=Instance.new('Folder');body.Name='LongDogBody';body.Parent=scope.Folder
+ local function piece(name,shape,color,shadow)
+  return scope:Part({Name=name,Shape=shape,Material=Enum.Material.Carpet,Color=color,Transparency=1,CastShadow=shadow,Parent=body})
  end
- local pieces=math.ceil(total/SEG)
- for k=1,pieces do segment(k)end
- -- Ball joints where the body bends hard, so the tube shows no gaps on the outside.
- local joints:{[number]:BasePart}={}
- for k=1,pieces-1 do
-  local a,b,c=point((k-1)*SEG),point(k*SEG),point(math.min((k+1)*SEG,total))
-  local d1,d2=b-a,c-b
-  if d1.Magnitude>1e-3 and d2.Magnitude>1e-3 and d1.Unit:Dot(d2.Unit)<.985 then
-   joints[k]=scope:Part({Name='LongJoint',Shape=Enum.PartType.Ball,Material=Enum.Material.SmoothPlastic,Color=fur,
-    Size=Vector3.one*radius*2,CFrame=CFrame.new(b),Transparency=1,CastShadow=not low})
+ local segs={}
+ local function make(k)
+  local seg={On=false,K=k,Main=piece('LongBody',Enum.PartType.Cylinder,fur,not low)}
+  -- A darker stripe down its back and a lighter belly (cylinders poking out of the tube).
+  if not low then
+   seg.Stripe=piece('LongBack',Enum.PartType.Cylinder,stripeOf(fur),false)
+   seg.Belly=piece('LongBelly',Enum.PartType.Cylinder,bellyOf(fur),false)
   end
+  segs[k]=seg
+  return seg
  end
- -- One more piece reaches from the last whole segment to exactly where a runner begins.
- local function cap(name:string):BasePart
-  return scope:Part({Name=name,Shape=Enum.PartType.Cylinder,Material=Enum.Material.SmoothPlastic,Color=fur,
-   Size=Vector3.new(1,radius*2,radius*2),Transparency=1,CastShadow=not low})
+ local function show(seg,on)
+  if seg.On==on then return end
+  seg.On=on
+  local alpha=on and 0 or 1
+  seg.Main.Transparency=alpha
+  if seg.Stripe then seg.Stripe.Transparency=alpha end
+  if seg.Belly then seg.Belly.Transparency=alpha end
  end
- local front,rear=cap('LongBodyFront'),cap('LongBodyRear')
- -- A harness band hides each seam between the textured runner and the plain tube.
- local bands={}
- for i=1,2 do
-  bands[i]=scope:Part({Name='Harness',Shape=Enum.PartType.Cylinder,Material=Enum.Material.Fabric,Color=BAND,
-   Size=Vector3.new(.9,radius*2.25,radius*2.25),Transparency=1})
+ local function place(seg,a,b,r)
+  local pa,pb=center(a),center(b)
+  if seg.On and seg.PA and(pa-seg.PA).Magnitude<.01 and(pb-seg.PB).Magnitude<.01 and math.abs(r-seg.R)<.005 then return end
+  seg.PA,seg.PB,seg.R=pa,pb,r
+  local length=(pb-pa).Magnitude+.5
+  local cf=Kit.LookAt((pa+pb)/2,pb)*CFrame.Angles(0,math.pi/2,0)
+  seg.Main.Size=Vector3.new(length,r*2,r*2);seg.Main.CFrame=cf
+  if seg.Stripe then seg.Stripe.Size=Vector3.new(length,r*1.24,r*1.24);seg.Stripe.CFrame=cf*CFrame.new(0,r*.44,0)end
+  if seg.Belly then seg.Belly.Size=Vector3.new(length,r*1.32,r*1.32);seg.Belly.CFrame=cf*CFrame.new(0,-r*.4,0)end
+  show(seg,true)
  end
- task.spawn(function()
-  local sampled=sampleFur(model)or sampleFur(head and head.Model or nil)
-  if not sampled or not scope.Alive then return end
-  fur=sampled
-  for _,p in pairs(segments)do p.Color=sampled end
-  for _,p in pairs(joints)do p.Color=sampled end
-  front.Color=sampled;rear.Color=sampled
- end)
- local shown={}
- local function piece(p:BasePart,a:number,b:number)
-  if b-a<.3 then p.Transparency=1;return end
-  local pa,pb=point(a),point(b)
-  p.Size=Vector3.new((pb-pa).Magnitude+1,radius*2,radius*2)
-  p.CFrame=Kit.LookAt((pa+pb)/2,pb)*CFrame.Angles(0,math.pi/2,0)
-  p.Transparency=0
+ -- Balls where the body bends hard (the hook) and at each runner's seam.
+ local joints={}
+ local function ball(name)return piece(name,Enum.PartType.Ball,fur,not low)end
+ local capHead,capTail=ball('LongSeamFront'),ball('LongSeamBack')
+ local function setBall(p,at,r,on)
+  if not on then if p.Transparency<1 then p.Transparency=1 end;return end
+  p.Size=Vector3.one*r*2;p.CFrame=CFrame.new(at);p.Transparency=0
  end
- -- Shows the body between s0 (the tail end) and s1 (the head end).
- local function body(s0:number,s1:number)
-  local first,lastWhole=math.floor(s0/SEG)+2,math.floor(s1/SEG)
-  for k,p in pairs(segments)do
-   local on=k>=first and k<=lastWhole
-   if shown[k]~=on then shown[k]=on;p.Transparency=on and 0 or 1 end
+ local low0,high0=0,-1
+ local function drawBody(rear,front,r,headOn,tailOn)
+  local k0,k1=math.floor(rear/SEG),math.floor((front-1e-6)/SEG)
+  if front-rear<.2 then k0,k1=0,-1 end
+  for k=low0,high0 do
+   if(k<k0 or k>k1)and segs[k]then show(segs[k],false)end
+  end
+  low0,high0=k0,k1
+  local made=0
+  for k=k0,k1 do
+   local a,b=math.max(k*SEG,rear),math.min((k+1)*SEG,front)
+   local seg=segs[k]
+   if b-a<.15 then
+    if seg then show(seg,false)end
+   else
+    if not seg and made<BUDGET then seg=make(k);made+=1 end
+    if seg then place(seg,a,b,r)end
+   end
   end
   for k,p in pairs(joints)do
-   local on=k>=first and k<lastWhole
-   if (p.Transparency<1)~=on then p.Transparency=on and 0 or 1 end
+   local s1,s2=segs[k],segs[k+1]
+   if not(k>=k0 and k<k1 and s1 and s2 and s1.On and s2.On)then setBall(p,Vector3.zero,r,false)end
   end
-  if lastWhole>=first then
-   piece(rear,s0,(first-1)*SEG);piece(front,lastWhole*SEG,s1)
-  else
-   piece(rear,s0,s1);front.Transparency=1
-  end
- end
- local function band(p:BasePart,s:number,on:boolean)
-  if not on then p.Transparency=1;return end
-  local pa,pb=point(s-.45),point(s+.45)
-  p.CFrame=Kit.LookAt((pa+pb)/2,pb)*CFrame.Angles(0,math.pi/2,0);p.Transparency=0
- end
-
- ---------------------------------------------------------------- the hole
- local holeY=origin.Y+.06
- local function disc(name:string,y:number,props:{[string]:any}):BasePart
-  local p=scope:Part(props);p.Name=name;p.Size=Vector3.new(.1,.04,.1);p.CFrame=CFrame.new(origin.X,holeY+y,origin.Z)
-  local mesh=Instance.new('SpecialMesh');mesh.MeshType=Enum.MeshType.Sphere;mesh.Parent=p
-  return p
- end
- local across=radius*2+3
- local open:{{any}}={
-  {disc('Spoil',0,{Material=Enum.Material.Ground,Color=DIRT}),Vector3.new(across+4,.1,across+4)},
-  {disc('HoleEdge',.05,{Color=VOID,Transparency=.45}),Vector3.new(across+1.4,.03,across+1.4)},
-  {disc('Hole',.09,{Color=VOID}),Vector3.new(across,.03,across)},
- }
- local mouth=scope:Anchor(origin+Vector3.new(0,.4,0),'Mouth')
- local cracks={}
- for i=1,low and 4 or 8 do
-  local a=(i+Kit.Random(-.3,.3))/(low and 4 or 8)*math.pi*2
-  local len=Kit.Random(5,9)+across*.5
-  local dir=CFrame.new(origin.X,holeY+.02,origin.Z)*CFrame.Angles(0,a,0)
-  local p=scope:Part({Name='Crack',Color=VOID,Size=Vector3.new(.35,.06,len),CFrame=dir*CFrame.new(0,0,-len/2)})
-  if live(0)then
-   p.Size=Vector3.new(.35,.06,.1);p.CFrame=dir
-   Kit.Tween(p,.3,{Size=Vector3.new(.35,.06,len),CFrame=dir*CFrame.new(0,0,-len/2)})
-  end
-  cracks[i]=p
- end
- for i,o in ipairs(open)do
-  if live(0)then
-   task.delay(.05+(3-i)*.04,function()if o[1].Parent then Kit.Tween(o[1],.45,{Size=o[2]},Enum.EasingStyle.Back)end end)
-  else o[1].Size=o[2]end
- end
- local trickle=scope:Emitter(mouth,{Color=ColorSequence.new(DIRT),LightEmission=0,LightInfluence=1,Lifetime=NumberRange.new(.5,.9),
-  Speed=NumberRange.new(8,15),SpreadAngle=Vector2.new(30,30),Acceleration=Vector3.new(0,-45,0),Size=NumberSequence.new(.55,.2),
-  Transparency=NumberSequence.new(0,.3),RotSpeed=NumberRange.new(-180,180)})
- local haze=not low and scope:Emitter(mouth,{Texture=Kit.Textures.Smoke,Color=ColorSequence.new(DUST),LightEmission=0,LightInfluence=1,
-  Lifetime=NumberRange.new(1,1.8),Speed=NumberRange.new(1,4),SpreadAngle=Vector2.new(40,40),Size=NumberSequence.new(2,5),
-  Transparency=NumberSequence.new(.6,1)})or nil
-
- -- Thrown dirt and bones: a little ballistic sim that lands them on the ground.
- local flying:{any}={}
- local function throw(p:BasePart,from:Vector3,velocity:Vector3,rest:number,extra:{any}?)
-  table.insert(flying,{Part=p,Pos=from,Vel=velocity,Turn=CFrame.identity,Rest=false,Half=rest,Extra=extra,
-   Spin=Vector3.new(Kit.Random(-9,9),Kit.Random(-9,9),Kit.Random(-9,9))})
- end
- scope:Every(function(dt)
-  dt=math.min(dt,.05)
-  for _,b in ipairs(flying)do
-   if not b.Rest and b.Part.Parent then
-    local v=b.Vel-Vector3.new(0,60*dt,0)
-    local at=b.Pos+v*dt
-    b.Turn*=CFrame.fromEulerAnglesXYZ(b.Spin.X*dt,b.Spin.Y*dt,b.Spin.Z*dt)
-    if at.Y<holeY+b.Half and v.Y<0 then
-     at=Vector3.new(at.X,holeY+b.Half,at.Z)
-     if v.Y<-9 then v=Vector3.new(v.X*.45,-v.Y*.3,v.Z*.45)
-     else v=Vector3.zero;b.Rest=true;b.Turn=CFrame.Angles(0,Kit.Random(0,math.pi*2),0)end
-    end
-    b.Vel=v;b.Pos=at
-    local cf=CFrame.new(at)*b.Turn
-    b.Part.CFrame=cf
-    if b.Extra then for _,x in ipairs(b.Extra)do x[1].CFrame=cf*x[2]end end
+  for k=k0,k1-1 do
+   local s1,s2=segs[k],segs[k+1]
+   if s1 and s2 and s1.On and s2.On then
+    local d1,d2=s1.PB-s1.PA,s2.PB-s2.PA
+    local bent=d1.Magnitude>1e-3 and d2.Magnitude>1e-3 and d1.Unit:Dot(d2.Unit)<.993
+    if bent and not joints[k]then joints[k]=ball('LongJoint')end
+    if joints[k]then setBall(joints[k],s1.PB,r,bent)end
    end
   end
+  setBall(capHead,center(front),r,headOn and front-rear>.5)
+  setBall(capTail,center(rear),r,tailOn and front-rear>.5)
+ end
+ local function recolor(c)
+  fur=c
+  for _,seg in pairs(segs)do
+   seg.Main.Color=c
+   if seg.Stripe then seg.Stripe.Color=stripeOf(c)end
+   if seg.Belly then seg.Belly.Color=bellyOf(c)end
+  end
+  for _,p in pairs(joints)do p.Color=c end
+  capHead.Color=c;capTail.Color=c
+ end
+ task.spawn(function()
+  local sampled=sampleFur(head.Model)
+  if sampled and scope.Alive then recolor(sampled)end
  end)
- local function clod(from:Vector3,speed:number,up:number)
-  local s=Kit.Random(.4,.8)
-  local p=scope:Part({Name='Clod',Material=Enum.Material.Ground,Color=DIRT:Lerp(Kit.Random(0,1)<.5 and C(60,40,24)or DUST,Kit.Random(0,.4)),
-   Size=Vector3.one*s,CFrame=CFrame.new(from)})
-  local a=Kit.Random(0,math.pi*2)
-  throw(p,from,Vector3.new(math.cos(a)*speed,up,math.sin(a)*speed),s/2)
+
+ ---------------------------------------------------------------- the stage, the pit, the throat
+ -- A dug-up Long Dog went into its owner's pit: it spits dirt as the act starts.
+ local pit=model:GetAttribute('ArrivalPit')
+ if typeof(pit)=='Vector3'and ctx:Elapsed()<T_BURST then
+  local hole=scope:Anchor(pit+Vector3.new(0,.4,0),'ArrivalPit')
+  local spit=scope:Emitter(hole,{Color=ColorSequence.new(DIRT),LightEmission=0,LightInfluence=1,Lifetime=NumberRange.new(.6,1.1),
+   Speed=NumberRange.new(16,26),SpreadAngle=Vector2.new(22,22),EmissionDirection=Enum.NormalId.Top,Acceleration=Vector3.new(0,-60,0),
+   Size=NumberSequence.new(.6,.25),Transparency=NumberSequence.new(0,.2),RotSpeed=NumberRange.new(-200,200),Rate=low and 10 or 30})
+  local puff=scope:Emitter(hole,{Texture=Kit.Textures.Smoke,Color=ColorSequence.new(DUST),LightEmission=0,LightInfluence=1,
+   Lifetime=NumberRange.new(1,1.8),Speed=NumberRange.new(2,6),SpreadAngle=Vector2.new(40,40),EmissionDirection=Enum.NormalId.Top,
+   Size=NumberSequence.new(2.5,6),Transparency=NumberSequence.new(.5,1),Rate=low and 2 or 6})
+  if live(0)then Kit.Cue('Impact',hole,.8)end
+  local tag=Instance.new('BillboardGui');tag.Name='WentInHere';tag.Size=UDim2.fromOffset(280,54);tag.StudsOffsetWorldSpace=Vector3.new(0,7,0)
+  tag.MaxDistance=260;tag.LightInfluence=0;tag.Adornee=hole
+  local words=Instance.new('TextLabel');words:SetAttribute('KeepFont',true);words.BackgroundTransparency=1;words.Size=UDim2.fromScale(1,1)
+  words.Font=Enum.Font.Kalam;words.TextScaled=true;words.TextColor3=C(255,230,186);words.TextStrokeColor3=C(30,18,8);words.TextStrokeTransparency=.3
+  words.Text='it went in here...';words.TextTransparency=1;words.Parent=tag;tag.Parent=hole
+  Kit.Tween(words,.4,{TextTransparency=0})
+  task.spawn(function()
+   if not ctx:Wait(T_BURST+.2)then return end
+   spit.Rate=0;puff.Rate=0
+   Kit.Tween(words,.8,{TextTransparency=1,TextStrokeTransparency=1})
+  end)
  end
- local function bone(from:Vector3,speed:number,up:number)
-  local shaft=scope:Part({Name='Bone',Shape=Enum.PartType.Cylinder,Material=Enum.Material.SmoothPlastic,Color=BONE,
-   Size=Vector3.new(1.1,.24,.24),CFrame=CFrame.new(from)})
-  local knobs={}
-  for _,x in ipairs({-.55,.55})do
-   for _,z in ipairs({-.13,.13})do
-    local k=scope:Part({Name='Knob',Shape=Enum.PartType.Ball,Material=Enum.Material.SmoothPlastic,Color=BONE,Size=Vector3.one*.32,CFrame=CFrame.new(from)})
-    table.insert(knobs,{k,CFrame.new(x,0,z)})
-   end
+ -- The throat: dust pours out of it, the giant mouth rumbles, its runes glow.
+ local throatAt=Vector3.new(0,8,FACE+1)
+ local throat=scope:Part({Name='Throat',Size=Vector3.new(14,12,1),CFrame=CFrame.lookAt(throatAt,throatAt+Vector3.zAxis),Transparency=1})
+ local pour=scope:Emitter(throat,{Texture=Kit.Textures.Smoke,Color=ColorSequence.new(DUST),LightEmission=0,LightInfluence=1,
+  Lifetime=NumberRange.new(1.6,2.6),Speed=NumberRange.new(6,16),SpreadAngle=Vector2.new(25,25),EmissionDirection=Enum.NormalId.Front,
+  Drag=1.5,Acceleration=Vector3.new(0,1.5,0),Size=NumberSequence.new(4,9),Transparency=NumberSequence.new(.45,1)})
+ local POUR=low and 10 or 30
+ local rumble
+ if ctx:Elapsed()<T_BURST then
+  rumble=Kit.Sound(throat,TICK,0,.12,true)
+  local eq=Instance.new('EqualizerSoundEffect');eq.LowGain=10;eq.MidGain=-6;eq.HighGain=-40;eq.Parent=rumble
+  local grit=Instance.new('DistortionSoundEffect');grit.Level=.6;grit.Parent=rumble
+  rumble:Play();Kit.Tween(rumble,1.2,{Volume=.6})
+ end
+ local tunnel=district and district:FindFirstChild('02_DogFactory')
+ tunnel=tunnel and tunnel:FindFirstChild('DarkMouthTunnel')
+ local runes={}
+ for _,o in ipairs(tunnel and tunnel:GetChildren()or {})do
+  if o.Name=='MouthRune'and o:IsA('BasePart')then
+   local _,release=scope:Override(o,{Color=SAND,Material=Enum.Material.Neon})
+   table.insert(runes,release)
   end
-  local a=Kit.Random(0,math.pi*2)
-  throw(shaft,from,Vector3.new(math.cos(a)*speed,up,math.sin(a)*speed),.15,knobs)
  end
- local function burst(at:Vector3,big:boolean)
-  scope:Burst(at,DIRT,big and 60 or 30,{LightEmission=0,LightInfluence=1,Speed=NumberRange.new(16,30),SpreadAngle=Vector2.new(35,35),
-   Acceleration=Vector3.new(0,-60,0),Lifetime=NumberRange.new(.7,1.3),Size=NumberSequence.new(.7,.3),Transparency=NumberSequence.new(0,.2),
-   RotSpeed=NumberRange.new(-200,200)})
-  scope:Burst(at,DUST,big and 26 or 14,{Texture=Kit.Textures.Smoke,LightEmission=0,LightInfluence=1,Speed=NumberRange.new(5,12),
-   SpreadAngle=Vector2.new(70,70),Drag=3,Lifetime=NumberRange.new(1,1.7),Size=NumberSequence.new(2.5,6),Transparency=NumberSequence.new(.35,1)})
- end
+ local mouthCenter=Vector3.new(0,10,-160)
 
  ---------------------------------------------------------------- every screen
- -- The banner, a dusty sky and the LENGTH every player watches climb.
- if ctx:Elapsed()<3 then
-  ctx:Banner({Kicker='⚠  SOMETHING IS DIGGING  ⚠',Title='LONG DOG',Text='it keeps going',Style='Alert',Hold=3})
- end
  local sky=scope:Sky({Grade={TintColor=C(255,236,208),Saturation=.12,Contrast=.06},
   Atmosphere={Color=C(236,206,160),Decay=C(196,150,104),Density=.22,Haze=1.6}},2,2.5)
- local gui=Instance.new('ScreenGui');gui.Name='DOGROTS_LongDogLength';gui.ResetOnSpawn=false;gui.IgnoreGuiInset=true;gui.DisplayOrder=95
- local box=Instance.new('Frame');box.AnchorPoint=Vector2.new(.5,1);box.Position=UDim2.new(.5,0,1,-96);box.Size=UDim2.fromOffset(330,58)
- box.BackgroundColor3=C(26,18,10);box.BackgroundTransparency=1;box.BorderSizePixel=0;box.Parent=gui
- local corner=Instance.new('UICorner');corner.CornerRadius=UDim.new(.3,0);corner.Parent=box
- local edge=Instance.new('UIStroke');edge.Color=SAND;edge.Thickness=2;edge.Transparency=1;edge.Parent=box
- local pop=Instance.new('UIScale');pop.Parent=box
- -- KeepFont before parenting, or the place typography swaps the face.
- local readout=Instance.new('TextLabel');readout.Name='Length';readout:SetAttribute('KeepFont',true)
- readout.BackgroundTransparency=1;readout.AnchorPoint=Vector2.new(.5,.5);readout.Position=UDim2.fromScale(.5,.5)
- readout.Size=UDim2.new(1,-18,1,-10);readout.Font=Enum.Font.RobotoMono;readout.TextScaled=true;readout.TextColor3=SAND
- readout.TextStrokeColor3=C(20,12,6);readout.TextStrokeTransparency=.4;readout.TextTransparency=1;readout.Text='LENGTH: 0 m'
- readout.Parent=box
- gui.Parent=player:WaitForChild('PlayerGui')
- scope:Add(gui)
- local function meters(n:number):string
-  local s=tostring(math.floor(n))
-  return (s:reverse():gsub('(%d%d%d)','%1,'):reverse():gsub('^,',''))
+ scope:Duck(.6,1)
+ local camera=workspace.CurrentCamera
+ local fit=math.clamp((camera and camera.ViewportSize.Y or 720)/720,.62,1.15)
+ local function label(parent,font,color,z)
+  local l=Instance.new('TextLabel');l:SetAttribute('KeepFont',true)
+  l.BackgroundTransparency=1;l.AnchorPoint=Vector2.new(.5,.5);l.Font=font;l.TextColor3=color;l.TextScaled=true;l.ZIndex=z
+  l.Parent=parent
+  return l
  end
+ local function corner(parent,r)local c=Instance.new('UICorner');c.CornerRadius=r;c.Parent=parent end
+ -- The alert, as a tape measure unrolling across the screen (it snaps back too).
+ local banner=config.Banner or {}
+ if ctx:Elapsed()<(banner.At or .15)+1.5 then
+  task.spawn(function()
+   if not ctx:Wait(banner.At or .15)then return end
+   local gui=Instance.new('ScreenGui');gui.Name='DOGROTS_LongDogBanner';gui.ResetOnSpawn=false;gui.IgnoreGuiInset=true
+   gui.DisplayOrder=97;gui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+   local h=math.floor(100*fit)
+   local band=Instance.new('Frame');band.Name='Tape';band.AnchorPoint=Vector2.new(0,.5);band.Position=UDim2.new(0,0,.34,0)
+   band.Size=UDim2.new(0,0,0,h);band.BackgroundColor3=TAPE;band.BorderSizePixel=0;band.ClipsDescendants=true;band.Parent=gui
+   local edge=Instance.new('UIStroke');edge.Color=INK;edge.Thickness=2;edge.Parent=band
+   local width=camera and camera.ViewportSize.X or 1920
+   local gap=math.max(10,math.floor(24*fit))
+   for i=0,math.ceil(width/gap)do
+    for _,y in ipairs({0,1})do
+     local mark=Instance.new('Frame');mark.BorderSizePixel=0;mark.BackgroundColor3=INK;mark.AnchorPoint=Vector2.new(0,y)
+     mark.Position=UDim2.new(0,i*gap+gap,y,0);mark.Size=UDim2.fromOffset(2,i%5==0 and math.floor(h*.24)or math.floor(h*.12));mark.Parent=band
+    end
+   end
+   local kicker=label(band,Enum.Font.GothamBlack,INK,3);kicker.Position=UDim2.fromScale(.5,.27);kicker.Size=UDim2.fromScale(.6,.18)
+   kicker.Text=banner.Kicker or '⚠  SOMETHING IS DIGGING  ⚠'
+   local title=label(band,Enum.Font.LuckiestGuy,INK,3);title.Position=UDim2.fromScale(.5,.62);title.Size=UDim2.fromScale(.7,.48)
+   title.Text=banner.Title or config.Title;title.TextStrokeColor3=C(255,244,214);title.TextStrokeTransparency=.4
+   local under=label(gui,Enum.Font.Kalam,C(255,240,214),3);under.Position=UDim2.new(.5,0,.34,math.floor(h*.5+22*fit))
+   under.Size=UDim2.new(.7,0,0,math.floor(30*fit));under.TextStrokeColor3=C(30,18,8);under.TextStrokeTransparency=.2;under.Text=banner.Text or '';under.TextTransparency=1
+   -- The tape's case, on the left.
+   local case=Instance.new('Frame');case.Name='Case';case.AnchorPoint=Vector2.new(0,.5);case.Position=UDim2.new(0,-math.floor(h*.25),.34,0)
+   case.Size=UDim2.fromOffset(math.floor(h*1.3),math.floor(h*1.3));case.BackgroundColor3=METAL;case.BorderSizePixel=0;case.ZIndex=4;case.Parent=gui
+   corner(case,UDim.new(.24,0))
+   local rim=Instance.new('UIStroke');rim.Color=INK;rim.Thickness=3;rim.Parent=case
+   local stop=Instance.new('Frame');stop.AnchorPoint=Vector2.new(.5,.5);stop.Position=UDim2.fromScale(.62,.3);stop.Size=UDim2.fromScale(.2,.2)
+   stop.BackgroundColor3=C(214,48,40);stop.BorderSizePixel=0;stop.ZIndex=5;stop.Parent=case;corner(stop,UDim.new(.5,0))
+   local brand=label(case,Enum.Font.GothamBlack,INK,5);brand.Position=UDim2.fromScale(.6,.68);brand.Size=UDim2.fromScale(.62,.3);brand.Text='LONG\nDOG'
+   gui.Parent=player:WaitForChild('PlayerGui')
+   local function close()
+    if not gui.Parent then return end
+    -- Zip: the tape snaps back into its case.
+    local zip=Kit.Sound(nil,TICK,.35,2.8,true);zip:Play()
+    Kit.Tween(band,.3,{Size=UDim2.new(0,0,0,h)},Enum.EasingStyle.Back,Enum.EasingDirection.In)
+    Kit.Tween(under,.25,{TextTransparency=1,TextStrokeTransparency=1})
+    Kit.Tween(case,.35,{Position=UDim2.new(0,-math.floor(h*1.6),.34,0)},Enum.EasingStyle.Back,Enum.EasingDirection.In)
+    task.delay(.4,function()zip:Destroy();if gui.Parent then gui:Destroy()end end)
+   end
+   scope:Add(function()if gui.Parent then gui:Destroy()end end)
+   Kit.Tween(band,.5,{Size=UDim2.new(1,0,0,h)})
+   Kit.Tween(under,.5,{TextTransparency=0})
+   if not calm then
+    local pop=Instance.new('UIScale');pop.Scale=1.35;pop.Parent=title
+    Kit.Tween(pop,.5,{Scale=1},Enum.EasingStyle.Back)
+   end
+   Kit.Cue('Sting',nil,.9);task.delay(.1,function()Kit.Cue('Impact',nil,.6)end)
+   local unroll=Kit.Sound(nil,TICK,.22,1.6,true);unroll:Play()
+   task.delay(.5,function()unroll:Destroy()end)
+   if ctx:Wait((banner.At or .15)+(banner.Hold or 3.2))then close()end
+  end)
+ end
+ -- LENGTH on a tape measure at the bottom of every screen.
+ local tape=Instance.new('ScreenGui');tape.Name='DOGROTS_LongDogLength';tape.ResetOnSpawn=false;tape.IgnoreGuiInset=true;tape.DisplayOrder=95
+ tape.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+ local W,H=math.floor(400*fit),math.floor(50*fit)
+ local holder=Instance.new('Frame');holder.Name='Holder';holder.AnchorPoint=Vector2.new(.5,1);holder.BackgroundTransparency=1
+ holder.Size=UDim2.fromOffset(W,H);holder.Position=UDim2.new(.5,0,1,H*3);holder.Parent=tape
+ local strip=Instance.new('Frame');strip.Name='Tape';strip.AnchorPoint=Vector2.new(0,.5);strip.Position=UDim2.new(0,math.floor(H*.6),.5,0)
+ strip.Size=UDim2.new(1,-math.floor(H*.6),.82,0);strip.BackgroundColor3=TAPE;strip.BorderSizePixel=0;strip.ClipsDescendants=true;strip.Parent=holder
+ corner(strip,UDim.new(0,4))
+ local stroke=Instance.new('UIStroke');stroke.Color=INK;stroke.Thickness=2;stroke.Parent=strip
+ local ticks=Instance.new('Frame');ticks.Name='Ticks';ticks.BackgroundTransparency=1;ticks.Size=UDim2.new(1,H*2,.3,0);ticks.Parent=strip
+ local pitch=math.max(6,math.floor(12*fit))
+ for i=0,math.ceil((W+H*2)/pitch)do
+  local t=Instance.new('Frame');t.BorderSizePixel=0;t.BackgroundColor3=INK;t.Position=UDim2.new(0,i*pitch,0,0)
+  t.Size=UDim2.new(0,2,i%5==0 and 1 or .55,0);t.Parent=ticks
+ end
+ local readout=label(strip,Enum.Font.RobotoMono,INK,3);readout.Name='Length'
+ readout.FontFace=Font.new('rbxasset://fonts/families/RobotoMono.json',Enum.FontWeight.Bold)
+ readout.Position=UDim2.fromScale(.5,.64);readout.Size=UDim2.fromScale(.92,.62);readout.Text='LENGTH 0.0 m'
+ local case=Instance.new('Frame');case.Name='Case';case.AnchorPoint=Vector2.new(0,.5);case.Position=UDim2.fromScale(0,.5)
+ case.Size=UDim2.fromOffset(H,H);case.BackgroundColor3=METAL;case.BorderSizePixel=0;case.ZIndex=4;case.Parent=holder
+ corner(case,UDim.new(.24,0))
+ local rim=Instance.new('UIStroke');rim.Color=INK;rim.Thickness=2;rim.Parent=case
+ local pop=Instance.new('UIScale');pop.Parent=holder
+ tape.Parent=player:WaitForChild('PlayerGui')
+ scope:Add(tape)
  local shownText=''
- local function say(text:string)
+ local function say(text)
   if text==shownText then return end
   shownText=text;readout.Text=text
  end
-
- -- The whole island watches the head go by.
- local glance
- local headPos=origin
- if ctx:Elapsed()<T_JOIN then
-  glance=scope:Glance(function()return headPos end,{Exclude=model,Turn=.5,Ripple=400})
+ local tapeOut=false
+ local function slide(out)
+  if out==tapeOut then return end
+  tapeOut=out
+  Kit.Tween(holder,out and .4 or .5,{Position=out and UDim2.new(.5,0,1,-math.floor(92*fit))or UDim2.new(.5,0,1,H*3)},
+   out and Enum.EasingStyle.Back or Enum.EasingStyle.Quad,out and Enum.EasingDirection.Out or Enum.EasingDirection.In)
+ end
+ local function bump(scale)
+  if calm then return end
+  pop.Scale=scale;Kit.Tween(pop,.35,{Scale=1},Enum.EasingStyle.Back)
  end
 
- -- Cutaway 1: ride along behind the head as it tears out of the yard, then rise high over
- -- the island to see the body lying across all of it. Cutaway 2: the tail at the hole,
- -- the island as it snaps back, the real dog.
- local overview=OVERVIEW
- local chase={}
- for i=0,8 do
-  local t=1.3+i*.4
-  local s=headAt(t)
-  local d=tangent(s)
-  local level=Vector3.new(d.X,0,d.Z);level=level.Magnitude>1e-3 and level.Unit or Vector3.zAxis
-  local right=level:Cross(Vector3.yAxis)
-  local at=point(s)
-  table.insert(chase,{At=t,CFrame=Kit.Frame(at-level*30+right*34+Vector3.new(0,16,0),at+level*18),Fov=66,Linear=i>0})
+ ---------------------------------------------------------------- the tongue clears the way
+ -- Conveyor dogs and blocks hop aside to the tongue's edges (locally, on top of where the
+ -- server holds them; the tongue is frozen) and hop back as the hold ends.
+ local aside={}
+ local sides=0
+ local function clear(m,instant)
+  if aside[m]or not m:IsA('Model')or not Kit.Root(m)then return end
+  if(m:GetAttribute('ArrivalHoldUntil')or 0)>workspace:GetServerTimeNow()then return end
+  if m:GetAttribute('State')~=nil and m:GetAttribute('State')~='OnLine'then return end
+  -- Left, right, left...: the tongue parts down the middle.
+  sides+=1
+  -- (A Secret block's floating shards follow its pivot: LuckyBlockFX places them from it.)
+  aside[m]={Side=sides%2==0 and 1 or -1,X=m:GetPivot().Position.X,Instant=instant,Offset=scope:Offset(m)}
  end
- table.insert(chase,{At=5.4,CFrame=overview,Fov=70})
- table.insert(chase,{At=6.9,CFrame=overview*CFrame.new(0,0,-25),Fov=68,Linear=true})
- ctx:Cutaway(chase,{Focus=point(headAt(3)),Bars=.08})
- -- From the side: the head on one side of the hole, its body leaving on the other.
- local across3,out3=side,out.Unit
- local holeShot=Kit.Frame(origin+across3*44+out3*-4+Vector3.new(0,13,0),origin+Vector3.new(0,3,0))
- local standShot=Kit.Frame(origin-across3*16+out3*5+Vector3.new(0,5,0),origin+Vector3.new(0,2.5,0))
- ctx:Cutaway({
-  {At=T_STOP+.2,CFrame=holeShot,Fov=60},{At=T_SNAP-.05,CFrame=holeShot*CFrame.new(0,0,-4),Fov=56,Linear=true},
-  {At=T_SNAP,CFrame=overview,Fov=70,Cut=true},{At=T_JOIN-.1,CFrame=overview*CFrame.new(0,0,-20),Fov=68,Linear=true},
-  {At=T_JOIN,CFrame=standShot,Fov=58,Cut=true},{At=T_JOIN+1.1,CFrame=standShot*CFrame.new(0,0,-2.5),Fov=56,Linear=true},
- },{Focus=origin,Bars=.08})
-
- ---------------------------------------------------------------- the clock
- local ratchet:Sound?=nil
+ for _,m in ipairs(conveyor and conveyor:GetChildren()or {})do clear(m,ctx:Elapsed()>1.6)end
+ if conveyor then
+  scope:Add(conveyor.ChildAdded:Connect(function(m)
+   task.defer(function()if m.Parent and ctx:Elapsed()<hold-.6 then clear(m,true)end end)
+  end))
+ end
  scope:Every(function()
   local t=ctx:Elapsed()
-  local sh=headAt(t)
-  local st=tailAt(t)
-  -- Runners.
-  if head then
-   local visible=t>=T_OUT and t<T_JOIN
-   if visible==head.Hidden then head.Show(visible)end
-   if visible then
-    local cf=frame(math.max(sh,6))
-    if t<T_OUT+.45 then
-     -- Bursting up out of the hole.
-     cf=CFrame.new(0,-(1-smooth((t-T_OUT)/.45))*spine*1.6,0)*cf
-    end
-    head.Pose(cf)
-    headPos=cf.Position+Vector3.new(0,spine,0)
+  local out=smooth((t-.6)/.9)
+  local back=smooth((t-(hold-.1))/.6)
+  for m,entry in pairs(aside)do
+   if not m.Parent then aside[m]=nil
+   else
+    local a=entry.Instant and(1-back)or out*(1-back)
+    local hop=(t<1.6 and not entry.Instant)and math.sin(math.pi*out)*2.2 or math.sin(math.pi*back)*2.2
+    local world=Vector3.new((entry.Side*8-entry.X)*a,hop,0)
+    entry.Offset.CFrame=CFrame.new(m:GetPivot():VectorToObjectSpace(world))
    end
   end
-  if tail then
-   local visible=t>=T_POP and t<T_JOIN
-   if visible==tail.Hidden then tail.Show(visible)end
-   if visible then
-    local cf=frame(st)
-    if t<T_SNAP then cf=CFrame.new(0,math.sin(math.clamp((t-T_POP)/.45,0,1)*math.pi)*2.4,0)*cf end
-    tail.Pose(cf)
-   end
-  end
-  -- The body: from the tail runner's seam (or the hole) to the head runner's seam.
-  if t>=T_OUT and t<T_JOIN then
-   local s1=math.max(sh-SEAM*SCALE,0)
-   local s0=math.max(st-SEAM*SCALE,0)
-   body(s0,s1)
-   band(bands[1],s1,head~=nil and s1>2)
-   band(bands[2],s0,tail~=nil and t>=T_POP and s1-s0>2)
-  elseif t>=T_JOIN then
-   body(0,0);band(bands[1],0,false);band(bands[2],0,false)
-  end
-  -- LENGTH.
-  if t>=T_OUT+.1 and t<T_JOIN+1.5 then
-   if box.BackgroundTransparency>.5 then
-    Kit.Tween(box,.3,{BackgroundTransparency=.2});Kit.Tween(edge,.3,{Transparency=0});Kit.Tween(readout,.3,{TextTransparency=0})
-   end
-   if t<T_STOP then say('LENGTH: '..meters(math.max(sh-SEAM*SCALE,0)*.28)..' m')
-   elseif t<T_STOP+.25 then say('LENGTH: 9,999 m')
-   elseif t<T_SNAP then say('LENGTH: ∞')
-   elseif t<T_JOIN then say('LENGTH: '..meters(math.max(sh-st,0)*.28)..' m')
-   else say('LENGTH: 1 dog')end
-  elseif t>=T_JOIN+1.5 and readout.TextTransparency<.5 then
-   Kit.Tween(box,.5,{BackgroundTransparency=1});Kit.Tween(edge,.5,{Transparency=1});Kit.Tween(readout,.5,{TextTransparency=1})
-  end
-  if ratchet then ratchet.PlaybackSpeed=.35+.9*math.clamp((t-T_OUT)/(T_STOP-T_OUT),0,1)end
  end)
 
- -- 0: the ground splits. Everyone feels it.
- if live(0)then
-  Kit.Cue('Impact',nil,.6)
-  if not calm then Kit.Shake(.18,.6)end
-  burst(origin+Vector3.new(0,.6,0),false)
-  if not low then for _=1,8 do clod(origin+Vector3.new(0,.8,0),Kit.Random(6,12),Kit.Random(14,24))end end
- end
- trickle.Rate=low and 6 or 18
- if haze then haze.Rate=4 end
+ ---------------------------------------------------------------- the whole island watches
+ local headPos=throatAt
+ local glance=scope:Glance(function()return headPos end,{Exclude=model,Turn=.5,Ripple=400})
+ -- ONE cutaway, mid-run: from the giant mouth, flying up the tongue along the body after the
+ -- head as it goes through the end portal and down the boulevard (4.4 s).
+ local function zAt(t)return flat(headS(t)).Z end
+ ctx:Cutaway({
+  {At=7.6,CFrame=Kit.Frame(Vector3.new(24,30,-112),Vector3.new(0,6,zAt(8.4))),Fov=62},
+  {At=9.8,CFrame=Kit.Frame(Vector3.new(30,44,zAt(9.8)-95),Vector3.new(0,5,zAt(9.8)+25)),Fov=64,Linear=true},
+  {At=12,CFrame=Kit.Frame(Vector3.new(26,36,zAt(12)-60),Vector3.new(0,5,zAt(12)+30)),Fov=66,Linear=true},
+ },{Focus=Vector3.new(0,5,zAt(10)),Bars=.08})
 
- -- T_OUT: out it comes.
- if not ctx:Wait(T_OUT)then return end
- if live(T_OUT)then
-  burst(origin+Vector3.new(0,1,0),true)
-  Kit.Cue('Whoosh',nil,.55);Kit.Cue('Impact',mouth,.7)
-  if Kit.Near(origin,140)>.05 and not calm then Kit.Shake(.3*Kit.Near(origin,140),.5)end
+ ---------------------------------------------------------------- sound and dust that follow it
+ local paws=scope:Part({Name='Paws',Size=Vector3.new(6,1,6),Transparency=1})
+ local kick=scope:Emitter(paws,{Texture=Kit.Textures.Smoke,Color=ColorSequence.new(DUST),LightEmission=0,LightInfluence=1,
+  Lifetime=NumberRange.new(.8,1.5),Speed=NumberRange.new(2,6),SpreadAngle=Vector2.new(60,60),EmissionDirection=Enum.NormalId.Top,
+  Drag=2,Size=NumberSequence.new(2.5,6),Transparency=NumberSequence.new(.45,1)})
+ local steps={}
+ for i=1,2 do
+  local s=Kit.Sound(paws,TICK,.75,.17,false)
+  local eq=Instance.new('EqualizerSoundEffect');eq.LowGain=10;eq.MidGain=-4;eq.HighGain=-30;eq.Parent=s
+  steps[i]=s
  end
+ local ratchet=nil
+ local function bark()
+  if not head.Shown then return end
+  local s=Kit.Shot(paws,TICK,1,.3,{DistortionSoundEffect={Level=.7},EqualizerSoundEffect={LowGain=6,MidGain=3,HighGain=-14}})
+  s.RollOffMaxDistance=600
+  task.delay(.07,function()Kit.Shot(paws,TICK,.8,.24,{DistortionSoundEffect={Level=.7},EqualizerSoundEffect={LowGain=6,MidGain=3,HighGain=-14}})end)
+  local at=scope:Anchor(headPos,'Woof')
+  local bb=Instance.new('BillboardGui');bb.Name='Woof';bb.Adornee=at;bb.Size=UDim2.new(0,0,0,0);bb.StudsOffsetWorldSpace=Vector3.new(0,5,0)
+  bb.LightInfluence=0;bb.MaxDistance=900
+  local w=label(bb,Enum.Font.Bangers,C(255,240,214),1);w.Position=UDim2.fromScale(.5,.5);w.Size=UDim2.fromScale(1,1);w.Text='WOOF!'
+  w.TextStrokeColor3=INK;w.TextStrokeTransparency=.1;w.Rotation=Kit.Random(-10,10)
+  bb.Parent=at
+  Kit.Tween(bb,.25,{Size=UDim2.new(16,0,6,0)},Enum.EasingStyle.Back)
+  task.delay(.7,function()if w.Parent then Kit.Tween(w,.4,{TextTransparency=1,TextStrokeTransparency=1})end end)
+  task.delay(1.2,function()if at.Parent then at:Destroy()end end)
+ end
+ local function dust(at,count)
+  scope:Burst(at,DUST,count,{Texture=Kit.Textures.Smoke,LightEmission=0,LightInfluence=1,Speed=NumberRange.new(5,12),
+   SpreadAngle=Vector2.new(70,70),Drag=3,Lifetime=NumberRange.new(1,1.7),Size=NumberSequence.new(3,7),Transparency=NumberSequence.new(.35,1)})
+  scope:Burst(at,DIRT,math.floor(count*1.6),{LightEmission=0,LightInfluence=1,Speed=NumberRange.new(14,26),SpreadAngle=Vector2.new(40,40),
+   Acceleration=Vector3.new(0,-60,0),Lifetime=NumberRange.new(.6,1.1),Size=NumberSequence.new(.6,.25),RotSpeed=NumberRange.new(-200,200)})
+ end
+
+ ---------------------------------------------------------------- every frame
+ local lastT=ctx:Elapsed()
+ local lastShake=0
+ local lastH=headS(lastT)
+ local lastStep=0
+ local portalPassed=headS(lastT)>136.5-THROAT
+ local snapDust=math.huge
+ local looked=false
+ scope:Every(function()
+  local t=ctx:Elapsed()
+  local dt=math.clamp(t-lastT,0,.1);lastT=t
+  if t>=T_JOIN then
+   head.Show(false);tail.Show(false)
+   drawBody(0,0,0,false,false)
+   kick.Rate=0
+   return false
+  end
+  local S=scaleAt(t)
+  local sH=headS(t)
+  local sT=tailS(t)
+  local speed=dt>0 and(sH-lastH)/dt or 0
+  lastH=sH
+  pose.S=S;pose.H=sH;pose.T=sT
+  -- The head: out of the throat, a trot, a look back, then dragged home.
+  local headOn=t>=T_BURST
+  head.Show(headOn)
+  if headOn then
+   head.Scale(S)
+   if t<T_STOP or t>=T_TENSE then
+    head.Walk()
+    if t<T_STOP then head.Phase+=math.min(math.abs(sH-(head.LastS or sH))/(STRIDE*REACH*S),MAXHZ*dt)
+    else head.Phase+=(t<T_YANK and 4.5 or 6)*dt end
+    head.Look(nil)
+   elseif not looked then
+    looked=true
+    head.Play('Happy',false,.25)
+    -- Back down its own body, at the giant mouth.
+    head.Look(Vector3.new(0,12,-170))
+   end
+   head.LastS=sH
+   local bounce=0
+   if t<T_RUN then bounce=math.sin(math.pi*math.clamp((t-T_BURST)/(T_RUN-T_BURST),0,1))*3*S/SCALE
+   elseif t<T_STOP then bounce=math.abs(math.sin(2*math.pi*head.Phase))*.6*math.clamp(math.abs(speed)/25,0,1)*S/SCALE end
+   pose.HeadLift=bounce
+   head.Pose(pivotAt(sH,bounce,S),sH,S)
+   headPos=head.HeadPosition()
+   paws.CFrame=CFrame.new(pivotAt(sH,0,S).Position)
+   kick.Rate=(t<T_STOP and math.abs(speed)>4)and(low and 8 or 24)or 0
+   -- A paw lands: a thump near it.
+   local beat=math.floor(head.Phase*2)
+   if t<T_STOP and beat~=lastStep then
+    lastStep=beat
+    local s=steps[beat%2+1]
+    if s then s.PlaybackSpeed=.15+Kit.Random(0,.04);s:Play()end
+   end
+  end
+  -- The tail: out of the throat at last.
+  local tailOn=sT~=nil
+  tail.Show(tailOn)
+  if tailOn and sT then
+   tail.Scale(S)
+   if t>=T_TENSE then tail.Walk();tail.Phase+=4*dt end
+   local hop=t<T_POP+.45 and math.sin(math.pi*math.clamp((t-T_POP)/.45,0,1))*2.6*S/SCALE or 0
+   pose.TailLift=hop
+   tail.Pose(pivotAt(sT,hop,S),sT,S)
+  else
+   pose.TailLift=0
+  end
+  -- The body: from the tail's seam (or inside the throat) to the head's seam.
+  local front=sH-SEAM*S
+  local rear=sT and(sT-SEAM*S)or 0
+  drawBody(rear,front,TUBE*S,headOn,tailOn)
+  -- LENGTH.
+  if t>=T_BURST+.1 then slide(t<T_JOIN+1.5)end
+  local nose=sH+NOSE*S
+  local back=sT and(sT-TAILTIP*S)or(FACE-THROAT)
+  local length=math.max(0,nose-back)*M_PER_STUD
+  if not sT then say(string.format('LENGTH %.1f m%s',length,(t%.6<.3)and' +'or'  '))
+  else say(string.format('LENGTH %.1f m',length))end
+  ticks.Position=UDim2.new(0,-((length*40)%(pitch*5)),0,0)
+  -- Players near it feel it go by (and fly back).
+  if not calm and headOn then
+   local near=Kit.Near(headPos,85)
+   if near>.08 and os.clock()-lastShake>.3 and(t<T_STOP or t>=T_YANK)then
+    lastShake=os.clock();Kit.Shake(.05+.28*near,.4)
+   end
+  end
+  if not portalPassed and sH>136.5-THROAT then
+   portalPassed=true
+   if live(t)then
+    scope:Burst(Vector3.new(0,9,136.5),SAND,40,{Speed=NumberRange.new(8,20),Lifetime=NumberRange.new(.6,1.2),Size=NumberSequence.new(1.2,0)})
+    Kit.Cue('Whoosh',paws,.6)
+   end
+  end
+  -- The snap leaves dust down the whole route.
+  if t>=T_YANK and t<T_SETTLE and sH<snapDust-(low and 80 or 40)then
+   snapDust=sH
+   dust(center(sH)+Vector3.new(0,-1,0),low and 6 or 14)
+  end
+  if ratchet then ratchet.PlaybackSpeed=.35+.9*math.clamp((t-T_RUN)/(T_STOP-T_RUN),0,1)end
+  return true
+ end)
+
+ ---------------------------------------------------------------- the beats
+ -- 0: something is digging. The giant mouth rumbles; dust pours out of its throat.
+ if live(0)then
+  Kit.Cue('Heartbeat',nil,.7);task.delay(.9,function()Kit.Cue('Heartbeat',nil,.8)end)
+  if Kit.Near(mouthCenter,260)>.05 then Kit.Shake(.06+.18*Kit.Near(mouthCenter,260),1.8)end
+ end
+ task.spawn(function()
+  local born=os.clock()
+  while scope.Alive and ctx:Elapsed()<T_BURST do
+   pour.Rate=POUR*smooth(ctx:Elapsed()/T_BURST)
+   task.wait(.1)
+   if os.clock()-born>4 then break end
+  end
+ end)
+ -- 2: it bursts out of the throat.
+ if not ctx:Wait(T_BURST)then return end
+ if rumble then Kit.Tween(rumble,.8,{Volume=0})end
+ if live(T_BURST)then
+  dust(throatAt+Vector3.new(0,-4,3),low and 10 or 26)
+  Kit.Cue('Impact',throat,1);Kit.Cue('Whoosh',nil,.5)
+  local near=Kit.Near(mouthCenter,200)
+  if near>.05 then Kit.Shake(.1+.3*near,.6);if near>.3 then Kit.FOVPunch(-6,.12,.5)end end
+ end
+ pour.Rate=POUR*.4
  if ctx:Elapsed()<T_STOP-.5 then
-  -- A ratchet every player hears, winding up for as long as it keeps coming.
-  local s=Instance.new('Sound');s.SoundId=TICK;s.Looped=true;s.Volume=.14;s.PlaybackSpeed=.35;s.Parent=scope.Folder
+  -- A tape measure winding out, for as long as it keeps coming.
+  local s=Kit.Sound(nil,TICK,.12,.35,true)
   local eq=Instance.new('EqualizerSoundEffect');eq.LowGain=4;eq.MidGain=0;eq.HighGain=-12;eq.Parent=s
   s:Play();ratchet=s
+  scope:Add(s)
  end
+ if not ctx:Wait(3.6)then return end
+ pour.Rate=0
+ for _,release in ipairs(runes)do release()end
 
- -- T_STOP: it is back at the hole, and the hole is still going.
+ -- 16.5: at the spawn plaza. It looks back down its body and barks.
  if not ctx:Wait(T_STOP)then return end
  if ratchet then ratchet:Destroy();ratchet=nil end
- if head then head.Play('EXP_Confused',1,true)end
- if live(T_STOP)then
-  Kit.Cue('Glitch',nil,.25)
-  if not calm then pop.Scale=1.35;Kit.Tween(pop,.35,{Scale=1},Enum.EasingStyle.Back)end
- end
+ if live(T_STOP)then bump(1.3)end
+ if ctx:Wait(T_STOP+.4)and live(T_STOP+.4)then bark()end
+ if ctx:Wait(T_STOP+1.05)and live(T_STOP+1.05)then bark()end
 
- -- T_POP: the tail. Finally.
+ -- 18.5: the tail. Finally.
  if not ctx:Wait(T_POP)then return end
  if live(T_POP)then
-  burst(origin+Vector3.new(0,1,0),false)
+  dust(throatAt+Vector3.new(0,-4,3),low and 8 or 20)
+  pour.Rate=POUR*.6
   Kit.Cue('Sting',nil,.7)
-  local s=Instance.new('Sound');s.SoundId=TICK;s.Volume=.5;s.PlaybackSpeed=2.2;s.Parent=mouth;s:Play()
-  task.delay(1,function()if s.Parent then s:Destroy()end end)
+  Kit.Shot(nil,TICK,.55,2.2)
+  bump(1.4)
  end
- trickle.Rate=0
- if haze then haze.Rate=0 end
+ -- It wags.
+ tail.Play('Happy',false,.1)
+ if not ctx:Wait(T_POP+1)then return end
+ pour.Rate=0
 
- -- T_SNAP: the tape measure lets go.
- if not ctx:Wait(T_SNAP)then return end
- if live(T_SNAP)then
-  local s=Instance.new('Sound');s.SoundId=TICK;s.Volume=.35;s.PlaybackSpeed=.4;s.Looped=true;s.Parent=scope.Folder
+ -- 19.5: the tape measure catches, and lets go.
+ if not ctx:Wait(T_TENSE)then return end
+ if live(T_TENSE)then
+  local s=Kit.Sound(nil,TICK,.35,.4,true)
   local flange=Instance.new('FlangeSoundEffect');flange.Depth=.6;flange.Mix=.85;flange.Rate=8;flange.Parent=s
   s:Play()
-  Kit.Tween(s,T_JOIN-T_SNAP,{PlaybackSpeed=3.2},Enum.EasingStyle.Quad,Enum.EasingDirection.In)
-  task.delay(T_JOIN-T_SNAP,function()if s.Parent then s:Destroy()end end)
-  Kit.Cue('Whoosh',nil,.6)
+  Kit.Tween(s,T_JOIN-T_TENSE,{PlaybackSpeed=3.2},Enum.EasingStyle.Quad,Enum.EasingDirection.In)
+  task.delay(T_JOIN-T_TENSE,function()if s.Parent then s:Destroy()end end)
  end
+ if not ctx:Wait(T_YANK)then return end
+ if live(T_YANK)then Kit.Cue('Whoosh',nil,.7);bump(1.2)end
+ if not ctx:Wait(T_SETTLE)then return end
+ pour.Rate=POUR*.8
+ if live(T_SETTLE)then dust(throatAt+Vector3.new(0,-4,3),low and 8 or 18)end
 
- -- T_JOIN: SNAP. One perfectly normal Long Dog.
+ -- 22: SNAP. One perfectly normal Long Dog (reveal shows it).
  if not ctx:Wait(T_JOIN)then return end
- if head then head.Show(false)end
- if tail then tail.Show(false)end
- if glance then glance:Stop(1.2)end
- vis.Set(0)
+ pour.Rate=0
+ glance:Stop(1.2)
+ say('LENGTH 1 dog')
  if live(T_JOIN)then
-  Kit.Cue('Impact',nil,.75);task.delay(.1,function()Kit.Cue('Chime',nil,.6)end)
-  Kit.Flash(C(255,248,232),calm and .7 or .3,.6)
-  local shine=scope:Highlight(model,SAND,C(255,244,214),.35,0)
-  Kit.Tween(shine,1.2,{FillTransparency=1,OutlineTransparency=1})
-  burst(headPos,true)
-  if not low then
-   for _=1,10 do clod(origin+Vector3.new(0,3,0),Kit.Random(4,11),Kit.Random(16,26))end
-   for _=1,5 do bone(origin+Vector3.new(0,3,0),Kit.Random(4,10),Kit.Random(18,28))end
-  end
-  if Kit.Near(origin,160)>.05 and not calm then Kit.Shake(.25*Kit.Near(origin,160),.4)end
+  bump(1.5)
+  local near=Kit.Near(origin,160)
+  if near>.05 then Kit.Shake(.2*near,.4)end
  end
- -- The hole shuts behind it.
- for _,o in ipairs(open)do
-  local p=o[1]
-  Kit.Tween(p,.55,{Size=Vector3.new(.1,o[2].Y,.1)},Enum.EasingStyle.Back,Enum.EasingDirection.In).Completed:Connect(function()p:Destroy()end)
- end
- for _,p in ipairs(cracks)do Kit.Tween(p,.6,{Transparency=1}).Completed:Connect(function()p:Destroy()end)end
-
- if not ctx:Wait(T_JOIN+.6)then return end
- ctx:Title({Hold=3.4})
-
- -- The dust settles; the mess fades before the arrival ends.
- if not ctx:Wait(hold-3)then return end
- sky:Release(2.5)
- for _,b in ipairs(flying)do
-  local parts={b.Part}
-  for _,x in ipairs(b.Extra or {})do table.insert(parts,x[1])end
-  for _,p in ipairs(parts)do
-   if p.Parent then Kit.Tween(p,.6,{Transparency=1}).Completed:Connect(function()p:Destroy()end)end
-  end
- end
- ctx:Wait(hold)
+ -- The runners and the body are done with.
+ task.delay(.2,function()
+  if head.Model.Parent then head.Model:Destroy()end
+  if tail.Model.Parent then tail.Model:Destroy()end
+  if body.Parent then body:Destroy()end
+ end)
+ if not ctx:Wait(T_JOIN+1.6)then return end
+ slide(false)
+ -- The dust settles before the hold ends; the tongue's dogs hop back as it starts moving
+ -- again (the scope lasts until the display dog has gone, so they are not snapped back).
+ if not ctx:Wait(hold-2)then return end
+ sky:Release(2)
+ ctx:Wait(hold+.6)
 end
