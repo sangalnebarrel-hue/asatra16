@@ -89,19 +89,45 @@ C.Dogs = {
 		Color = Color3.fromRGB(150, 255, 60),
 	},
 	["404Dog"] = {
-		Hold = 7,
-		-- Depth_Error holds its last frame (the dog stays sunk) until Reassemble.
-		Clips = { { 0, "Depth_Error" }, { 4, "Reassemble" } },
-		Whispers = { { 0.5, "ERROR 404: DOG NOT FOUND" }, { 4.2, "dog found. it was behind you." } },
+		-- The world fails to load (Dogs/404Dog): the island's render collapses until the page
+		-- answers 200 OK at 6.0 and a scan wave puts it back; the whole tongue stops meanwhile.
+		Hold = 9.6,
+		FreezeLine = true,
+		-- Depth_Error holds its last frame (the dog stays sunk) until Reassemble at 200 OK.
+		Clips = { { 0, "Depth_Error" }, { 6, "Reassemble" } },
+		-- The second line finishes typing as it appears behind every player (8.3).
+		Whispers = { { 0.5, "ERROR 404: DOG NOT FOUND" }, { 7.2, "dog found. it was behind you." } },
 		Title = "404 DOG NOT FOUND",
 		Color = Color3.fromRGB(80, 160, 255),
+		-- Shown by the module itself (ctx.ManualBanner) at At.
+		Banner = {
+			At = 0.4,
+			Style = "Glitch",
+			Kicker = "⚠  SECRET DOG  ·  ERROR 404  ⚠",
+			Title = "404 · DOG NOT FOUND",
+			Text = "the requested dog could not be loaded.",
+			Hold = 3.2,
+		},
 	},
 	UnfinishedDog = {
-		Hold = 6,
-		Clips = { { 0, "Idle", true }, { 0.4, "Unfinished_Logic_Duplicate" }, { 5.6, "Idle", true } },
-		Whispers = { { 0.3, "-- TODO: finish the dog" }, { 5.0, "it shipped anyway." } },
+		-- DEV BUILD (Dogs/UnfinishedDog): the island is opened in Studio until it ships at
+		-- 6.6 and a magenta wave textures it again; the whole tongue stops meanwhile.
+		Hold = 9,
+		FreezeLine = true,
+		-- The duplicate logic hops 3.05 s in, just before the error (4.6); happy once shipped.
+		Clips = { { 0, "Idle", true }, { 1.45, "Unfinished_Logic_Duplicate" }, { 6.65, "Happy", true } },
+		Whispers = { { 0.3, "-- TODO: finish the dog" }, { 4.95, "-- it works on my machine." } },
 		Title = "THE UNFINISHED DOG",
 		Color = Color3.fromRGB(255, 0, 255),
+		-- Shown by the module itself (ctx.ManualBanner) when it ships (At = PUBLISH).
+		Banner = {
+			At = 6.6,
+			Style = "Glitch",
+			Kicker = "SECRET · DEV BUILD",
+			Title = "THE UNFINISHED DOG",
+			Text = "it shipped anyway.",
+			Hold = 3.4,
+		},
 	},
 	DivineDog = {
 		Hold = 7,
