@@ -155,17 +155,21 @@ local function fallingMeteor(kind,at,size,delay,calm)
   end
  end)
 end
+-- The title says what the event DOES (Effects.Text); the surge title is its signature
+-- moment and what that does (Effects.Signature), so players know why it matters.
 local function banner(surge)
  if not gui then return end
  local main=player.PlayerGui:FindFirstChild('ScreenGui')
  if main and main:GetAttribute('OpenMenu')~=nil then return end
  gui.Enabled=true
- phaseLabel.Text=surge and phases[def.Id] or def.DisplayName:upper()
+ local effects=def.Effects;local signature=effects and effects.Signature
+ phaseLabel.Text=surge and(signature and signature.Name or phases[def.Id])or def.DisplayName:upper()
  phaseLabel.TextColor3=def.ColorTheme
  phaseLabel.TextTransparency=1
- local sub=phaseLabel:FindFirstChild('Subtitle');sub.Text=surge and 'SURGE  //  '..def.DisplayName:upper() or def.Subtitle;sub.TextTransparency=1
- tween(phaseLabel,.35,{TextTransparency=0});tween(sub,.5,{TextTransparency=.08})
- phaseLabel:SetAttribute('HideAt',os.clock()+2.6)
+ local sub=phaseLabel:FindFirstChild('Subtitle');sub.Text=surge and(signature and signature.Text or 'SURGE  //  '..def.DisplayName:upper())or def.Subtitle;sub.TextTransparency=1
+ local line=phaseLabel:FindFirstChild('Effects');line.Text=surge and '' or(effects and effects.Text or '');line.TextTransparency=1;line.TextStrokeTransparency=1
+ tween(phaseLabel,.35,{TextTransparency=0});tween(sub,.5,{TextTransparency=.08});tween(line,.6,{TextTransparency=0,TextStrokeTransparency=.15})
+ phaseLabel:SetAttribute('HideAt',os.clock()+(surge and 5 or 6))
 end
 local function setupUI()
  gui=Instance.new('ScreenGui');gui.Name='DOGROTS_EventCinema';gui.ResetOnSpawn=false;gui.DisplayOrder=95;gui.IgnoreGuiInset=true;gui.Parent=player:WaitForChild('PlayerGui')
@@ -177,8 +181,13 @@ local function setupUI()
  phaseLabel=Instance.new('TextLabel');phaseLabel.Name='EventTitle';phaseLabel.BackgroundTransparency=1;phaseLabel.AnchorPoint=Vector2.new(.5,0)
  phaseLabel.Position=UDim2.new(.5,0,.16,0);phaseLabel.Size=UDim2.new(.84,0,0,70);phaseLabel.Font=Enum.Font.GothamBlack;phaseLabel.TextScaled=true;phaseLabel.TextStrokeTransparency=.2;phaseLabel.TextStrokeColor3=C(22,16,36);phaseLabel.Parent=gui
  local limit=Instance.new('UITextSizeConstraint');limit.MaxTextSize=34;limit.MinTextSize=16;limit.Parent=phaseLabel
- local sub=Instance.new('TextLabel');sub.Name='Subtitle';sub.BackgroundTransparency=1;sub.Position=UDim2.fromScale(0,1);sub.Size=UDim2.new(1,0,0,26)
- sub.Font=Enum.Font.GothamBold;sub.TextSize=16;sub.TextColor3=C(255,255,255);sub.TextStrokeTransparency=.3;sub.Parent=phaseLabel
+ local sub=Instance.new('TextLabel');sub.Name='Subtitle';sub.BackgroundTransparency=1;sub.Position=UDim2.fromScale(0,1);sub.Size=UDim2.new(1,0,0,32);sub.TextWrapped=true
+ sub.Font=Enum.Font.GothamBold;sub.TextSize=16;sub.TextColor3=C(255,255,255);sub.TextStrokeTransparency=.3;sub.TextScaled=true;sub.Parent=phaseLabel
+ local subLimit=Instance.new('UITextSizeConstraint');subLimit.MaxTextSize=16;subLimit.MinTextSize=11;subLimit.Parent=sub
+ -- What the event does, on a dark stroke in the event's colour.
+ local line=Instance.new('TextLabel');line.Name='Effects';line.BackgroundTransparency=1;line.Position=UDim2.new(0,0,1,36);line.Size=UDim2.new(1,0,0,28);line.TextWrapped=true
+ line.Font=Enum.Font.GothamBlack;line.TextScaled=true;line.TextColor3=C(255,255,255);line.TextStrokeColor3=def.ColorTheme:Lerp(C(0,0,0),.55);line.TextStrokeTransparency=.15;line.Text='';line.Parent=phaseLabel
+ local lineLimit=Instance.new('UITextSizeConstraint');lineLimit.MaxTextSize=20;lineLimit.MinTextSize=11;lineLimit.Parent=line
 end
 local function surge()
  if not root or finish or os.clock()-lastSurge<5 then return end
@@ -446,7 +455,10 @@ function M.Begin(event,state,quality)
    nextBeat=now+(beatIntervals[id]or 2)*(low and 1.7 or 1)*(1+.16*math.sin(elapsed*.18))
   end
   if phaseLabel and now>(phaseLabel:GetAttribute('HideAt')or 0) and gui.Enabled then
-   local a=math.clamp((now-phaseLabel:GetAttribute('HideAt'))/.8,0,1);phaseLabel.TextTransparency=a;phaseLabel.Subtitle.TextTransparency=a;if a==1 then gui.Enabled=false end
+   local a=math.clamp((now-phaseLabel:GetAttribute('HideAt'))/.8,0,1);phaseLabel.TextTransparency=a
+   local sub,line=phaseLabel:FindFirstChild('Subtitle'),phaseLabel:FindFirstChild('Effects')
+   if sub then sub.TextTransparency=a end;if line then line.TextTransparency=a;line.TextStrokeTransparency=math.max(a,.15)end
+   if a==1 then gui.Enabled=false end
   end
   for i=#temporary,1,-1 do local row=temporary[i];local age=(now-row.Born)/row.Life
    if age>=1 or not row.Object.Parent then row.Object:Destroy();table.remove(temporary,i)

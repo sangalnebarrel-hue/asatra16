@@ -1,6 +1,8 @@
 local RS=game:GetService('ReplicatedStorage');local Players=game:GetService('Players');local Run=game:GetService('RunService');local UIS=game:GetService('UserInputService');local PromptService=game:GetService('ProximityPromptService')
 local package=RS:WaitForChild('WorldEvents');local Config=require(package.WorldEventConfig);local Definitions=require(package.WorldEventDefinitions)
 local Lighting=require(package.WorldEventLighting);local Audio=require(package.WorldEventAudio);local FX=require(package.WorldEventFX)
+-- What events DO on the client: strikes on kennels, UFO beams, variant sparkles.
+local GameplayFX=require(package.WorldEventGameplayFX);local Format=require(RS.PriceFormat)
 local player=Players.LocalPlayer
 local playerGui=player:WaitForChild('PlayerGui')
 local gui=playerGui:FindFirstChild('ScreenGui')
@@ -38,7 +40,9 @@ end
 gui:GetAttributeChangedSignal('OpenMenu'):Connect(function()
  if gui:GetAttribute('OpenMenu')~=nil then notice.Visible=false;noticeUntil=0 end
 end)
-local function cleanup()FX.Stop();Audio.Stop(true);Lighting.Stop();activeDef=nil;endingAt=nil end
+local function cleanup()FX.Stop();GameplayFX.Stop();Audio.Stop(true);Lighting.Stop();activeDef=nil;endingAt=nil end
+-- The effect summary of an event (Definitions Effects.Text), shown wherever it is announced.
+local function effectText(def)return def and def.Effects and def.Effects.Text or ''end
 local function apply(state)
  if type(state)~='table'or not Definitions.ById[state.EventId]then return end
  if current and current.State==state.State and current.Generation==state.Generation and current.EndTimestamp==state.EndTimestamp then return end
@@ -47,13 +51,30 @@ local function apply(state)
  if state.State=='ACTIVE'then
   cleanup();activeDef=def;enteredAt=os.clock();generation=state.Generation;Lighting.Begin()
   local late=workspace:GetServerTimeNow()-state.StartTimestamp>Config.IntroDuration+2
-  Audio.Begin(def.Id,late,state.StartTimestamp);FX.Begin(def,state,quality())
+  Audio.Begin(def.Id,late,state.StartTimestamp);FX.Begin(def,state,quality());GameplayFX.Begin(def)
   -- The cinematic title is owned by WorldEventCataclysm.
  elseif state.State=='ENDING'and activeDef then endingAt=os.clock();endingLength=math.max(1,state.EndTimestamp-workspace:GetServerTimeNow());FX.End();Audio.Stop(false);notify('THE WORLD SETTLES',def.DisplayName..' has ended.',def.ColorTheme,3)
- elseif state.State=='WARNING'then cleanup();notify(def.Id=='NULL_HOUR'and '[ WORLD STATE ERROR ]'or 'WORLD EVENT APPROACHING',def.Id=='NULL_HOUR'and 'ERROR' or def.DisplayName:upper(),def.ColorTheme,4)
+ elseif state.State=='WARNING'then
+  -- Say what is coming and what it will do: "DOG RUSH IN 60 S" / "x2 TONGUE SPAWNS ...".
+  cleanup();local left=math.max(1,math.ceil(state.EndTimestamp-workspace:GetServerTimeNow()))
+  notify(def.Id=='NULL_HOUR'and '[ WORLD STATE ERROR ] IN '..left..' S'or def.DisplayName:upper()..' IN '..left..' S',effectText(def)~=''and effectText(def)or 'WORLD EVENT APPROACHING',def.ColorTheme,6)
  else cleanup()end
 end
-local predictedPickups={};local pickupCooldownUntil=0
+local predictedPickups={};local pickupCooldownUntil=0;local struckGeneration
+local REWARD_TITLES={BonePile='BONE PILE!',GiantBone='GIANT BONE CLAIMED!',TreasureSpot='TREASURE!',ChargedCrystal='CHARGED UP!',CursedCache='CURSED CACHE!',AlienDigZone='ALIEN FIND!',AlienCrate='ALIEN CRATE!'}
+local TIER_COLORS={Common=Color3.fromRGB(200,202,201),Rare=Color3.fromRGB(37,166,255),Epic=Color3.fromRGB(184,64,255),Legendary=Color3.fromRGB(255,191,48),Mythic=Color3.fromRGB(255,51,100),Secret=Color3.fromRGB(155,58,255)}
+-- Everything a pickup gave, in one line: "+12,400 COINS · +4 BONES · FREE RARE LUCKY BLOCK".
+local function rewardText(r)
+ local parts={}
+ if (tonumber(r.Cash)or 0)>0 then table.insert(parts,'+'..Format.Number(r.Cash)..' COINS')end
+ if (tonumber(r.Bones)or 0)>0 then table.insert(parts,'+'..Format.Number(r.Bones)..' BONES')end
+ if type(r.Block)=='string'then table.insert(parts,'FREE '..r.Block:upper()..' LUCKY BLOCK')end
+ if type(r.BlockFull)=='string'then table.insert(parts,'BLOCK STORAGE FULL · PAID IN COINS')end
+ if type(r.Supply)=='table'then table.insert(parts,'+'..math.floor((tonumber(r.Supply.Seconds)or 0)/60)..' MIN '..string.upper(tostring(r.Supply.Name or 'SUPPLY')))end
+ if type(r.Item)=='table'and r.Item.DisplayName then table.insert(parts,string.upper(tostring(r.Item.DisplayName)))end
+ if r.ItemFull then table.insert(parts,'ITEM STORAGE FULL')end
+ return table.concat(parts,' · ')
+end
 local function pickupModel(prompt)
  if not prompt or prompt.Name~='WorldEventPickupPrompt'then return end
  local model=prompt:FindFirstAncestorOfClass('Model')
@@ -69,8 +90,9 @@ local function restorePickup(id)
  if state.Prompt and state.Prompt.Parent then state.Prompt.Enabled=true end
 end
 local function predictPickup(prompt)
- if os.clock()<pickupCooldownUntil then return end
  local model=pickupModel(prompt);if not model then return end
+ -- A shared pickup (the Giant Bone) is not under the personal collect cooldown.
+ if os.clock()<pickupCooldownUntil and not model:GetAttribute('Shared')then return end
  local id=model:GetAttribute('EventObjectId');if predictedPickups[id]then return end
  local state={Model=model,Prompt=prompt,Parts={},Enabled={}};predictedPickups[id]=state;prompt.Enabled=false
  for _,object in ipairs(model:GetDescendants())do
@@ -85,10 +107,31 @@ PromptService.PromptTriggered:Connect(function(prompt,who)
 end)
 package:WaitForChild('Changed').OnClientEvent:Connect(apply)
 package.Signal.OnClientEvent:Connect(function(data)
- if data.Kind=='Signature'and activeDef and data.EventId==activeDef.Id then FX.Signature(data.Duration or 10)
+ if data.Kind=='Signature'and activeDef and data.EventId==activeDef.Id then FX.Signature(data.Duration or 10);GameplayFX.Signature(activeDef,data.Duration)
  elseif data.Kind=='Discovered'then local d=Definitions.ById[data.EventId];if d and os.clock()-enteredAt>7 then notify('NEW WORLD EVENT DISCOVERED',d.Id=='NULL_HOUR'and '[REDACTED]'or d.DisplayName,d.ColorTheme,4)end
- elseif data.Kind=='Reward'then if data.ObjectId then predictedPickups[data.ObjectId]=nil end;pickupCooldownUntil=os.clock()+(Config.Interactions.Cooldown or 0);Audio.Cue('interaction',data.Position);Audio.Cue('reward',data.Position);notify('GOOD FIND!','+'..data.Reward.Cash..' Coins · +'..data.Reward.Bones..' Bones',colors.gold,2)
- elseif data.Kind=='Hint'then if data.ObjectId then restorePickup(data.ObjectId)end;notify(data.Message,'',colors.gold,2)end
+ elseif data.Kind=='Reward'then
+  local reward=type(data.Reward)=='table'and data.Reward or {}
+  if data.ObjectId then predictedPickups[data.ObjectId]=nil end
+  -- A shared pickup (the Giant Bone) does not start the personal collect cooldown.
+  if not reward.Shared then pickupCooldownUntil=os.clock()+(Config.Interactions.Cooldown or 0)end
+  Audio.Cue('interaction',data.Position);Audio.Cue('reward',data.Position)
+  notify(REWARD_TITLES[reward.Kind]or 'GOOD FIND!',rewardText(reward),reward.Block and(TIER_COLORS[reward.Block]or colors.gold)or colors.gold,3)
+ elseif data.Kind=='Hint'then if data.ObjectId then restorePickup(data.ObjectId)end;notify(data.Message,'',colors.gold,2)
+ elseif data.Kind=='Strike'then
+  local mine=GameplayFX.Strike(data)
+  -- Called out on the first strike of the event and on the signature; later ones float
+  -- an INSTANT DIG label over the struck kennel.
+  if mine and activeDef and(data.Big or struckGeneration~=generation)then
+   struckGeneration=generation
+   notify(data.Style=='Tremor'and 'TREMOR!'or 'LIGHTNING STRIKE!','YOUR '..(mine.Count or 1)..((mine.Count or 1)==1 and ' KENNEL DOG DIGS'or ' KENNEL DOGS DIG')..' RIGHT NOW',data.Color,2.5)
+  end
+ elseif data.Kind=='Abduct'then
+  GameplayFX.Abduct(data)
+  if data.Phase=='Lock'then notify('UFO TARGET: '..string.upper(tostring(data.Rarity or 'TONGUE'))..' DOG',string.upper(tostring(data.Name or 'A DOG'))..' · BUY IT IN '..(data.Seconds or 3)..' S OR IT IS BEAMED UP',data.Color,2.5)
+  elseif data.Phase=='Escape'and data.Bought then notify('SAVED!','BOUGHT IN TIME · THE UFO LEFT EMPTY-PAWED',data.Color,1.6)end
+ elseif data.Kind=='Notice'or data.Kind=='Perk'then
+  notify(tostring(data.Title or ''),tostring(data.Text or ''),typeof(data.Color)=='Color3'and data.Color or colors.gold,tonumber(data.Duration)or 3)
+ end
 end)
 local stateFolder=package:WaitForChild('State')
 local function sync()local attributes=stateFolder:GetAttributes();if attributes.Revision and attributes.Revision~=lastRevision then lastRevision=attributes.Revision;apply(attributes)end end
@@ -103,7 +146,7 @@ Run.Heartbeat:Connect(function(dt)
  if current then
   local left=math.max(0,math.ceil(current.EndTimestamp-workspace:GetServerTimeNow()));local clock=string.format('%02d:%02d',math.floor(left/60),left%60)
   local def=Definitions.ById[current.EventId]
-  if current.State=='WARNING'and left<=10 and left~=lastTick then lastTick=left;notify(def.Id=='NULL_HOUR'and '[NULL]'or tostring(left),def.Id=='NULL_HOUR'and ''or def.DisplayName,def.ColorTheme,.8)end
+  if current.State=='WARNING'and left<=10 and left~=lastTick then lastTick=left;notify(def.Id=='NULL_HOUR'and '[NULL]'or tostring(left),def.Id=='NULL_HOUR'and effectText(def)or def.DisplayName:upper()..(effectText(def)~=''and ' · '..effectText(def)or ''),def.ColorTheme,.8)end
  end
  if activeDef then
   local alpha=endingAt and 1-math.clamp((os.clock()-endingAt)/endingLength,0,1)or math.clamp((os.clock()-enteredAt)/Config.IntroDuration,0,1)
