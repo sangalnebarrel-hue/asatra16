@@ -121,6 +121,18 @@ function V.Build(kind,color)
   piece(model,'ArtifactBase',Vector3.new(2.4,.8,2.4),CFrame.new(0,1,0)*CFrame.Angles(0,math.pi/4,0),C(46,58,66),Enum.Material.Metal)
   local orb=piece(model,'AlienArtifact',Vector3.one*1.8,CFrame.new(0,2.5,0),color,Enum.Material.Neon,Enum.PartType.Ball);orb.Transparency=.15
   local top,bottom,beam=V.Beam(model,Vector3.new(0,1,0),Vector3.new(0,38,0),color,8);beam.Width1=3;V.Soft(beam,.55,.04,.4)
+ elseif kind=='AlienCrate'then
+  -- Dropped by a UFO after it beams a dog off the tongue; color = the block tier inside.
+  local metal=C(66,80,90);local turn=CFrame.Angles(0,math.pi/8,0)
+  halo(model,color,3.4)
+  piece(model,'CrateBody',Vector3.new(3.4,2.8,3.4),CFrame.new(0,2.05,0)*turn,metal,Enum.Material.DiamondPlate)
+  for _,y in ipairs({1.05,3.05})do piece(model,'CrateBand',Vector3.new(3.6,.32,3.6),CFrame.new(0,y,0)*turn,color,Enum.Material.Neon)end
+  for i=1,4 do local a=i*math.pi/2+math.pi/8
+   piece(model,'CrateLight',Vector3.one*.55,CFrame.new(math.cos(a)*2.35,2.05,math.sin(a)*2.35),C(151,255,178),Enum.Material.Neon,Enum.PartType.Ball)
+  end
+  piece(model,'CrateAntenna',Vector3.new(.16,1.5,.16),CFrame.new(.8,4.15,.8),metal,Enum.Material.Metal)
+  piece(model,'AntennaTip',Vector3.one*.45,CFrame.new(.8,4.95,.8),C(151,255,178),Enum.Material.Neon,Enum.PartType.Ball)
+  beacon(p,color,30)
  else
   p.Transparency=0
  end

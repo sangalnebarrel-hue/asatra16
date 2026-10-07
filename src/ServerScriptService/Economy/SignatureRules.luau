@@ -119,7 +119,7 @@ function S.Context(p,d,e,now,random)
  elseif id=='SharkdogPrime'then luck('Water',2.2);luck('Void',1.6);deeper(.08)
  elseif id=='MechaBark'then if seq%3==0 then c.Rolls=6;c.Value=.7 else c.Value=.7 end
  elseif id=='CaptainCorgi'then c.Morale=true
- elseif id=='Barkula'then value('Void',1.45);if now%86400>=64800 then c.Value=1.2 end
+ elseif id=='Barkula'then value('Void',1.45);if now%86400>=64800 or(e.Night or 0)>0 then c.Value=1.2 end
  elseif id=='Pharaohound'then luck('Artifact',2.2);if p.CurrentLayer==3 then c.Value=1.25 end
  elseif id=='Poseidog'then luck('Water',2);luck('Treasure',1.8);value('Water',1.3)
  elseif id=='ThunderHusky'then extra(.4,2);c.Value=.9

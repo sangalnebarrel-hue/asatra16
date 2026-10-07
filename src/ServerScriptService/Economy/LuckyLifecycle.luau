@@ -122,9 +122,13 @@ function L.Action(player,action,a)
   -- Only after all checks: consume one available item by reserving its UID as Placed.
   -- The reservation remains in OwnedBlocks for persistence and is removed at reward commit.
   if credit then p.LuckyCredits[credit]-=1;p.OwnedBlocks[b.Uid]=b end
-  b.State='Placed';b.Slot=a.Slot;b.YardId=a.YardId;b.PlacedAt=os.time();b.ReadyAt=b.PlacedAt+C.OpenSeconds[b.Tier]
+  -- A world event can speed hatching (Time Warp: Effects.HatchSpeed). Warp marks the block
+  -- so WorldEventEffects does not shorten it a second time.
+  local world=require(RS.WorldEvents.WorldEventModifiers);local event=world.Active(os.time())
+  local hatch=math.max(1,event and event.Effects and event.Effects.HatchSpeed or 1);local seconds=math.max(1,math.ceil(C.OpenSeconds[b.Tier]/hatch))
+  b.State='Placed';b.Slot=a.Slot;b.YardId=a.YardId;b.PlacedAt=os.time();b.ReadyAt=b.PlacedAt+seconds;b.Warp=hatch>1 and world.Generation or nil
   R.Validate(p)
-  return {Message='Placed · ready in '..C.OpenSeconds[b.Tier]..' seconds',Uid=b.Uid,ReadyAt=b.ReadyAt,State=b.State}
+  return {Message='Placed · ready in '..seconds..' seconds'..(hatch>1 and ' (TIME WARP)'or ''),Uid=b.Uid,ReadyAt=b.ReadyAt,State=b.State}
  end,'block-action:'..player.UserId..':'..a.Request)
  if ok then
   runtime.Refresh(player);L.Sync(player)
@@ -250,6 +254,8 @@ end
 local function modelFor(player,b,target)
  local key=player.UserId..':'..b.Uid;local model=L.Models[key]
  if model and model.Parent and model:GetAttribute('BlockState')==b.State then
+  -- Time Warp can move ReadyAt of a block already on its pad; the client timer reads it here.
+  if model:GetAttribute('ReadyAt')~=b.ReadyAt then model:SetAttribute('ReadyAt',b.ReadyAt)end
   return model
  end
  if model then model:Destroy()end

@@ -27,11 +27,10 @@ remote.OnServerInvoke=function(player,action,id,duration,warning)
  elseif action=='resume' then
   Service.DebugState=nil;Service.Tick();return true,'Automatic schedule resumed'
  elseif action=='signature' then
-  local s=Service.Current
-  if not s or s.State~='ACTIVE' then return false,'Start an event first' end
-  local d=Definitions.ById[s.EventId]
-  package.Signal:FireAllClients({Kind='Signature',EventId=d.Id,Duration=math.max(5,d.SignatureDuration)})
-  return true,'Signature triggered'
+  -- The full signature: cinematic, pickups and its gameplay (Effects.Signature).
+  local ok,success,message=pcall(Service.Signature)
+  if not ok then return false,tostring(success) end
+  return success,message
  end
  return false,'Unknown action'
 end
