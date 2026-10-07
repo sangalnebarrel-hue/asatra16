@@ -23,13 +23,24 @@ local function dissolve(model)
  end
  task.delay(.7,function()if model.Parent then model:Destroy()end end)
 end
+-- The tongue stops (every dog on it idles) until `at` on the server clock: DogLineSpawner
+-- reads 03_DogLine.ExternalFreezeUntil. A later freeze already set is kept.
+local function freezeLine(at)
+ local district=workspace:FindFirstChild('DOGROTS_District')
+ local line=district and district:FindFirstChild('03_DogLine')
+ if not line then return end
+ local current=line:GetAttribute('ExternalFreezeUntil')
+ if type(current)~='number'or current<at then line:SetAttribute('ExternalFreezeUntil',at)end
+end
 --[[ M.Show(dogId, ground, facing, options) → Model?
  ground   Vector3 where the dog's feet stand
  facing   Vector3 direction it faces (flattened)
- options.Venue  'Yard' | 'Machine' | 'Excavation' (tells the cinematic it is not on the tongue)
+ options.Venue  'Yard' | 'Machine' | 'Excavation' | 'Mouth' (tells the cinematic it is not on the tongue)
  options.By     display name of the player who got it (shown on the reveal card)
  options.Linger seconds it stays after the arrival (default 6); false = until destroyed
- options.Parent destroy the display dog together with this instance ]]
+ options.Parent destroy the display dog together with this instance
+ options.FreezeLine the tongue stops until the arrival's hold ends (an arrival staged on it)
+ options.Attributes {name=value} set on the display dog before it is parented ]]
 function M.Show(dogId,ground,facing,options)
  options=options or {}
  local arrival,def=Arrivals.Dogs[dogId],Definitions[dogId]
@@ -52,6 +63,14 @@ function M.Show(dogId,ground,facing,options)
  model:SetAttribute('RevealVenue',options.Venue or 'Yard');model:SetAttribute('RevealBy',options.By or '')
  model:SetAttribute('SecretArrivalAt',now);model:SetAttribute('ArrivalHoldUntil',now+arrival.Hold)
  model:SetAttribute('ArrivalOrigin',ground);model:SetAttribute('LocomotionSpeed',0)
+ if type(options.Attributes)=='table'then
+  for key,value in pairs(options.Attributes)do
+   if type(key)=='string'then
+    local ok,err=pcall(function()model:SetAttribute(key,value)end)
+    if not ok then warn('[SecretReveal] attribute',key,err)end
+   end
+  end
+ end
  Hooks.Prepared(model,dogId,options.Venue=='Machine'and'Machine'or'Reveal')
  -- Every player's camera visits the arrival: the whole dog reaches every client.
  pcall(function()model.ModelStreamingMode=Enum.ModelStreamingMode.Persistent end)
@@ -66,6 +85,7 @@ function M.Show(dogId,ground,facing,options)
  end
  -- After the arrival it stands there, happy, until it fades.
  task.delay(arrival.Hold,function()if model.Parent then clip('Idle',true,now+arrival.Hold)end end)
+ if options.FreezeLine then freezeLine(now+arrival.Hold)end
  model.Parent=folder
  if options.Parent then
   options.Parent.Destroying:Connect(function()if model.Parent then model:Destroy()end end)
