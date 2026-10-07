@@ -19,9 +19,10 @@ function S.EndAt(p,key)return(p.Supplies[key]or 0)+((p.SupplyReserve or{})[key]o
 function S.CanAdd(p,key,now)
  local def=C.Supplies[key];return def~=nil and math.max(now,S.EndAt(p,key))+def.Seconds<=now+def.MaxSeconds
 end
-function S.AddPaid(p,key,now)
+-- seconds: what this product grants (a Robux supply or kit), default the supply's own Seconds.
+function S.AddPaid(p,key,now,seconds)
  S.Normalize(p,now);local def=assert(C.Supplies[key],'Unknown supply')
- local finish=math.max(now,S.EndAt(p,key))+def.Seconds
+ local finish=math.max(now,S.EndAt(p,key))+(seconds or def.Seconds)
  p.Supplies[key]=math.min(finish,now+def.MaxSeconds)
  p.SupplyReserve[key]=math.max(0,finish-p.Supplies[key])
  return finish

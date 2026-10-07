@@ -1,16 +1,11 @@
 -- Only called by the existing ProcessReceipt handler after a successful grant.
 local Stats=require(script.Parent.LifetimeStats)
 local S={}
+-- Every catalog row of every kind (Developer Products and Game Passes; CommerceConfig.AllRows).
 function S.Configured(id)
- for _,p in ipairs(require(game.ReplicatedStorage.CommerceConfig).Products)do if p.Id>0 and(id==nil or p.Id==id)then return true end end
- for _,p in ipairs(require(script.Parent.ShopDefinitions))do
-  if p.Kind=='Product' and p.Id>0 and (id==nil or p.Id==id)then return true end
- end
- for _,p in ipairs(require(game.ReplicatedStorage.LuckyBlockConfig).RobuxProducts)do
-  if p.Id>0 and (id==nil or p.Id==id)then return true end
- end
- for _,p in ipairs(require(game.ReplicatedStorage.RewardMachineConfig).TicketProducts or{})do
-  if p.Id>0 and (id==nil or p.Id==id)then return true end
+ for _,entry in ipairs(require(game.ReplicatedStorage.CommerceConfig).AllRows())do
+  local p=entry.Row
+  if type(p.Id)=='number'and p.Id>0 and(id==nil or p.Id==id)then return true end
  end
  return false
 end

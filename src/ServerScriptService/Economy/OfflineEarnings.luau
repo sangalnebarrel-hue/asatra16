@@ -1,5 +1,6 @@
 -- Pure profile accounting, called inside the existing durable transactions.
 local C=require(game:GetService('ReplicatedStorage').OfflineEarningsConfig)
+local Pricing=require(game:GetService('ReplicatedStorage').SupplyPricing)
 local Economy=require(script.Parent.Config)
 local R=require(script.Parent.Rules)
 local Definitions=require(script.Parent.DogDefinitions)
@@ -56,6 +57,8 @@ end
 function O.Checkpoint(p,now)
  local o=O.Normalize(p)
  o.Rate,o.Dogs,o.BaseRate=O.Estimate(p);o.CheckpointAt=now
+ -- The shop's price index remembers the peak income (SupplyPricing).
+ Pricing.Observe(o,now)
  return o
 end
 local function addContributors(o,seconds,coins)
