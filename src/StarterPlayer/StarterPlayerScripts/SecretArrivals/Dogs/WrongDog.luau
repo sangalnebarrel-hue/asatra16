@@ -1,29 +1,35 @@
--- THE WRONG DOG: "IT IS LOOKING AT YOU". The whole island goes first: every light on it
--- dies, the sun drops away in two seconds and the island sits in a moonless black with a
--- red haze (a red mist hangs around every player). At 1.9 every dog on the island opens
--- red eyes and turns to look at you (each player sees them all looking at them), the
--- giant head's pupils ignite red and eyes blink open in the dark around you; at 2.6 a
--- colossal black silhouette of it, rimmed red, rises in every player's sky beyond the
--- stage as they see it (on the tongue: over the giant head's crown), its back to them.
--- At 5.4 its act: it is on the stage (the only lit place left), facing into the throat,
--- perfectly still. Then the film skips: every 0.4 s it stands some other wrong way, the
--- stage light pops and a black double of it stands where nothing was; on the same skips
--- every player's own black double stands in the dark in front of them, nearer each time,
--- the colossus jumps to another wrong stance (nearer too) and the giant head looks the
--- wrong ways. At 7.15 every camera is pulled out over the island; at 7.4 everything goes
--- out at once (the stage, every eye, the colossus, your double), two red eyes open in the
--- mouth, and at 7.8 it is facing you: a hard cut into its face, its red stare running
--- into the lens, a red flash for everyone, every eye on the island open again and on you,
--- the colossus leaning over the stage with its head turned to you, the giant pupils
--- following your camera. Handed back at 9.7 it is all still looking at you, and at 9.9
--- your double stands right behind you. At 11 everything snaps back as if nothing
--- happened: the lights come on, the sky eases back to day (by 14.2), the name comes up.
+-- THE WRONG DOG: "IT IS LOOKING AT YOU". Not a dark night (that is THE DOG's): the island
+-- goes wrong, wherever each player stands.
+--  0     the music dies; the picture bleaches to a red-shifted film and the sun slides
+--        backwards across a milky sky under blood clouds; a red mist hangs round every player.
+--  .35   relay clicks: every Neon part in the district (the north too) flips to its
+--        negative colour in a wave out from the stage, every light to its negative; the
+--        tongue's guides bleed red, a line to the mouth.
+--  1.9   IT IS LOOKING AT YOU crosses every screen; every dog on the island opens red eyes
+--        and turns to face YOU (each player sees them all facing them), eyes open around
+--        you, the giant head's pupils ignite.
+--  2.6   a colossal red hologram of it rises behind you: in your view, beyond you, whichever
+--        way you turn (it slides round after your camera, a beat late), its back to you.
+--  5.4   its act: it stands on the stage (the only steady light), facing the throat.
+--  5.8   the film skips every .4 s: it stands some other wrong way, a black double stands
+--        on the stage, your own black double stands in front of you (nearer each time), the
+--        hologram jumps to another wrong stance, the sun jumps further back, and the whole
+--        picture flashes to its negative for two frames.
+--  7.15  every camera is pulled out over the island; 7.4 everything goes out; 7.6 two red
+--        eyes open in the mouth; 7.8 it is facing you: a hard cut into its face, its red
+--        stare runs into the lens, the island turns blood red, the hologram leans over you.
+--  9.7   handed back, it is all still looking at you; 9.9 your double is right behind you.
+--  11.0  as if nothing happened: colours, lights and sky come back, the name comes up;
+--        11.55 its eyes once more; it walks at 11.8 (Hold).
 -- Off the tongue (a Lucky pad in the open) it faces away from the opener, and lamps of its
 -- own stand in for the mouth's runes and lanterns; the cutaway looks out from the island's
--- centre through the stage.
+-- centre through the stage. SecretArrivalConfig.Dogs.WrongDog agrees: Hold 11.8, no clip
+-- while it is hidden (UnstableEvent at STARE, EXP_Unsettling at RELEASE), its Banner shown
+-- here at OPEN.
 local Players=game:GetService('Players')
 local SoundService=game:GetService('SoundService')
 local TweenService=game:GetService('TweenService')
+local Lighting=game:GetService('Lighting')
 local C=Color3.fromRGB
 local SICK,PALE,BONE,EMBER,BLACK=C(210,255,200),C(228,255,218),C(226,236,218),C(70,0,6),C(0,0,0)
 local WARM=C(255,201,130)
@@ -34,23 +40,29 @@ local ACT=5.4
 local CUTS={{ACT+.4,math.pi/2,.4,0},{ACT+.8,math.pi*1.5,.4,0},{ACT+1.2,0,1.1,0},{ACT+1.6,math.pi,.4,.24}}
 local DARK,EYES,STARE,RELEASE,BLINK=ACT+2,ACT+2.2,ACT+2.4,ACT+5.6,ACT+6.15
 local BEAT,LAMP=.8,1.3
--- Before the act: the island's lights die (a relay click each), every eye opens, the
--- colossus rises, the heart. The cutaway runs ACT+1.75 to ACT+4.3; then your double.
+-- Before the act: the island flips (a relay click each), every eye opens, the hologram
+-- rises, the heart. The cutaway runs ACT+1.75 to ACT+4.3; then your double.
 local DIE={.35,.6,.9,1.2,1.5}
 local OPEN,RISE,BEHIND=1.9,2.6,ACT+4.5
 local HEART={3.3,4.2,5}
+-- The flip's wave (studs/s): the yards at once, the DOG-O-MATIC by the last click.
+local FLIP=700
 local TALL=270
 -- Each skip on the island: your double {studs beyond you, to your right, head tilt}; the
--- colossus {studs from your camera to its eyes, yaw from facing you, lean}: nearer every
+-- hologram {studs from your camera to its eyes, yaw from facing you, lean}: nearer every
 -- time; the giant head's pupils {studs across for the left one, for the right one, up}:
 -- up-left, cross-eyed, wall-eyed, down at the stage.
 local DOUBLE={{34,8,.45},{22,-6,-.55},{13,3.5,.8},{6,-1.5,-.3}}
 local STANCE={{470,math.pi/2,0},{420,math.pi*1.5,0},{370,math.pi,.24},{320,0,0}}
 local GAZE={{2,2,1.3},{2,-2,-.4},{-2,2,1.5},{0,0,-1.5}}
--- The colossus rises this far off (its back to you) and stares from this near, leaning in.
-local RISEN,LEAN=520,250
+-- The hologram rises this far off (its back to you) and stares from this near, leaning in;
+-- it turns this fast (radians/s) to get back behind you when you look away.
+local RISEN,LEAN,FOLLOW=520,250,math.rad(50)
+local function negative(c:Color3):Color3 return Color3.new(1-c.R,1-c.G,1-c.B)end
 
 return function(ctx:any)
+ -- Its own banner, at OPEN (before anything yields).
+ ctx.ManualBanner=true
  ctx.WhisperStyle={Font=Enum.Font.Garamond,Color=BONE,Glitch=.02,Chroma=false,Shake=false,Type=.05}
  local Kit,scope,model,config=ctx.Kit,ctx.Scope,ctx.Model,ctx.Config
  local low,calm,hold,origin=ctx.Low,Kit.ReducedMotion(),config.Hold,ctx.Origin
@@ -69,7 +81,7 @@ return function(ctx:any)
  local face=Vector3.new(look.X,0,look.Z)
  face=face.Magnitude>.01 and face.Unit or Vector3.zAxis
  -- From the island's centre out through the stage (on the tongue: south, behind the giant
- -- head): the colossus stands that way, and the cutaway looks that way.
+ -- head): the cutaway looks that way.
  local away=Vector3.new(origin.X-Kit.Map.Center.X,0,origin.Z-Kit.Map.Center.Z)
  away=away.Magnitude>40 and away.Unit or Vector3.new(0,0,-1)
  -- Flat direction and distance from `from` to this client's camera.
@@ -91,12 +103,12 @@ return function(ctx:any)
   s.Parent=parent or SoundService;scope:Add(s);s:Play()
   task.delay(3,function()if scope.Alive and s.Parent then s:Destroy()end end)
  end
- -- Everything that belongs to the dark (the island's lights and sky, the music, every red
- -- eye, the colossus, your double, the stare's bars, vignette, gaze and outline) lives in
- -- its own scope, so "nothing happened" is a single Clean at RELEASE.
+ -- Everything that belongs to the wrongness (the island's colours, lights and sky, the
+ -- music, every red eye, the hologram, your double, the stare's bars, vignette, gaze and
+ -- outline) lives in its own scope, so "nothing happened" is a single Clean at RELEASE.
  local film=Kit.Scope('Arrival_WrongDog_Film')
  scope:Add(function()film:Clean()end)
- -- When the dark ends on the server clock (Scope:Sky keeps clear of world events till then).
+ -- When the wrongness ends on the server clock (Scope:Sky keeps clear of world events till then).
  film.EndsAt=ctx.Start+RELEASE
  -- Rays that only see the world (never a player, the dog or anything of ours).
  local function rays():RaycastParams
@@ -140,8 +152,14 @@ return function(ctx:any)
  -- The music dies all over the island.
  film:Duck(.03,fresh and 1.2 or .3)
  local drone=scope:Drone('Drone',low and .28 or .42,.34,fresh and 1.2 or .3)
- -- A blood-night grade for everyone (the stage's own light stays sick white).
- local grade=scope:Grade({Saturation=-.35,TintColor=C(255,198,192),Contrast=.22,Brightness=-.03},fresh and 1.6 or .15)
+ -- The film: bleached, red-shifted, hard (the stage's own light stays sick white). Its
+ -- values per phase; the skips flash its negative.
+ local FILM={Saturation=-.55,TintColor=C(255,206,206),Contrast=.32,Brightness=-.02}
+ local NEGATIVE={Saturation=-.2,TintColor=C(120,255,255),Contrast=-.25,Brightness=.18}
+ local OUT={Saturation=0,TintColor=C(255,190,190),Contrast=.6,Brightness=-.55}
+ local BLOOD={Saturation=-.3,TintColor=C(255,150,150),Contrast=.4,Brightness=-.06}
+ local grade=scope:Grade(FILM,fresh and 1.6 or .15)
+ local function grading(props:{[string]:any})for k,v in pairs(props)do (grade::any)[k]=v end end
 
  -- The mouth goes wrong too: blood-red runes, black-red mist. (Only in the mouth: a
  -- Lucky pad may stand near the line, but its lanterns and runes are not this stage.)
@@ -155,20 +173,24 @@ return function(ctx:any)
    elseif o:IsA('ParticleEmitter')then scope:Override(o,{Color=ColorSequence.new(EMBER,C(6,0,0)),LightEmission=0})end
   end
  end
- -- The lanterns around the stage: dark with the island, lit for its act, out in the dark,
- -- red for the stare, then as they were. Colour only: WorldDetailQuality owns Enabled, and
- -- world-event lighting snapshots and restores Brightness (an event starting mid-stare
- -- would keep ours forever). These layers sit under the island's blackout (made below).
+ -- The lanterns around the stage: die with the island, lit for its act, out in the dark,
+ -- red for the stare, then as they were. Colour only, through their own layers (the
+ -- island's flip leaves them to this): WorldDetailQuality owns Enabled, and world-event
+ -- lighting snapshots and restores Brightness.
  local lamps:{any}={}
+ local stageGlass:{[Instance]:boolean}={}
+ local stageLights:{[Instance]:boolean}={}
  for _,lantern in ipairs(line and line:GetChildren()or {})do
   local lens=lantern.Name=='PromenadeLantern'and lantern:FindFirstChild('WarmLens')
   if lens and lens:IsA('BasePart')and (lens.Position-origin).Magnitude<32 then
-   table.insert(lamps,{Object=lens,Color=lens.Color,Off=C(24,20,22)})
-   scope:Override(lens,{Color=lens.Color})
+   local _,_,update=scope:Override(lens,{Color=lens.Color},true)
+   table.insert(lamps,{Object=lens,Color=lens.Color,Off=C(24,20,22),Update=update})
+   stageGlass[lens]=true
    for _,l in ipairs(lantern:GetDescendants())do
     if l:IsA('PointLight')then
-     table.insert(lamps,{Object=l,Color=l.Color,Off=BLACK})
-     scope:Override(l,{Color=l.Color})
+     local _,_,set=scope:Override(l,{Color=l.Color},true)
+     table.insert(lamps,{Object=l,Color=l.Color,Off=BLACK,Update=set})
+     stageLights[l]=true
     end
    end
   end
@@ -199,7 +221,9 @@ return function(ctx:any)
  end
  local function lampsTo(state)
   for _,lamp in ipairs(lamps)do
-   if lamp.Object.Parent then lamp.Object.Color=state=='off'and lamp.Off or state=='red'and RED or lamp.Color end
+   local color=state=='off'and lamp.Off or state=='red'and RED or lamp.Color
+   if lamp.Update then lamp.Update('Color',color)
+   elseif lamp.Object.Parent then lamp.Object.Color=color end
   end
  end
  local function stageIn(seconds)
@@ -208,36 +232,39 @@ return function(ctx:any)
   for _,l in ipairs(own)do Kit.Tween(l,seconds,{Brightness=1.2})end
  end
 
- -- The island: the sun drops away in two seconds into a moonless black with a blood-red
- -- haze, and comes back over 3.2 s once it is over.
- film:Sky({
-  Lighting={ClockTime=0,Brightness=.5,ExposureCompensation=-.45,Ambient=C(16,3,5),OutdoorAmbient=C(54,12,14),
-   EnvironmentDiffuseScale=.12,EnvironmentSpecularScale=.12,ColorShift_Top=C(110,16,16)},
-  Atmosphere={Density=.44,Offset=.2,Color=C(126,18,18),Decay=C(36,0,4),Glare=0,Haze=2.6},
-  Sky={StarCount=0,CelestialBodiesShown=false},
-  Clouds={Cover=.8,Density=.5,Color=C(60,8,10)},
-  Bloom={Intensity=.9,Size=30,Threshold=.95},
- },fresh and 2.2 or .4,3.2)
- -- Every light in the district goes black (at once on Low: no fade loop over every light)...
- film:TintLights(BLACK,(low or not fresh)and 0 or 1.6)
- -- ...and every warm lamp glass, lantern and tongue guide around the yards dies (the
- -- tongue's guides bleed red instead: a line to the mouth). The tongue and the head now
- -- (before anything of ours turns Neon there: the runes, the giant pupils), the bigger
- -- folders a frame each after.
- task.spawn(function()
-  local world=workspace:FindFirstChild('DOGROTS_District')
-  for i,name in ipairs(low and {'03_DogLine','02_DogFactory'}or {'03_DogLine','02_DogFactory','04_PlayerYards','01_IslandAndStreets','33_DogExpress'})do
-   if not film.Alive then return end
-   local folder=world and world:FindFirstChild(name)
-   for _,o in ipairs(folder and folder:GetDescendants()or {})do
-    if o:IsA('BasePart')and o.Material==Enum.Material.Neon and o.Name~='MouthRune'and o.Name~='Pupil'
-     and (o.Position-Kit.Map.Center).Magnitude<280 then
-     film:Override(o,{Color=o.Name=='WarmEdgeGuide'and C(70,0,0)or C(16,9,9)})
-    end
-   end
-   if i>=2 then task.wait()end
-  end
- end)
+ -- The island's sky: the sun slides 1.5 h backwards into a milky, over-bright haze under
+ -- blood clouds (red-lit from above), and jumps further back on every skip; out for the
+ -- dark; blood red for the stare; back over 2.6 s once it is over.
+ local clock=Lighting.ClockTime
+ local sky=film:Sky({
+  Lighting={ClockTime=(clock-1.5)%24,Brightness=3,ExposureCompensation=.3,Ambient=C(150,118,118),OutdoorAmbient=C(205,150,150),
+   EnvironmentDiffuseScale=.35,EnvironmentSpecularScale=.1,ColorShift_Top=C(255,40,40),ColorShift_Bottom=C(40,0,0)},
+  Atmosphere={Density=.36,Offset=.1,Color=C(236,206,206),Decay=C(130,0,10),Glare=0,Haze=2.8},
+  Sky={StarCount=0,CelestialBodiesShown=true,SunAngularSize=5,MoonAngularSize=5},
+  Clouds={Cover=.7,Density=.45,Color=C(96,0,6)},
+  Bloom={Intensity=.7,Size=40,Threshold=.85},
+ },fresh and 2.2 or .4,2.6)
+ local SKY_OUT={Lighting={Brightness=0,ExposureCompensation=-1.5,Ambient=C(0,0,0),OutdoorAmbient=C(12,0,0)}}
+ local SKY_BLOOD={Lighting={Brightness=1.2,ExposureCompensation=-.2,Ambient=C(90,10,10),OutdoorAmbient=C(140,20,20),ColorShift_Top=C(255,0,0)},
+  Atmosphere={Color=C(150,10,10),Decay=C(40,0,0),Density=.42,Haze=2.4}}
+ -- The island flips to its negative: every Neon part (but the mouth's runes and the stage's
+ -- own lanterns; the tongue's guides bleed red instead) and every light, from .35 in a wave
+ -- out from the stage; at the dark all of it goes black, for the stare blood red.
+ local function flipped(part:BasePart,base:Color3):Color3
+  if part.Name=='WarmEdgeGuide'then return C(150,0,0)end
+  return negative(base)
+ end
+ local neon:any=nil
+ local lights:any=nil
+ local function flip(onTime:boolean)
+  if neon then return end
+  local late=math.max(0,ctx:Elapsed()-DIE[1])
+  neon=film:Blackout({Filter=function(part)return part.Name~='MouthRune'and not stageGlass[part]end,
+   Color=flipped,From=origin,Speed=FLIP,Late=late})
+  local _,set=film:TintLights(function(_,base)return negative(base)end,(onTime and not low)and 1.2 or 0,stageLights)
+  lights=set
+  lampsTo('off')
+ end
  -- A red mist hangs low around every player, wherever they are.
  film:Rain({Texture=Kit.Textures.Smoke,Color=ColorSequence.new(C(110,8,8),C(26,0,2)),LightEmission=.2,LightInfluence=0,
   Size=NumberSequence.new(10,18),Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(.35,.86),NumberSequenceKeypoint.new(1,1)}),
@@ -369,7 +396,7 @@ return function(ctx:any)
   return found
  end
  -- 1.9: every dog's eyes open red, nearest you first, and every dog turns to look at you;
- -- eyes blink open in the dark around you; the giant head's pupils ignite.
+ -- eyes blink open around you; the giant head's pupils ignite.
  local pupils:{any}={}
  local glance:any=nil
  local function wakeIsland(onTime:boolean)
@@ -409,36 +436,32 @@ return function(ctx:any)
    end
   end
  end
- -- The colossus: a black silhouette of it, 270 studs tall and rimmed red, beyond the stage
- -- as each player sees it. A camera only sees ~20 degrees above the horizon, so every
- -- stance is placed from the camera looking: its eyes `reach` studs out on the line from
- -- the camera to the stage, 20 degrees up (on the tongue, clear of the giant head's crown
- -- from there), the rest of it sunk behind the head or below the horizon; yaw from facing
- -- that camera. Its eyes are .49 of its height ahead of its middle and .4 above.
+ -- The hologram: a colossal red see-through copy of it, 270 studs tall, rimmed red, that
+ -- stands behind YOU: out along your camera's view, beyond your character, its eyes ~16
+ -- degrees above where you look, whichever way you turn. It turns after your camera at
+ -- FOLLOW (a quick look round catches it sliding back into place) and flickers like a bad
+ -- signal. A cut (the cutaway taking or handing back the camera) snaps it into place.
+ -- stance: Reach (studs from the camera to its eyes), Yaw (from facing you), Lean, Tilt.
+ -- Its eyes are .49 of its height ahead of its middle and .4 above.
  local colossus:any=nil
  local rim:any=nil
  local giantEyes:{BillboardGui}={}
- local crown=Kit.Map.Head+Vector3.new(0,28,0)
- local function eyePoint():Vector3
-  local camera=workspace.CurrentCamera
-  return camera and camera.CFrame.Position or Kit.Me()
- end
- local function loom(eye:Vector3,reach:number,yaw:number,lean:number,tilt:number?):CFrame
-  local flat=Vector3.new(origin.X-eye.X,0,origin.Z-eye.Z)
-  local dir=flat.Magnitude>24 and flat.Unit or away
-  local up=math.tan(math.rad(20))
-  if not open then
-   local d=Vector3.new(crown.X-eye.X,0,crown.Z-eye.Z).Magnitude
-   up=math.clamp((crown.Y-eye.Y)/math.max(d,1)+.08,up,math.tan(math.rad(34)))
-  end
-  local p=eye+dir*(reach+TALL*.49)+UP*(reach*up-TALL*.4)
-  return CFrame.lookAt(p,p-dir)*CFrame.Angles(0,yaw,0)*CFrame.Angles(-(tilt or 0),0,lean)
+ local stance={Reach=RISEN,Yaw=math.pi,Lean=0,Tilt=0}
+ local cut:any=nil
+ local function behind(eye:Vector3,dir:Vector3,pitch:number):CFrame
+  local e=math.clamp(pitch+math.rad(16),math.rad(6),math.rad(30))
+  local p=eye+dir*(stance.Reach+TALL*.49)+UP*(stance.Reach*math.tan(e)-TALL*.4)
+  return CFrame.lookAt(p,p-dir)*CFrame.Angles(0,stance.Yaw,0)*CFrame.Angles(-stance.Tilt,0,stance.Lean)
  end
  local function rise(late:boolean)
-  colossus=film:Colossus({Ctx=ctx,Height=TALL,At=loom(eyePoint(),RISEN,math.pi,0),Style='Silhouette',Color=C(4,0,0),Clip='EXP_Stare',
-   Rise=late and 0 or 160,FadeIn=late and .3 or 2.4})
+  local camera=workspace.CurrentCamera
+  local view=camera and camera.CFrame or CFrame.lookAt(Kit.Me(),origin)
+  local flat=Vector3.new(view.LookVector.X,0,view.LookVector.Z)
+  local dir=flat.Magnitude>.05 and flat.Unit or away
+  colossus=film:Colossus({Ctx=ctx,Height=TALL,At=behind(view.Position,dir,0),Style='Hologram',Color=RED,Alpha=.4,
+   Clip='EXP_Stare',Rise=late and 0 or 160,FadeIn=late and .3 or 2.4})
   if not colossus then return end
-  rim=film:Highlight(colossus.Model,BLACK,C(160,0,0),1,.3)
+  rim=film:Highlight(colossus.Model,BLACK,C(255,30,30),1,.3)
   for _,name in ipairs({'Eye.L','Eye.R'})do
    local bone=colossus.Model:FindFirstChild(name,true)
    if bone then
@@ -447,9 +470,39 @@ return function(ctx:any)
     table.insert(giantEyes,gui)
    end
   end
+  local heading:number?=nil
+  local cutting=false
+  local jitter,jitterUntil,nextJitter=Vector3.zero,0,os.clock()+.6
+  film:Every(function(dt)
+   if not colossus.Model.Parent then return false end
+   local cam=workspace.CurrentCamera
+   if not cam then return true end
+   local l=cam.CFrame.LookVector
+   local f=Vector3.new(l.X,0,l.Z)
+   local want=f.Magnitude>.05 and math.atan2(-f.X,-f.Z)or heading or 0
+   local now=cut~=nil and cut.Active
+   if heading==nil or now~=cutting then heading=want end
+   cutting=now
+   local d=(want-(heading::number)+math.pi)%(2*math.pi)-math.pi
+   local step=FOLLOW*dt
+   heading=(heading::number)+math.clamp(d,-step,step)
+   local yaw=heading::number
+   local cf=behind(cam.CFrame.Position,Vector3.new(-math.sin(yaw),0,-math.cos(yaw)),math.asin(math.clamp(l.Y,-1,1)))
+   -- A bad signal: now and then it tears sideways for a frame or two.
+   if not calm then
+    local t=os.clock()
+    if t>=nextJitter then
+     jitter=cf.RightVector*Kit.Random(-14,14)+UP*Kit.Random(-4,4);jitterUntil=t+Kit.Random(.03,.08)
+     nextJitter=t+Kit.Random(.25,.9)
+    end
+    if t<jitterUntil then cf+=jitter end
+   end
+   colossus:Pose(cf,0)
+   return true
+  end)
  end
  -- Your double: a black copy of it (from the menu model, so it exists wherever you are),
- -- taller than you, red-eyed, standing in the dark facing your camera.
+ -- taller than you, red-eyed, standing facing your camera.
  local mine:any=nil
  local mineHead:Bone?=nil
  local mineEyes:{BillboardGui}={}
@@ -515,18 +568,31 @@ return function(ctx:any)
   back=Vector3.new(back.X,0,back.Z)
   return CFrame.lookAt(feet,feet+(back.Magnitude>.5 and back.Unit or -forward))
  end
- -- A skip on the island: your double nearer, the colossus in another wrong stance (nearer
- -- too), the giant head's pupils looking the wrong ways.
+ -- The whole picture, for two frames, in its negative.
+ local function negativeFrame()
+  if calm then return end
+  grading(NEGATIVE)
+  local frames=0
+  scope:Every(function(_,age)
+   frames+=1
+   if frames<3 or age<.06 then return true end
+   grading(FILM)
+   return false
+  end)
+ end
+ -- A skip on the island: your double nearer, the hologram in another wrong stance (nearer
+ -- too), the giant head's pupils looking the wrong ways, the sun further back.
  local function wrongAgain(i:number)
   local d=DOUBLE[i]
   showDouble(stand(d[1],d[2]),d[3])
   local s=STANCE[i]
-  if colossus then colossus:Pose(loom(eyePoint(),s[1],s[2],s[3]),0)end
+  stance.Reach,stance.Yaw,stance.Lean=s[1],s[2],s[3]
   local g=GAZE[i]
   for _,p in ipairs(pupils)do p.Set('CFrame',p.Home+Vector3.new(p.Left and g[1]or g[2],g[3],0))end
+  sky:Set({Lighting={ClockTime=(clock-1.5-i*.75)%24}},.05)
  end
- -- 7.4: every eye on the island shuts at once; the colossus and your double are gone; the
- -- giant pupils die.
+ -- 7.4: everything goes out at once: the picture, the island's colours and lights, every
+ -- eye, the hologram, your double, the giant pupils.
  local function lightsOut()
   for _,gui in ipairs(glows)do gui.Enabled=false end
   for _,gui in ipairs(giantEyes)do gui.Enabled=false end
@@ -534,23 +600,32 @@ return function(ctx:any)
   if rim then rim.Enabled=false end
   showDouble(nil,0)
   for _,p in ipairs(pupils)do p.Set('Color',p.Color);p.Set('Material',p.Material)end
+  grading(OUT)
+  sky:Set(SKY_OUT,.06)
+  if neon then neon:Set(BLACK)end
+  if lights then lights(BLACK,0)end
  end
- -- 7.8: all of them open again, on you. The colossus is back, nearer than ever, leaning in
- -- over the stage and turning to your camera; the giant pupils follow it (the stare loop
- -- keeps both on you).
+ -- 7.8: all of it opens again, on you, and the island bleeds red. The hologram is back,
+ -- nearer than ever, facing you and leaning in; the giant pupils follow your camera (the
+ -- stare loop keeps both on you).
  local gazeOf:any=nil
  local function allEyesOnYou()
   for _,gui in ipairs(glows)do gui.Enabled=true end
   for _,gui in ipairs(giantEyes)do gui.Enabled=true end
   if rim then rim.Enabled=true end
+  stance.Reach,stance.Yaw,stance.Lean,stance.Tilt=LEAN,0,0,.22
   if colossus then
-   colossus:Pose(loom(eyePoint(),LEAN,0,0,.22),0);colossus:Fade(0,0);colossus:Play('UnstableEvent',false)
+   colossus:Fade(.3,0);colossus:Play('UnstableEvent',false)
    if colossus.Animator then
     gazeOf={Target=origin,Body=1,Head=1}
     colossus.Animator.Look=gazeOf
    end
   end
   for _,p in ipairs(pupils)do p.Set('Color',RED);p.Set('Material',Enum.Material.Neon)end
+  grading(BLOOD)
+  sky:Set(SKY_BLOOD,.1)
+  if neon then neon:Set(C(130,0,0))end
+  if lights then lights(RED,0)end
  end
  -- 9.9: handed back to your own camera, your double is right behind you.
  local function behindYou()
@@ -562,14 +637,13 @@ return function(ctx:any)
   showDouble(stand(back>3 and -math.min(back*.55,7)or 6,0),.3)
  end
  -- The climax pulls every camera (Takeover skips ReducedMotion, busy cameras, open menus):
- -- wide over the dark island toward the stage and the colossus behind it as everything
- -- goes out (high enough to clear the roofs round any venue, with both the stage and the
- -- colossus's head in frame), then a hard cut into its face as it turns to the lens, a
- -- slow push to its eyes; handed back at 9.7.
+ -- wide over the island toward the stage as everything goes out (high enough to clear the
+ -- roofs round any venue), then a hard cut into its face on its stage as it turns to the
+ -- lens, a slow push to its eyes; handed back at 9.7 (it stands there until 11.8).
  local across=away:Cross(UP)
  local level=origin+UP*size.Y*.85
  local wide=origin-away*190+across*40+UP*70
- local cut=ctx:Cutaway({
+ cut=ctx:Cutaway({
   {At=ACT+1.75,CFrame=Kit.Frame(wide,origin+away*130+UP*120),Fov=70},
   {At=STARE-.02,CFrame=Kit.Frame(origin-away*174+across*36+UP*66,origin+away*130+UP*116),Fov=64,Linear=true},
   {At=STARE,CFrame=Kit.Frame(origin-away*8.5+UP*size.Y*.7,level),Fov=46,Cut=true},
@@ -604,7 +678,7 @@ return function(ctx:any)
   return true
  end)
  -- From the dark on it faces this client's camera, every frame, without easing. Its
- -- gaze ends just in front of the lens; the heart keeps time; the colossus and the giant
+ -- gaze ends just in front of the lens; the heart keeps time; the hologram and the giant
  -- head's pupils follow the camera too.
  local gaze:BasePart?=nil
  local nextBeat=STARE+BEAT/2
@@ -633,16 +707,24 @@ return function(ctx:any)
   return true
  end)
 
- -- 0.35-1.5: the island's lights die, one relay at a time.
+ -- .35-1.5: the island flips to its negative, one relay at a time.
  for i,t in ipairs(DIE)do
   if not ctx:Wait(t)then return end
+  if i==1 and ctx:Elapsed()<DARK then flip(live(t))end
   if live(t)then click(.9-i*.08,.5)end
  end
- -- 1.9: every eye on the island opens; every dog turns to look at you.
+ -- 1.9: every eye on the island opens; every dog turns to look at you; its name for it
+ -- crosses every screen.
  if not ctx:Wait(OPEN)then return end
  wakeIsland(live(OPEN))
  if live(OPEN)then Kit.Cue('Heartbeat',nil,.6);Kit.Cue('Sting',nil,.3)end
- -- 2.6: behind the stage something very tall rises, its back to the island.
+ local banner=type(config.Banner)=='table'and config.Banner or nil
+ if banner and ctx:Elapsed()<OPEN+(banner.Hold or 3)then
+  local shown=table.clone(banner)
+  shown.At=nil
+  ctx:Banner(shown)
+ end
+ -- 2.6: behind you something very tall rises, its back to you.
  if not ctx:Wait(RISE)then return end
  rise(not live(RISE))
  if live(RISE)then Kit.Cue('Impact',nil,.6);Kit.Cue('Sting',nil,.4)end
@@ -651,7 +733,7 @@ return function(ctx:any)
   if live(t)then Kit.Cue('Heartbeat',nil,.55)end
  end
 
- -- 5.4: its act, on the only lit place left on the island, facing into the throat.
+ -- 5.4: its act, on the only steady light on the island, facing into the throat.
  if not ctx:Wait(ACT)then return end
  vis.Set(0)
  lampsTo('home')
@@ -659,7 +741,7 @@ return function(ctx:any)
  if live(ACT)then lampIn=Kit.Tween(spot,.35,{Brightness=LAMP});Kit.Cue('Sting',nil,.4)else spot.Brightness=LAMP end
  -- 5.8-7.0: the film skips. Each cut: a new wrong stance, the light pops, the double
  -- stands in it (beside, the other side, peeking from behind, then in front of you); and
- -- on the island your own double, the colossus and the giant head skip with it.
+ -- on the island your own double, the hologram and the giant head skip with it.
  for i,c in ipairs(CUTS)do
   if not ctx:Wait(c[1])then return end
   pose(c[2],c[3],c[4])
@@ -685,16 +767,14 @@ return function(ctx:any)
     if phase=='film'then spot.Brightness=LAMP end
     return false
    end)
-   -- The whole island's film skips: a pale pop for everyone, harder near the stage.
+   -- The whole island's film skips: its negative for two frames, a pale pop for everyone
+   -- (harder near the stage).
+   negativeFrame()
    if not calm then Kit.Flash(PALE,.86-.3*Kit.Near(origin,120),.14)end
    Kit.Cue('Heartbeat',nil,.4+i*.1)
    click(.62+i*.06,.55)
   end
  end
- -- 7.2: those pulled into the cutaway see the colossus from its wide shot.
- if not ctx:Wait(ACT+1.8)then return end
- local pulled=cut~=nil and cut.Active
- if pulled and colossus then colossus:Pose(loom(wide,STANCE[4][1],0,0),0)end
 
  -- 7.4: lights out everywhere. Silence; it is gone, every eye is gone; it turns to you in
  -- the dark.
@@ -705,7 +785,6 @@ return function(ctx:any)
   spot.Brightness=0
   lampsTo('off')
   lightsOut()
-  grade.Brightness=open and -.38 or -.3;grade.Contrast=.3
   -- A tween, so it also cancels a late client's fade-in still running.
   if drone then Kit.Tween(drone,.05,{Volume=0})end
   click(.5,.7)
@@ -727,7 +806,6 @@ return function(ctx:any)
  vis.Set(0)
  spot.Brightness=0
  lampsTo('red')
- grade.Brightness=-.04;grade.Contrast=.26;grade.Saturation=-.3
  film:Highlight(model,EMBER,RED,.86,.2)
  eyesTo(4)
  for _,e in ipairs(eyes)do e.Glint.Rate=low and 3 or 7 end
@@ -745,20 +823,18 @@ return function(ctx:any)
   beatAt=os.clock()
   Kit.Cue('Impact',nil,.85);Kit.Cue('Sting',nil,.75);Kit.Cue('Glitch',eyes[1].Anchor,.35)
   -- The jump, for everyone wherever they stand (the cutaway shakes its own camera).
-  Kit.Flash(C(150,0,8),.3,.7)
+  if not calm then Kit.Flash(C(150,0,8),.3,.7)end
   Kit.Shake(.35,.35)
   Kit.FOVPunch(-7,math.max(.5,RELEASE-ctx:Elapsed()),.3)
   if cut and cut.Active then cut:Shake(1.2,.45)end
  end
- -- 9.9: back in your own camera, it is standing right behind you (and the colossus is
- -- where you can see it again).
+ -- 9.9: back in your own camera, it is standing right behind you.
  if not ctx:Wait(BEHIND)then return end
  behindYou()
- if pulled and colossus then colossus:Pose(loom(eyePoint(),LEAN,0,0,.22),0)end
  if live(BEHIND)then Kit.Cue('Heartbeat',nil,.9);click(.45,.6)end
 
- -- 11.0: as if nothing happened. The lights come back on all over the island, every eye
- -- and your double are gone, the sky eases back to day; it lands, facing down the line
+ -- 11.0: as if nothing happened. The colours and lights come back all over the island,
+ -- every eye and your double are gone, the sky eases back; it lands, facing down the line
  -- (on a pad: the opener); the name comes up.
  if not ctx:Wait(RELEASE)then return end
  phase='done'

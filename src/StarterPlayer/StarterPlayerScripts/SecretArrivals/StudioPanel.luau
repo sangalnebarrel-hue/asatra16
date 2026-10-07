@@ -1,10 +1,12 @@
 -- Studio only: the ★ SECRETS button on the right edge of the screen (or F7) opens a list
--- of the Secret dogs. Choose where it arrives, then click a dog: ON THE TONGUE spawns it
+-- of every Secret dog. Choose where it arrives, then click a dog: ON THE TONGUE spawns it
 -- on the conveyor, IN FRONT OF ME stages it in front of you like a Secret from a Lucky
--- Block (Long Dog and Aurion never walk the tongue, so they always arrive in front of
--- you). Uses DogLineSpawner's StudioSecretArrival remote; a published place's previews
--- are not for sale. The button is there because F7 often never reaches the game (laptop
--- media keys, keyboard focus on another Studio panel).
+-- Block. The Long Dog and Aurion never walk the tongue and always arrive where they really
+-- do (the server routes them): the Long Dog from the giant mouth (its dig venue), Aurion
+-- on the DOG-O-MATIC's stand after a spin. The status line shows the server's answer.
+-- Uses DogLineSpawner's StudioSecretArrival remote; a published place's previews are not
+-- for sale. The button is there because F7 often never reaches the game (laptop media
+-- keys, keyboard focus on another Studio panel).
 local Run=game:GetService('RunService')
 if not Run:IsStudio()then return true end
 local Players=game:GetService('Players')
@@ -36,21 +38,39 @@ local definitions do
  definitions=ok and type(result)=='table'and result or {}
 end
 local function onLine(id)local d=definitions[id];return d==nil or d.CanSpawnOnLine~=false end
+-- Where the off-tongue ones arrive (the mode switch does not apply to them).
+local VENUES={LongDog='from the giant mouth (dig venue)',Aurion='at the DOG-O-MATIC'}
+local function venue(id)
+ if VENUES[id]then return VENUES[id]end
+ local d=definitions[id]
+ if d and d.Acquisition=='RouletteOnly'then return VENUES.Aurion end
+ return not onLine(id)and 'in front of you'or nil
+end
+-- Every Secret: each one with an arrival, and any Rank 6 dog still missing one (listed,
+-- so a missing arrival shows up here instead of silently).
 local ids={}
 for id in pairs(Config.Dogs)do table.insert(ids,id)end
+for id,d in pairs(definitions)do
+ if type(d)=='table'and d.Rank==6 and not Config.Dogs[id]then table.insert(ids,id)end
+end
+local function title(id)
+ local entry=Config.Dogs[id]
+ return entry and entry.Title or string.upper(tostring(definitions[id]and definitions[id].DisplayName or id))
+end
 table.sort(ids,function(a,b)
  if onLine(a)~=onLine(b)then return onLine(a)end
  local wa,wb=(definitions[a]and definitions[a].LineWeight)or 0,(definitions[b]and definitions[b].LineWeight)or 0
  if wa~=wb then return wa>wb end
- return Config.Dogs[a].Title<Config.Dogs[b].Title
+ return title(a)<title(b)
 end)
 
 local gui=new('ScreenGui',{Name='DOGROTS_SecretAdmin',ResetOnSpawn=false,DisplayOrder=301,ZIndexBehavior=Enum.ZIndexBehavior.Sibling},nil)
 local toggle=button(gui,'★ SECRETS  [F7]',UDim2.new(1,-12,.5,0),UDim2.fromOffset(150,38),PICKED)
 toggle.Name='SecretsToggle';toggle.AnchorPoint=Vector2.new(1,.5);toggle.TextSize=14
-local HEIGHT=128+30*#ids
+local WIDTH,TOP=330,108
+local HEIGHT=TOP+36+30*#ids
 local panel=new('Frame',{Name='SecretArrivalLab',Visible=false,BorderSizePixel=0,BackgroundColor3=BG,AnchorPoint=Vector2.new(1,.5),
- Position=UDim2.new(1,-172,.5,0),Size=UDim2.fromOffset(270,HEIGHT)},gui)
+ Position=UDim2.new(1,-172,.5,0),Size=UDim2.fromOffset(WIDTH,HEIGHT)},gui)
 round(panel,10)
 local scale=new('UIScale',{},panel)
 label(panel,'SECRET ARRIVALS',UDim2.fromOffset(14,10),UDim2.fromOffset(200,22),FG,17).Font=Enum.Font.GothamBold
@@ -59,9 +79,11 @@ local close=button(panel,'X',UDim2.new(1,-40,0,10),UDim2.fromOffset(28,28))
 
 -- Where the next dog arrives.
 local here=false
-local tongueMode=button(panel,'ON THE TONGUE',UDim2.fromOffset(12,54),UDim2.fromOffset(119,28))
-local hereMode=button(panel,'IN FRONT OF ME',UDim2.fromOffset(139,54),UDim2.fromOffset(119,28))
+local tongueMode=button(panel,'ON THE TONGUE',UDim2.fromOffset(12,54),UDim2.fromOffset(149,28))
+local hereMode=button(panel,'IN FRONT OF ME',UDim2.fromOffset(169,54),UDim2.fromOffset(149,28))
 tongueMode.TextSize=11;hereMode.TextSize=11
+label(panel,'Where the next one arrives (Long Dog and Aurion always come where they really do).',
+ UDim2.fromOffset(14,84),UDim2.fromOffset(WIDTH-28,22),MUTED,10)
 local function paintMode()
  tongueMode.BackgroundColor3=here and ROW or PICKED
  hereMode.BackgroundColor3=here and PICKED or ROW
@@ -79,10 +101,11 @@ local function arrive(id)
  if busy then return end
  if not remote then say('The server is not ready yet (see Output).',BAD);return end
  busy=true
- local title=Config.Dogs[id].Title
- say('Spawning '..title..'...')
+ local where=venue(id)
+ say('Spawning '..title(id)..(where and ' '..where or here and ' in front of you'or ' on the tongue')..'...')
  local answered=false
- task.delay(10,function()
+ -- (Aurion's spin can take a while; a late answer still replaces this.)
+ task.delay(15,function()
   if answered then return end
   busy=false
   say('No answer from the server. Look for a red error in Output.',BAD)
@@ -96,9 +119,12 @@ local function arrive(id)
 end
 for i,id in ipairs(ids)do
  local entry=Config.Dogs[id]
- local text=entry.Title..(onLine(id)and''or'  ·  in front of you')
- local b=button(panel,text,UDim2.fromOffset(12,92+(i-1)*30),UDim2.fromOffset(246,26))
- b.TextColor3=entry.Color;b.TextXAlignment=Enum.TextXAlignment.Left
+ local where=venue(id)
+ local b=button(panel,'',UDim2.fromOffset(12,TOP+(i-1)*30),UDim2.fromOffset(WIDTH-24,26))
+ b.RichText=true
+ b.Text=title(id)..(where and '<font color="#9EABC2" size="11">  ·  '..where..'</font>'or'')
+  ..(entry and''or'<font color="#F69889" size="11">  ·  no arrival</font>')
+ b.TextColor3=entry and entry.Color or MUTED;b.TextXAlignment=Enum.TextXAlignment.Left
  new('UIPadding',{PaddingLeft=UDim.new(0,10)},b)
  b.Activated:Connect(function()arrive(id)end)
 end
@@ -117,7 +143,7 @@ end)
 local function fit()
  local screen=gui.AbsoluteSize
  if screen.Y<=0 then return end
- scale.Scale=math.clamp(math.min((screen.Y-24)/HEIGHT,(screen.X-190)/270),.45,1)
+ scale.Scale=math.clamp(math.min((screen.Y-24)/HEIGHT,(screen.X-190)/WIDTH),.45,1)
 end
 gui:GetPropertyChangedSignal('AbsoluteSize'):Connect(fit)
 gui.Parent=player:WaitForChild('PlayerGui')

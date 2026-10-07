@@ -1,7 +1,7 @@
 -- Secret dogs arriving on the tongue. Read by DogLineSpawner (server) and by the
 -- SecretArrivals cinematic (every client).
 --   Hold        seconds the dog waits on its stage (unbuyable) while its arrival plays;
---               the next spawn waits too.
+--               the next spawn waits too. The arrival's whole act fits inside it.
 --   Clips       authored DogAnimationClips played during the hold: {seconds, clip, looped}.
 --               The dog switches to Walk when the hold ends.
 --   SpeedScale  while this dog is on the tongue the whole tongue moves at this speed.
@@ -9,6 +9,9 @@
 --   Whispers    the mysterious lines typed at the top of every screen, {seconds, text}.
 --   Title       the reveal card once the arrival lands.
 --   Color       the dog's signature colour for UI and FX.
+--   Banner      the map-wide alert: {At, Style, Kicker, Title, Text, Hold}; false for none.
+--               An arrival that times its own (ctx.ManualBanner) may still read it.
+--   LateGrace   seconds late a client may still join it (default max(LateGrace, Hold*.6)).
 local C = {}
 C.Version = 1
 -- Secrets arrive this many studs down the tongue from DogSpawn: right in the giant
@@ -38,11 +41,26 @@ C.Map = {
 	-- The whole district (the far north holds the museum, lab and DOG-O-MATIC).
 	Min = Vector3.new(-200, 0, -260),
 	Max = Vector3.new(200, 0, 720),
+	-- Real points on the island (DOGROTS_District.NavigationAnchors; the client takes the
+	-- anchors' own positions once they stream in). Plaza, Museum, Lab and Machine are the
+	-- older names of WelcomeHub, DogDex, MutationLab and the DOG-O-MATIC's prize stand.
 	Landmarks = {
-		Plaza = Vector3.new(-40, 1, 300),
-		Museum = Vector3.new(-130, 1, 480),
-		Lab = Vector3.new(105, 1, 480),
-		Machine = Vector3.new(-178, 1, 630),
+		WelcomeHub = Vector3.new(0, 3, 377), -- DistrictSpawn: where players join
+		DogPark = Vector3.new(-100, 3, 238),
+		Shops = Vector3.new(94, 3, 335),
+		DogDex = Vector3.new(-64, 3, 465),
+		MutationLab = Vector3.new(78, 3, 477),
+		GlobalDigSite = Vector3.new(38, 3, 575),
+		PortalRuins = Vector3.new(-63, 3, 564),
+		Shelter = Vector3.new(105, 3, 177),
+		PlayerYards = Vector3.new(0, 2, 110),
+		-- The DOG-O-MATIC: its prize stand (CameraHooks.RewardSpawn) and the approach to it.
+		RewardMachine = Vector3.new(-119, 1.2, 630),
+		MachineApproach = Vector3.new(-76, 3, 630),
+		Plaza = Vector3.new(0, 3, 377),
+		Museum = Vector3.new(-64, 3, 465),
+		Lab = Vector3.new(78, 3, 477),
+		Machine = Vector3.new(-119, 1.2, 630),
 	},
 }
 
@@ -75,9 +93,22 @@ C.Dogs = {
 		Color = Color3.fromRGB(255, 120, 40),
 	},
 	WrongDog = {
-		Hold = 6.4,
-		Clips = { { 0, "EXP_Stare", true }, { 2.4, "UnstableEvent" }, { 5.6, "EXP_Unsettling", true } },
-		Whispers = { { 0.4, "that is not how a dog is supposed to stand." }, { 2.6, "it is looking at you. only you." } },
+		-- Dogs/WrongDog: the island turns wrong first; the dog is on its stage from 5.4 (hidden
+		-- before that and in the dark at 7.4-7.8, so no clip plays then), stares into every
+		-- camera 7.8-11.0 and walks at Hold.
+		Hold = 11.8,
+		FreezeLine = true,
+		Clips = { { 0, "EXP_Stare", true }, { 7.8, "UnstableEvent" }, { 11.0, "EXP_Unsettling", true } },
+		Whispers = { { 5.8, "that is not how a dog is supposed to stand." }, { 8.0, "it is looking at you. only you." } },
+		-- Shown by the module when every eye on the island opens (ctx.ManualBanner).
+		Banner = {
+			At = 1.9,
+			Style = "Horror",
+			Kicker = "⚠  SOMETHING IS WRONG  ⚠",
+			Title = "IT IS LOOKING AT YOU",
+			Text = "do not turn around.",
+			Hold = 3.2,
+		},
 		Title = "THE WRONG DOG",
 		Color = Color3.fromRGB(255, 40, 40),
 	},
@@ -140,19 +171,26 @@ C.Dogs = {
 		Color = Color3.fromRGB(150, 220, 255),
 	},
 	TheDog = {
-		Hold = 14,
+		-- Dogs/TheDog, the eclipse: it waits underground until the ground opens (11.4), has
+		-- risen by 14.2, the dawn comes at 18.6 and it walks at Hold.
+		Hold = 24,
 		SpeedScale = 0.5,
 		FreezeLine = true,
-		Clips = { { 0, "Stand_Idle", true }, { 6.4, "Ground_Opens" }, { 9.0, "Pet_Reaction" }, { 11.8, "Stand_Idle", true } },
-		-- The last line stays (breathing) while it walks.
+		Clips = { { 0, "Stand_Idle", true }, { 11.4, "Ground_Opens" }, { 14.0, "Pet_Reaction" }, { 16.8, "Stand_Idle", true } },
+		-- On the act's beats (the stare 4.9, the eye 6-9.4, the cutaway 10.6, the bow 15.4);
+		-- each is typed (~0.06 s a character) before the next. The last line stays,
+		-- breathing, while it walks.
 		Whispers = {
 			{ 0.5, "the tongue has gone quiet." },
-			{ 2.6, "every dog on this island just turned around." },
-			{ 6.0, "they know its name." },
-			{ 8.2, "do not look away." },
-			{ 11.0, "it was never a pet. you were." },
-			{ 13.0, "good boy." },
+			{ 4.95, "every dog on this island just turned around." },
+			{ 7.7, "do not look away." },
+			{ 10.4, "they know its name." },
+			{ 16.0, "it was never a pet. you were." },
+			{ 21.5, "good boy." },
 		},
+		-- The first of its two banners (THE DOG crosses every screen again at 14.2); the
+		-- module adds the odds to the kicker (ctx.ManualBanner).
+		Banner = { At = 0.4, Style = "Void", Title = "TOTAL ECLIPSE", Text = "do not look at the sun.", Hold = 3.4 },
 		Title = "THE DOG",
 		Color = Color3.fromRGB(255, 255, 255),
 		-- Every dog on the map stares at THE DOG while it is around, for this long at most.
