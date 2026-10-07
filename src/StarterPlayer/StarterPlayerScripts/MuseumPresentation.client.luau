@@ -10,6 +10,7 @@ end
 local templates=game.ReplicatedStorage:WaitForChild('MenuModels')
 local economy=Rep:WaitForChild('DogEconomyRequest')
 local audio=require(Rep:WaitForChild('MuseumAudio'))
+local Hooks=require(Rep:WaitForChild('DogDisplayHooks'))
 local state={Entries={},Count=0,Rarities={}};local records={};local currentMuseum;local revision=0;local pulling=false
 local localModels=Instance.new('Folder');localModels.Name='DogDexLocalDisplays';localModels.Parent=workspace
 local promptPart=Instance.new('Part');promptPart.Name='MuseumNearestEntry';promptPart.Size=Vector3.one;promptPart.Transparency=1;promptPart.Anchored=true;promptPart.CanCollide=false;promptPart.CanTouch=false;promptPart.CanQuery=false;promptPart.Parent=localModels
@@ -106,7 +107,10 @@ local function apply(rec,near,visible)
  if rec.key~=key then
   if rec.model then rec.model:Destroy();rec.model=nil end
   if key~='hidden'then
-   local m=cloneStatic(key=='silhouette'and shape or source,key=='silhouette',not near);fit(m,origin);m:SetAttribute('MuseumDisplay',true);m:SetAttribute('LogicalIndex',rec.index);m:SetAttribute('Locked',not unlocked);m:SetAttribute('SourceDogId',key=='silhouette'and shapeId or entry.Id);m.Parent=localModels;rec.model=m
+   local m=cloneStatic(key=='silhouette'and shape or source,key=='silhouette',not near);fit(m,origin);m:SetAttribute('MuseumDisplay',true);m:SetAttribute('LogicalIndex',rec.index);m:SetAttribute('Locked',not unlocked);m:SetAttribute('SourceDogId',key=='silhouette'and shapeId or entry.Id)
+   -- A discovered Secret wears its persistent aura here too (SecretAuras); a silhouette never does.
+   if key~='silhouette'and Hooks.IsSecret(entry.Id)then Hooks.Prepared(m,entry.Id,'Museum')end
+   m.Parent=localModels;rec.model=m
   end
   rec.key=key
  end
