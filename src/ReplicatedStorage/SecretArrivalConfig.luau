@@ -77,11 +77,15 @@ C.Dogs = {
 		Banner = { At = 0.15, Style = "Glitch", Kicker = "■  SECRET DOG · SIX SIDES  ■", Text = "A PERFECT CUBE IS DRAWING ITSELF IN YOUR SKY", Hold = 3 },
 	},
 	Dogdogdogdog = {
-		Hold = 6.6,
-		Clips = { { 0, "Split" }, { 3.5, "Reassemble" }, { 5.6, "Happy", true } },
+		-- Map-wide roll call (Dogs/Dogdogdogdog T): it comes apart at 1.4, every pup is counted
+		-- by the first whisper (one per typed "dog"), it is one dog again at 6.8 and, for a
+		-- blink on the last whisper's last word, eight. The whole tongue waits for it.
+		Hold = 10,
+		FreezeLine = true,
+		Clips = { { 0, "Idle", true }, { 1.4, "Split" }, { 5.6, "Reassemble" }, { 7.7, "Happy", true } },
 		Whispers = {
-			{ 1.6, "dog dog dog dog dog dog dog dog" },
-			{ 4.6, "there were eight. now there is one. now there are eight." },
+			{ 3.0, "dog dog dog dog dog dog dog dog" },
+			{ 7.9, "now there are eight." },
 		},
 		Title = "DOGDOGDOGDOG",
 		Color = Color3.fromRGB(255, 196, 64),
@@ -204,11 +208,14 @@ C.Dogs = {
 		Color = Color3.fromRGB(240, 196, 120),
 	},
 	Aurion = {
-		Hold = 6.5,
-		Clips = { { 0, "Sniff" }, { 2.3, "PrismEcho" }, { 4.4, "Happy" } },
+		-- Map-wide jackpot (Dogs/Aurion T): light falls from the sky onto the DOG-O-MATIC, it
+		-- forms at 2.6, echoes across the island from 3.7 and the jackpot is announced at 5.8.
+		-- The machine takes no new spin until the hold is over.
+		Hold = 10,
+		Clips = { { 0, "Idle", true }, { 1.4, "Sniff" }, { 3.7, "PrismEcho" }, { 5.8, "Happy" }, { 7.9, "Idle", true } },
 		Whispers = {
-			{ 0.3, "the light split into nine colours. one of them barked." },
-			{ 3.0, "every tenth dig, it echoes." },
+			{ 1.1, "the light split into nine colours. one of them barked." },
+			{ 3.6, "every tenth dig, it echoes." },
 		},
 		Title = "AURION",
 		Color = Color3.fromRGB(150, 220, 255),
