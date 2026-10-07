@@ -46,6 +46,9 @@ local function play(model)
  -- (a dig pit), 'Machine' (the DOG-O-MATIC stand). By: who got it (off-tongue only).
  local venue=model:GetAttribute('RevealVenue')
  local by=model:GetAttribute('RevealBy')
+ -- Map: the island at map scale (Kit.Map: Center, Radius, Mouth, Head, Min/Max...) and its
+ -- real points in Map.Landmarks (WelcomeHub, DogPark, Shops, DogDex, MutationLab,
+ -- GlobalDigSite, RewardMachine = the DOG-O-MATIC's prize stand...).
  local ctx={Model=model,DogId=id,Config=config,Start=at,Late=late,Scope=scope,Kit=Kit,Whisper=Whisper,Stare=Stare,
   Low=Kit.Low(),Origin=typeof(origin)=='Vector3'and origin or model:GetPivot().Position,
   Venue=type(venue)=='string'and venue or 'Tongue',By=type(by)=='string'and by~=''and by or nil,
@@ -78,15 +81,18 @@ local function play(model)
  function ctx:Cutaway(shots,options)return scope:Cutaway(ctx,shots,options)end
  function ctx:Colossus(options)options=table.clone(options or {});options.Ctx=ctx;return scope:Colossus(options)end
  function ctx:Banner(options)options=table.clone(options or {});options.Ctx=ctx;return scope:Banner(options)end
- -- The map-wide alert every player sees (SecretArrivalConfig.Dogs[id].Banner), unless the
- -- arrival sets ctx.ManualBanner before it first yields and shows its own.
+ -- The map-wide alert every player sees: SecretArrivalConfig.Dogs[id].Banner {At, Style,
+ -- Kicker, Title, Text, Hold} (false: none), unless the arrival sets ctx.ManualBanner
+ -- before it first yields and shows its own.
  task.defer(function()
   local banner=config.Banner
   if ctx.ManualBanner or banner==false then return end
-  banner=type(banner)=='table'and banner or {}
-  if not ctx:Wait(banner.At or .15)then return end
-  if ctx:Elapsed()>(banner.At or .15)+(banner.Hold or 3)then return end
-  ctx:Banner(banner)
+  local shown=type(banner)=='table'and table.clone(banner)or {}
+  local when=type(shown.At)=='number'and shown.At or .15
+  shown.At=nil
+  if not ctx:Wait(when)then return end
+  if ctx.ManualBanner or ctx:Elapsed()>when+(shown.Hold or 3)then return end
+  ctx:Banner(shown)
  end)
  -- The config's whispers are typed on schedule in ctx.WhisperStyle (Font, Color, Glitch,
  -- Chroma, Shake, Type), unless the arrival sets ctx.ManualWhispers before it first yields.

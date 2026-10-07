@@ -1,24 +1,32 @@
 -- THE DOG, "THE ECLIPSE". The rarest arrival (about 1 in 95,000 line dogs), so the whole
--- island stops, wherever each player stands:
+-- island stops, wherever each player stands (the far north's plaza, museum, lab and
+-- DOG-O-MATIC included):
 --  0     the music dies and a heartbeat starts; TOTAL ECLIPSE crosses every screen while
 --        something black slides over the sun (the moon at night) and the light thins.
---  1     every light and lamp on the island dies, in a wave out from the stage.
+--  1     every light and every lamp's glass in the district dies, in a wave out from the
+--        stage (it reaches the DOG-O-MATIC about 5 s later).
 --  4.4   totality: the sun is swallowed, the sky goes black with a red horizon, only the
 --        corona is left and pale motes rise around every player.
 --  4.9   every dog on the island turns to the mouth (the giant head's own eyes roll down).
 --  6     the black sun opens: it is an eye, and it drifts across the sky to stay in front
 --        of each camera ("do not look away.") until it blinks shut.
 --  7.4   a colossal black THE DOG rises over the horizon behind the stage (behind the giant
---        head on the tongue); something invisible walks past each player to the stage,
---        leaving glowing pawprints and thuds.
+--        head, seen from the yards; players far up north see it rise in their own sky over
+--        the island, toward the stage); something invisible walks past each player to the
+--        stage, leaving glowing pawprints and thuds.
 --  10.4  the colossus opens its eyes and follows each camera; every camera is pulled from
---        the sky down into the mouth (the one cutaway) while the ground opens and THE DOG
---        rises: the stage act as before (candles, glints, hole, pillar), 5 s later.
---  14.2  THE DOG across every screen and a white ring over the island; every dog bows.
---  18.6  dawn: the colossus sinks, the corona burns back into the sun, the lights return.
+--        the sky down into the mouth (the one cutaway, 10.6-15.5) while the ground opens
+--        (11.4) and THE DOG rises: candles, glints, the hole, the pillar.
+--  14.2  THE DOG across every screen; a wall of white light races out from the stage over
+--        the whole district and jolts every player it passes; every dog bows (15.4).
+--  18.6  dawn: the colossus sinks, the corona burns back into the sun, and from 20.8 the
+--        lights come back in a wave out from the stage; it walks at 24 (Hold).
+-- While a world event is near, the sky stays the server's: no black sun, the eclipse is a
+-- darkening of each camera's picture instead (Scope:Sky).
 -- Every dog keeps staring while it walks the tongue (StareSeconds), as before.
--- SecretArrivalConfig.Dogs.TheDog must agree with T: Hold 24, Ground_Opens at T.Ground,
--- Pet_Reaction 2.6 s later, Stand_Idle 2.8 s after that.
+-- SecretArrivalConfig.Dogs.TheDog agrees with T: Hold 24, Ground_Opens at T.Ground (11.4),
+-- Pet_Reaction 2.6 s later (14.0), Stand_Idle 2.8 s after that (16.8); its whispers sit on
+-- the beats below and its Banner is the first one (TOTAL ECLIPSE).
 local C=Color3.fromRGB
 local Players=game:GetService('Players')
 local Lighting=game:GetService('Lighting')
@@ -32,10 +40,28 @@ local watchers={}
 -- The act on the arrival clock (seconds after SecretArrivalAt).
 local T={Fall=.3,Banner=.4,Blackout=1,Total=4.4,Stare=4.9,Open=6,Watch=6.7,Rise=7.4,Candles=7.6,Steps=7.8,
  Glint=9.2,Shut=9.4,Gaze=10.4,Cut=10.6,Ground=11.4,Arrive=14.2,Bow=15.4,Dawn=18.6}
--- Lamp glass that goes dark with the lights, in the groups players walk around.
-local LAMPS={WarmLens=true,WarmLantern=true,WarmGlass=true,Lantern=true,OpalLantern=true,PorchLantern=true,
- EdgeLanternGlass=true,NoticeLamp=true,AmberGlass=true,StationLamp=true,CeilingLight=true}
-local GROUPS={'03_DogLine','02_DogFactory','04_PlayerYards','01_IslandAndStreets','09_DogPark','11_Shops','32_WelcomeHub'}
+-- Lamp glass that goes dark with the lights, anywhere in the district (lanterns, lenses,
+-- bulbs, the museum's display and step lights, the lab's lenses, the DOG-O-MATIC's
+-- marquee...): Neon parts with one of these in their name. The tongue's guides and the
+-- mouth's runes go dark their own way below; the portal and signs stay lit.
+local LAMP_WORDS={'Lamp','Lantern','Light','Glass','Lens','Bulb','Glow','Warm','Canopy','Diffuser','Sconce'}
+local NOT_LAMPS={WarmEdgeGuide=true,MouthRune=true,Pupil=true}
+local lampNames={}
+local function isLamp(part:BasePart):boolean
+ local name=part.Name
+ local known=lampNames[name]
+ if known==nil then
+  known=false
+  if not NOT_LAMPS[name]and string.sub(name,1,6)~='Portal'then
+   for _,word in ipairs(LAMP_WORDS)do if string.find(name,word,1,true)then known=true;break end end
+  end
+  lampNames[name]=known
+ end
+ return known
+end
+-- Players this far (studs, flat) from the stage see the colossus in their own sky; nearer
+-- ones see it stand behind the giant head (with some slack so walking does not flip it).
+local FAR,NEAR=400,320
 local UP=Vector3.yAxis
 -- Turns a cylinder's axis (X) toward the camera (Z).
 local FACING=CFrame.Angles(0,math.pi/2,0)
@@ -60,6 +86,8 @@ return function(ctx)
  ctx.ManualBanner=true
  local Kit,W,scope,model,config=ctx.Kit,ctx.Whisper,ctx.Scope,ctx.Model,ctx.Config
  local low=ctx.Low
+ -- ReducedMotion: no flashes (Kit already drops shakes, FOV punches and the cutaway).
+ local calm=Kit.ReducedMotion()
  local lines=config.Whispers
  local size=Kit.Size(model)
  local hold=config.Hold
@@ -84,15 +112,18 @@ return function(ctx)
  end
 
  -- The whispers: a late client gets the line of the moment at once, the rest on schedule.
- -- The last line stays, breathing, while it walks.
- local STYLE={[4]={Type=.09,Breathe=2.2},[6]={Glitch=.08},[#lines]={Type=.12,Breathe=3}}
+ -- "do not look away." (3) is typed slowly and breathes; "it was never a pet." (5)
+ -- glitches; the last line stays, breathing, while it walks.
+ local STYLE={[3]={Type=.09,Breathe=2.2},[5]={Glitch=.08}}
+ local LAST={Type=.12,Breathe=3}
  task.spawn(function()
   local first=1
   for i,l in ipairs(lines)do if l[1]<=ctx:Elapsed()then first=i end end
   for i=first,#lines do
    if not ctx:Wait(lines[i][1])then return end
    if not(lines[i+1]and ctx:Elapsed()>=lines[i+1][1])then
-    local style=STYLE[i]or {}
+    local style=table.clone(STYLE[i]or {})
+    if i==#lines then for k,v in pairs(LAST)do style[k]=v end end
     local said=ctx:Say(lines[i][2],{Font=Enum.Font.SpecialElite,Color=C(240,236,250),Glitch=style.Glitch,
      Type=live(lines[i][1])and(style.Type or .06)or 0})
     if style.Breathe then W.Breathe(said,style.Breathe)end
@@ -212,26 +243,32 @@ return function(ctx)
  end
  local clock=Lighting.ClockTime
  -- Totality: a day goes to deep twilight (the short way round the dial), a night stays.
+ -- (Rays: a SunRaysEffect, if the place has one, dies with the sun.)
  local DARK={Lighting={ClockTime=daylight and(clock<12 and 5.1 or 18.9)or clock,Brightness=0,ExposureCompensation=-.3,
    Ambient=C(22,18,26),OutdoorAmbient=C(30,22,30),EnvironmentDiffuseScale=.12,EnvironmentSpecularScale=0},
   Atmosphere={Density=.2,Offset=.3,Color=C(92,14,12),Decay=C(10,3,6),Glare=0,Haze=2.2},
   Clouds={Cover=.55,Density=.4,Color=C(18,12,14)},
   Sky={CelestialBodiesShown=false,StarCount=5000},
+  Rays={Intensity=0},
   Bloom={Intensity=1,Size=40,Threshold=.9}}
  -- Until then the light only thins (a borrowed Sky object would show against a bright sky).
  local DIM={Lighting={Brightness=daylight and 1.1 or .45,ExposureCompensation=-.12,Ambient=C(70,70,82),
    OutdoorAmbient=C(86,84,98),EnvironmentSpecularScale=.15},
   Atmosphere={Glare=0,Haze=1.3,Density=.16,Color=C(150,134,136),Decay=C(72,56,62)},
   Clouds={Color=C(118,110,116)},
+  Rays={Intensity=0},
   Bloom={Intensity=.45,Size=32,Threshold=1.25}}
+ -- (Its world light lets go by itself if a world event turns up: sky.Free goes false.)
  local sky
  if start<T.Dawn then sky=start<T.Total and scope:Sky(DIM,math.max(.6,T.Total-start),4.6)or scope:Sky(DARK,1.2,4.6)end
- local _,raysBack=scope:Override(start<T.Dawn and Lighting:FindFirstChildOfClass('SunRaysEffect')or nil,{Intensity=0},true)
 
  ---------------------------------------------------------------- the black sun
  -- A disc slides over the sun from this camera; at totality only the corona is left. It
  -- opens as an eye that drifts across the sky to stay in front of the camera, blinks shut,
  -- and at dawn burns back into the sun right where the real one is about to reappear.
+ -- Only while the sky is this arrival's (sky.Free): over the server's own sky (a world
+ -- event near) a black disc would hang on a bright day, so it is not made, and it fades
+ -- away if an event turns up meanwhile.
  local function ahead(view:CFrame):Vector3
   local l=view.LookVector
   local flat=Vector3.new(l.X,0,l.Z)
@@ -239,7 +276,7 @@ return function(ctx)
   local e=math.clamp(math.asin(math.clamp(l.Y,-1,1))+math.rad(13),math.rad(7),math.rad(34))
   return flat*math.cos(e)+UP*math.sin(e)
  end
- if start<T.Dawn+5 then
+ if start<T.Dawn+5 and sky and sky.Free then
   local R=SUN_R
   local function disc(name,d,color)
    return scope:Part({Name=name,Shape=Enum.PartType.Cylinder,Size=Vector3.new(.4,d,d),Color=color,Transparency=1})
@@ -256,8 +293,11 @@ return function(ctx)
   -- (measured while the disc slides over it) tells where it will be at dawn.
   local held,dir,gaze=body(),body(),Vector3.zero
   local first,firstAt,drift,axis=nil,0,0,UP
+  -- 0..1 once the sky is no longer this arrival's: everything fades out.
+  local gone=0
   local function show(g,c,b,e)
-   glow.Transparency=g;corona.Transparency=c;black.Transparency=b;eye.Transparency=e;pupil.Transparency=e
+   local function v(x)return 1-(1-x)*(1-gone)end
+   glow.Transparency=v(g);corona.Transparency=v(c);black.Transparency=v(b);eye.Transparency=v(e);pupil.Transparency=v(e)
   end
   local function place(camera:Camera):CFrame
    local p=camera.CFrame.Position
@@ -274,6 +314,10 @@ return function(ctx)
    local camera=workspace.CurrentCamera
    if not camera then return true end
    local t=ctx:Elapsed()
+   if not sky.Free then
+    gone=math.min(1,gone+dt/1.2)
+    if gone>=1 then show(1,1,1,1);return false end
+   end
    if t>=T.Dawn+5 then show(1,1,1,1);return false end
    if t<T.Fall or(t>=T.Shut+1 and t<T.Dawn)then show(1,1,1,1);return true end
    if t<T.Total then
@@ -324,7 +368,9 @@ return function(ctx)
  -- A black THE DOG over the horizon beyond the stage (behind the giant head on the
  -- tongue, its eyes above the head's roofline from the yards). A thin white rim keeps it
  -- readable against the black sky; its eyes open for the cutaway and its head follows
- -- each camera; at dawn it sinks back.
+ -- each camera; at dawn it sinks back. Up north (the plaza, museum, lab, DOG-O-MATIC) the
+ -- giant head's horizon is a kilometre off, so there it stands in the player's own sky,
+ -- out over the island toward the stage; the cutaway always sees it behind the head.
  local foot=origin+away*(GIANT_OUT+GIANT*.59)
  local mid=Vector3.new(foot.X,GIANT/2-5,foot.Z)
  local hang=CFrame.lookAt(mid,mid-away)
@@ -334,10 +380,34 @@ return function(ctx)
  local giant,rim
  local glare={}
  local giantLook={Target=origin,Body=0,Head=0}
+ local cut:any=nil
+ local sinking=false
+ local function farAway(was:boolean):boolean
+  local me=Kit.Me()
+  local d=Vector3.new(me.X-origin.X,0,me.Z-origin.Z).Magnitude
+  if was then return d>NEAR end
+  return d>FAR
+ end
  local function raise(late:boolean)
   giant=ctx:Colossus({Height=GIANT,At=hang,Style='Silhouette',Color=C(0,0,0),Clip='Stand_Idle',
-   Rise=late and 0 or 210,FadeIn=late and 1 or 4})
+   Rise=late and 0 or 210,FadeIn=late and 1 or 4,Distance=560,Elevation=12})
   if not giant then return end
+  -- Where it stands for this player: behind the giant head (pinned), or in their own sky.
+  local far,pinned,placed=false,true,false
+  scope:Every(function()
+   if sinking or not giant.Model.Parent then return false end
+   far=farAway(far)
+   local wantPinned=not far or(cut~=nil and cut.Active)
+   if wantPinned~=pinned then
+    pinned=wantPinned
+    -- It rises where this player first sees it; a cut (into or out of the cutaway)
+    -- jumps; walking past the line glides.
+    local jump=not placed or cut~=nil and(cut.Active or ctx:Elapsed()>=T.Cut and ctx:Elapsed()<T.Cut+5.4)
+    giant:Pose(pinned and hang or nil,jump and 0 or 2.5)
+   end
+   placed=true
+   return true
+  end)
   local m:Model=giant.Model
   rim=scope:Highlight(m,C(255,255,255),C(255,255,255),1,1)
   Kit.Tween(rim,late and 1 or 4,{OutlineTransparency=.35})
@@ -384,7 +454,7 @@ return function(ctx)
   return Kit.Frame(eye,target)
  end
  local mouth=origin+UP*3.6
- local cut=ctx:Cutaway({
+ cut=ctx:Cutaway({
   {At=T.Cut,CFrame=shot(origin-away*200+UP*55,origin:Lerp(giantEyesAt,.45)),Fov=56},
   {At=T.Cut+1.6,CFrame=shot(origin-away*95+UP*30,origin+UP*14),Fov=50},
   {At=T.Cut+3.3,CFrame=shot(origin-away*24+UP*7,mouth),Fov=44},
@@ -428,54 +498,32 @@ return function(ctx)
    task.wait(.27)
   end
  end
- -- Every lamp's glass on the island, nearest the stage first (gathered a slice per frame).
- local lamps={}
- if start<T.Dawn then
-  task.spawn(function()
-   local district=workspace:FindFirstChild('DOGROTS_District')
-   local count=0
-   for _,name in ipairs(GROUPS)do
-    local group=district and district:FindFirstChild(name)
-    for _,o in ipairs(group and group:GetDescendants()or {})do
-     count+=1
-     if count%1500==0 then task.wait();if not scope.Alive then return end end
-     if LAMPS[o.Name]and o:IsA('BasePart')and o.Material==Enum.Material.Neon then
-      table.insert(lamps,{Part=o,At=T.Blackout+(o.Position-origin).Magnitude/170})
-     end
-    end
-   end
-   table.sort(lamps,function(a,b)return a.At<b.At end)
-   local i=1
-   scope:Every(function()
-    local t=ctx:Elapsed()
-    if t>=T.Dawn+2.2 then return false end
-    while lamps[i]and lamps[i].At<=t do
-     local lamp=lamps[i];i+=1
-     if lamp.Part.Parent then
-      local _,release=scope:Override(lamp.Part,{Color=C(30,28,32),Material=Enum.Material.SmoothPlastic})
-      lamp.Release=release
-     end
-    end
-    return lamps[i]~=nil
-   end)
-  end)
- end
-
  ---------------------------------------------------------------- the eclipse, map-wide
- local unlit,motes
+ local unlit,unlitTo,motes,lampsOut
  task.spawn(function()
   local kicker=odds()
-  if ctx:Elapsed()<T.Banner+2.5 then
-   if not ctx:Wait(T.Banner)then return end
-   ctx:Banner({Style='Void',Kicker=kicker and '⚠  SECRET DOG  ·  '..kicker..'  ⚠'or nil,Title='TOTAL ECLIPSE',
-    Text='do not look at the sun.',Color=C(255,255,255),Hold=3.4})
+  -- The first banner (SecretArrivalConfig.Dogs.TheDog.Banner), with the odds as its kicker.
+  local first=type(config.Banner)=='table'and table.clone(config.Banner)or {Title='TOTAL ECLIPSE',Text='do not look at the sun.'}
+  local at=first.At or T.Banner
+  first.At=nil
+  if ctx:Elapsed()<at+2.5 then
+   if not ctx:Wait(at)then return end
+   first.Style=first.Style or 'Void';first.Color=first.Color or C(255,255,255);first.Hold=first.Hold or 3.4
+   if kicker and not first.Kicker then first.Kicker='⚠  SECRET DOG  ·  '..kicker..'  ⚠'end
+   ctx:Banner(first)
   end
   if not ctx:Wait(T.Blackout)then return end
-  if ctx:Elapsed()<T.Dawn then unlit=scope:TintLights(C(0,0,0),live(T.Blackout)and 3.2 or .5)end
+  if ctx:Elapsed()<T.Dawn then
+   unlit,unlitTo=scope:TintLights(C(0,0,0),live(T.Blackout)and 3.2 or .5)
+   -- Every lamp's glass in the district dies in a wave out from the stage (170 studs/s:
+   -- the yards at once, the plaza ~4 s later, the DOG-O-MATIC ~5 s), a slice per frame.
+   lampsOut=scope:Blackout({Filter=isLamp,Color=C(30,28,32),Material=Enum.Material.SmoothPlastic,
+    From=origin,Speed=170,Late=math.max(0,ctx:Elapsed()-T.Blackout)})
+  end
   if not ctx:Wait(T.Total)then return end
   if ctx:Elapsed()<T.Dawn then
    if sky then sky:Set(DARK,live(T.Total)and 1.4 or .6)end
-   if live(T.Total)then Kit.Cue('Impact',nil,1);Kit.Flash(C(255,255,255),.55,.9)end
+   if live(T.Total)then Kit.Cue('Impact',nil,1);if not calm then Kit.Flash(C(255,255,255),.55,.9)end end
    -- Pale motes rise around every player.
    motes=scope:Rain({Texture=Kit.Textures.Spark,Rate=34,Area=120,Height=-12,EmissionDirection=Enum.NormalId.Top,
     Speed=NumberRange.new(1,3),Acceleration=Vector3.new(0,1.6,0),Lifetime=NumberRange.new(4,6.5),SpreadAngle=Vector2.new(25,25),
@@ -509,24 +557,31 @@ return function(ctx)
   if ctx:Elapsed()<T.Arrive+1 then
    ctx:Banner({Style='Void',Kicker='✦  ? ? ?  ✦',Title='THE DOG',Color=C(255,255,255),Hold=3.2,Sting=false,
     Text=ctx.By and 'it chose '..string.lower(ctx.By)..'.'or onTongue and 'it is waiting on the tongue.'or 'it has arrived.'})
-   -- A thin white wave crosses the whole island.
-   scope:Ring(origin+UP*.4,C(255,255,255),6,Kit.Map.Radius*1.7,3.4,{Thickness=2.2,Alpha=.45,Segments=48})
+   -- A wall of white light races out over the whole district (the north included, ~4.2 s
+   -- to the far corner) and jolts every player as it passes them.
+   scope:Shockwave(origin+UP*.4,C(255,255,255),{Seconds=4.2,Height=4,Thickness=2.2,Alpha=.3,Segments=48,
+    Shake=.3,Flash=.35,Cutaway=cut})
   end
   if not ctx:Wait(T.Dawn)then return end
-  -- Dawn: it closes its eyes and sinks back under the horizon.
+  -- Dawn: it closes its eyes and sinks back under the horizon (from wherever this player
+  -- sees it).
   for _,e in ipairs(glare)do Kit.Tween(e.Part,.35,{Size=Vector3.one*.2,Transparency=1})end
-  if giant then giant:Pose(hang-UP*240,4.4);giant:Stop(4.4)end
+  sinking=true
+  if giant then giant:Pose(giant:Frame()-UP*240,4.4);giant:Stop(4.4)end
   if rim then Kit.Tween(rim,2.5,{OutlineTransparency=1})end
   if not ctx:Wait(T.Dawn+.4)then return end
   -- The light comes back (the real sun with it, at the end of the fade).
   if sky then sky:Release(4.6)end
-  raysBack()
   if motes then motes.Rate=0 end
   if live(T.Dawn+.4)then Kit.Cue('Chime',nil,.45)end
   if not ctx:Wait(T.Dawn+2.2)then return end
-  if unlit then unlit()end
-  for _,lamp in ipairs(lamps)do if lamp.Release then lamp.Release()end end
+  -- The lights warm back to their own colours, the lamps relight in a wave out from the
+  -- stage (the whole district by ~23.4 s, before it walks).
+  if unlitTo then unlitTo(function(_,own)return own end,1.6)end
+  if lampsOut then lampsOut:Release(340)end
   if live(T.Dawn+2.2)then Kit.Cue('Impact',nil,.35)end
+  if not ctx:Wait(T.Dawn+3.9)then return end
+  if unlit then unlit()end
  end)
 
  ---------------------------------------------------------------- the stage
@@ -611,7 +666,7 @@ return function(ctx)
   if near>0 then Kit.FOVPunch(-7*near,1.6,2.4)end
   if not ctx:Wait(T.Arrive)then return end
   -- It has arrived (its name crosses every screen: see the eclipse above).
-  if near>0 then Kit.Flash(C(255,255,255),1-.75*near,1.1)end
+  if near>0 and not calm then Kit.Flash(C(255,255,255),1-.75*near,1.1)end
   Kit.Cue('Sting',nil,.9)
   if cut and cut.Active then cut:Shake(.35,.8)end
   act:Ring(origin+Vector3.new(0,.3,0),C(255,255,255),2,60,1.6,{Thickness=.5})

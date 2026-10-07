@@ -44,24 +44,29 @@ function K.Scope(name)
  local folder=Instance.new('Folder');folder.Name=name;folder.Parent=fxRoot()
  return setmetatable({Folder=folder,Alive=true,Cleanups={},Steps={}},Scope)
 end
+local function undo(x)
+ local ok,err=pcall(function()
+  if typeof(x)=='Instance'then x:Destroy()
+  elseif typeof(x)=='RBXScriptConnection'then x:Disconnect()
+  elseif type(x)=='function'then x()end
+ end)
+ if not ok then warn('SecretArrivals cleanup:',err)end
+end
 -- Add(instance | RBXScriptConnection | function): undone/destroyed on Clean, newest first.
+-- Added once the scope is over (an arrival's code still running after its dog left), it is
+-- undone at once.
 function Scope:Add(x)
+ if not self.Alive then undo(x);return x end
  table.insert(self.Cleanups,x);return x
 end
+-- The Folder is emptied and left out of the world rather than destroyed, so code still
+-- running after the end parents into nowhere instead of erroring on a locked parent.
 function Scope:Clean()
  if not self.Alive then return end
  self.Alive=false
- for i=#self.Cleanups,1,-1 do
-  local x=self.Cleanups[i]
-  local ok,err=pcall(function()
-   if typeof(x)=='Instance'then x:Destroy()
-   elseif typeof(x)=='RBXScriptConnection'then x:Disconnect()
-   elseif type(x)=='function'then x()end
-  end)
-  if not ok then warn('SecretArrivals cleanup:',err)end
- end
+ for i=#self.Cleanups,1,-1 do undo(self.Cleanups[i])end
  table.clear(self.Cleanups)
- self.Folder:Destroy()
+ pcall(function()self.Folder:ClearAllChildren();self.Folder.Parent=nil end)
 end
 -- Every(fn): fn(dt, age) each rendered frame until it returns false or the scope ends.
 function Scope:Every(fn)
@@ -94,8 +99,14 @@ function Scope:Part(props)
  p.Parent=props.Parent or self.Folder
  return p
 end
+-- A light or emitter on something outside the scope's Folder (a bone, a map part) is not
+-- removed with the Folder, so the scope removes it itself.
+local function outside(scope,parent)
+ return parent==nil or(parent~=scope.Folder and not parent:IsDescendantOf(scope.Folder))
+end
 function Scope:Light(parent,color,range,brightness)
  local l=Instance.new('PointLight');l.Color=color;l.Range=range or 16;l.Brightness=brightness or 2;l.Shadows=false;l.Parent=parent
+ if outside(self,parent)then self:Add(l)end
  return l
 end
 local SPARK='rbxasset://textures/particles/sparkles_main.dds'
@@ -109,6 +120,7 @@ function Scope:Emitter(parent,props)
  e.Transparency=NumberSequence.new(0,1)
  for k,v in pairs(props or {})do (e::any)[k]=v end
  e.Parent=parent
+ if outside(self,parent)then self:Add(e)end
  return e
 end
 -- An invisible anchor part at `position` for emitters, lights and sounds.
@@ -204,14 +216,18 @@ local function topValue(entry,k,skip)
  return nil,nil
 end
 -- Writes and remembers what the property reads back (ClockTime wraps, colours round).
+-- Writing marks the write as ours while it happens, so a sticky watcher fired at once
+-- (Immediate signal behaviour) does not take it for someone else's.
 local function write(o,entry,k,v)
+ entry.Writing[k]=true
  set(o,k,v)
  local ok,now=get(o,k)
  entry.Written[k]=ok and now or v
+ entry.Writing[k]=nil
 end
 function K.Layer(o,props,sticky)
  local entry=layers[o]
- if not entry then entry={Original={},Stack={},Written={},Watch={}};layers[o]=entry end
+ if not entry then entry={Original={},Stack={},Written={},Watch={},Writing={}};layers[o]=entry end
  for k in pairs(props)do
   if entry.Original[k]==nil then
    local ok,old=get(o,k)
@@ -224,6 +240,7 @@ function K.Layer(o,props,sticky)
   write(o,entry,k,v)
   if sticky and not entry.Watch[k]then
    entry.Watch[k]=o:GetPropertyChangedSignal(k):Connect(function()
+    if entry.Writing[k]then return end
     local want=topValue(entry,k)
     if want==nil then return end
     local ok,now=get(o,k)
@@ -468,28 +485,60 @@ function Scope:Drone(kind,volume,speed,fade)
 end
 --[[ Scope:Duck(level, fade): lower the game's music to `level` (fraction) and bring it back
  on Clean. Several scopes may duck at once; the quietest wins. Only SoundGroup volumes
- move (from a fixed baseline), so the music scripts' own Sound.Volume fades keep working. ]]
-local ducks={};local baseline=setmetatable({},{__mode='k'})
-local function musicGroups()
- local list={}
- local root=SoundService:FindFirstChild('DOGROTS_AUDIO')
- if root then for _,g in ipairs(root:GetChildren())do if g:IsA('SoundGroup')then table.insert(list,g)end end end
- -- WorldAmbience's background music has no group of its own: give it a neutral one.
- local own=SoundService:FindFirstChild('DOGROTS_SecretDuckBed')
- local bed=SoundService:FindFirstChild('DOGROTS_BackgroundMusic')
- if bed and bed:IsA('Sound')and not bed.SoundGroup then
-  if not own then own=Instance.new('SoundGroup');own.Name='DOGROTS_SecretDuckBed';own.Volume=1;own.Parent=SoundService end
-  bed.SoundGroup=own
+ move, so the music scripts' own Sound.Volume fades keep working. Each group comes back
+ to the volume it had when the duck began (read again for every new duck; a volume another
+ script sets meanwhile is the one it comes back to). UI and SFX groups are left alone. The
+ background music has no group of its own: it borrows one for the duck and is handed back
+ ungrouped afterwards. ]]
+local ducks={}
+local duck:any=nil
+local QUIET_SKIP={UI=true,SFX=true}
+local function duckLevel()
+ local level=1;for _,l in pairs(ducks)do level=math.min(level,l)end
+ return level
+end
+-- Every music group not in the running duck yet joins it at its current volume.
+local function enlist()
+ local function join(g)
+  if g and g:IsA('SoundGroup')and not duck.Groups[g]then duck.Groups[g]={Base=g.Volume,Written=g.Volume}end
  end
- if own and own:IsA('SoundGroup')then table.insert(list,own)end
- return list
+ local root=SoundService:FindFirstChild('DOGROTS_AUDIO')
+ if root then for _,g in ipairs(root:GetChildren())do if not QUIET_SKIP[g.Name]then join(g)end end end
+ local bed=SoundService:FindFirstChild('DOGROTS_BackgroundMusic')
+ if bed and bed:IsA('Sound')then
+  if bed.SoundGroup and bed.SoundGroup~=duck.Own then join(bed.SoundGroup)
+  elseif not duck.Own then
+   local own=Instance.new('SoundGroup');own.Name='DOGROTS_SecretDuckBed';own.Volume=1;own.Parent=SoundService
+   duck.Own,duck.Bed=own,bed
+   bed.SoundGroup=own;join(own)
+  end
+ end
 end
 local function applyDuck(seconds)
- local level=1;for _,l in pairs(ducks)do level=math.min(level,l)end
- for _,g in ipairs(musicGroups())do
-  baseline[g]=baseline[g]or g.Volume
-  K.Tween(g,seconds,{Volume=baseline[g]*level})
+ if not duck then
+  if next(ducks)==nil then return end
+  duck={Groups={},Level=1}
  end
+ enlist()
+ duck.From,duck.To,duck.Started,duck.Seconds=duck.Level,duckLevel(),os.clock(),seconds
+ if duck.Connection then return end
+ duck.Connection=Run.Heartbeat:Connect(function()
+  local d=duck
+  local a=d.Seconds>0 and math.min((os.clock()-d.Started)/d.Seconds,1)or 1
+  d.Level=d.From+(d.To-d.From)*a*a*(3-2*a)
+  for g,row in pairs(d.Groups)do
+   if g.Parent then
+    if math.abs(g.Volume-row.Written)>1e-3 then row.Base=g.Volume end
+    g.Volume=row.Base*d.Level;row.Written=g.Volume
+   else d.Groups[g]=nil end
+  end
+  if a>=1 and next(ducks)==nil then
+   d.Connection:Disconnect()
+   if d.Bed and d.Bed.SoundGroup==d.Own then d.Bed.SoundGroup=nil end
+   if d.Own then d.Own:Destroy()end
+   duck=nil
+  end
+ end)
 end
 function Scope:Duck(level,fade)
  ducks[self]=level;applyDuck(fade or 1)
@@ -593,7 +642,9 @@ function K.SetGhostAlpha(ghost,alpha)
 end
 -- SecretArrivals/Takeover fills in the map-wide helpers (sky, colossus, cutaway...).
 K.Map=(nil::any);K.Me=(nil::any);K.Frame=(nil::any);K.Orbit=(nil::any);K.DogCopy=(nil::any);K.Bounds=(nil::any)
+K.District=(nil::any)
 K.ScopeClass=Scope
+K.FXRoot=fxRoot
 K.Screen=screen
 K.Sound=sound
 K.Shot=shot
