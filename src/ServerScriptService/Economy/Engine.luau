@@ -6,6 +6,7 @@ local D=require(script.Parent.DogDefinitions)
 local Market=require(script.Parent.Market)
 local I=require(script.Parent.ItemRules)
 local Offline=require(script.Parent.OfflineEarnings)
+local LuckMath=require(game:GetService('ReplicatedStorage').LuckMath)
 local E={};E.__index=E
 local function pk(id) return 'p:'..id end
 function E.new(tx,options)
@@ -108,27 +109,40 @@ end
 local function lineShare(def)return def.LineWeight or 1 end
 -- Every rarity can walk the shared line for every player; price is the only gate.
 -- maxRank leaves out the rarer groups (their budget is not redistributed).
-function E:LineOdds(maxRank)
+-- boost (optional, LuckMath): server luck and world events lift the rarer budgets and
+-- Common absorbs the difference. A dog in C.LuckPinned (THE DOG) keeps its unboosted
+-- weight, so the legend stays the legend however lucky the server is.
+function E:LineOdds(maxRank,boost)
  local choices,total,groups={},0,{}
  for id,def in pairs(D) do if def.CanSpawnOnLine==true and def.Rank<=(maxRank or #C.Rarities) and self.AssetReady(id) and R.Available(def,self.Now()) then
   groups[def.Rank]=groups[def.Rank]or{};table.insert(groups[def.Rank],def)
  end end
+ local lucky=not LuckMath.IsNeutral(boost)
+ local budgets=lucky and LuckMath.Budgets(C.Weights,boost)or C.Weights
+ local pinned=lucky and C.LuckPinned or {}
  -- Each rarity owns one probability budget regardless of how many dogs it contains.
  for rank=1,#C.Rarities do
   local members=groups[rank]
   if members then
    table.sort(members,function(a,b)return a.Id<b.Id end)
-   local shares=0;for _,def in ipairs(members)do shares+=lineShare(def)end
+   local shares,pinnedShares,pinnedWeight=0,0,0;for _,def in ipairs(members)do shares+=lineShare(def)end
+   local budget=budgets[rank]or 0
+   for _,def in ipairs(members)do if pinned[def.Id]then
+    pinnedShares+=lineShare(def);pinnedWeight+=math.min(C.Weights[rank]or 0,budget)*lineShare(def)/shares
+   end end
    for _,def in ipairs(members)do
-    local weight=(C.Weights[rank]or 0)*lineShare(def)/shares
+    local weight
+    if not lucky then weight=(C.Weights[rank]or 0)*lineShare(def)/shares
+    elseif pinned[def.Id]then weight=math.min(C.Weights[rank]or 0,budget)*lineShare(def)/shares
+    else weight=math.max(0,budget-pinnedWeight)*lineShare(def)/math.max(1e-9,shares-pinnedShares)end
     if weight>0 then total+=weight;table.insert(choices,{Id=def.Id,Rank=rank,Weight=weight,Ceiling=total})end
    end
   end
  end
  return choices,total
 end
-function E:Choose(maxRank)
- local choices,total=self:LineOdds(maxRank)
+function E:Choose(maxRank,boost)
+ local choices,total=self:LineOdds(maxRank,boost)
  if total==0 then return nil end
  local roll=self.Random()*total;for _,v in ipairs(choices) do if roll<v.Ceiling then return v.Id end end
  return choices[#choices].Id
@@ -172,7 +186,8 @@ function E:GrantSpecial(id,dogId,operation)
   v[key]=result;R.Validate(p);return result
  end)
 end
-function E:BuyLine(id,dogId,uid,request)
+-- opts.Variant: the variant the dog spawned with on the tongue (server-set, validated).
+function E:BuyLine(id,dogId,uid,request,opts)
  R.Check(self.AssetReady(dogId),"Dog asset unavailable")
  local key='line:'..uid;local order=self.Tx:Read(key);local old=order and order.Owner
  local keys={pk(id),key,'supply:'..dogId};if old and old~=id then table.insert(keys,pk(old)) end
@@ -190,7 +205,9 @@ function E:BuyLine(id,dogId,uid,request)
    R.Pay(p,price);R.Credit(from,math.floor((dog.PricePaid or 0)*.9),false);from.Dogs[uid]=nil;R.Transfer(dog,p,now,"Rebuy")
   else
    R.Pay(p,price);local supply=v['supply:'..dogId] or {};v['supply:'..dogId]=supply
-   dog=R.Mint(p,dogId,uid,supply,now,self.Random,"DogLine")
+   local variant=opts and opts.Variant
+   if variant~=nil then local known=false;for _,v in ipairs(C.Variants)do if v.Name==variant then known=true end end;if not known then variant=nil end end
+   dog=R.Mint(p,dogId,uid,supply,now,self.Random,"DogLine",variant)
   end
   dog.State="Walking";dog.PricePaid=price
   v[key]={Owner=id,DogId=dogId,State="Walking",NextPrice=math.min(C.MaxCash,math.ceil(price*1.3))}

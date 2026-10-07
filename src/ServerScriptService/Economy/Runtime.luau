@@ -359,9 +359,9 @@ function Runtime.Request(player,action,a,requestId)
  end
  return success,result
 end
-function Runtime.BuyLine(player,dogId,uid)
+function Runtime.BuyLine(player,dogId,uid,opts)
  if not Runtime.Ready(player) or not allow(player,2)then return false,'Please wait' end
- local ok,result=Runtime.Engine:BuyLine(player.UserId,dogId,uid)
+ local ok,result=Runtime.Engine:BuyLine(player.UserId,dogId,uid,nil,type(opts)=='table'and{Variant=type(opts.Variant)=='string'and opts.Variant or nil}or nil)
  if ok then
   Runtime.Refresh(player)
   local previous=type(result)=='table'and result.PreviousOwner

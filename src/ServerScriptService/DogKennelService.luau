@@ -10,6 +10,7 @@ local open = Replicated:WaitForChild("DogKennelOpen")
 local Runtime=require(script.Parent.Economy.Runtime)
 local Http=game:GetService("HttpService")
 local Definitions=require(Replicated.DogEconomy.DogDefinitions)
+local Hooks=require(Replicated.DogDisplayHooks)
 local Rig=require(Replicated.DogRig)
 local Animation=require(Replicated.DogAnimationPlayer)
 local Service = {}
@@ -90,6 +91,7 @@ local function prepare(entry, slot)
     local dogName=entry:GetAttribute("DisplayName") or entry.Value
     dog:SetAttribute("DogName",dogName)
     text.TextStrokeTransparency=.4;text.Text=dogName.."\nDIGGING";text.Parent=label
+    Hooks.Prepared(dog,id,"Kennel")
     return dog
 end
 

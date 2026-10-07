@@ -2,6 +2,7 @@
 local S={}
 local RS=game:GetService('ReplicatedStorage')
 local Defs=require(RS.DogEconomy.DogDefinitions)
+local Hooks=require(RS.DogDisplayHooks)
 local Config=require(RS.DogEconomy.Config)
 local function rank(d)return (Defs[d.DogId]or{}).Rank or table.find(Config.Rarities,d.Rarity)or 0 end
 local function better(a,b,key)
@@ -50,7 +51,9 @@ local function clone(row,isDog,slot)
   local tint={Shiny=Color3.fromRGB(210,235,255),Golden=Color3.fromRGB(255,193,44),Corrupted=Color3.fromRGB(188,56,81),Glitched=Color3.fromRGB(210,87,255),Void=Color3.fromRGB(104,38,164)}
   if tint[row.Variant]then for _,o in model:GetDescendants()do if o:IsA('BasePart')then o.Color=o.Color:Lerp(tint[row.Variant],.38)end end end
  end
- model.Name='Exhibit';model:SetAttribute('PlotShowcase',true);return model
+ model.Name='Exhibit';model:SetAttribute('PlotShowcase',true)
+ if isDog then model:SetAttribute('DogId',row.DogId);model:SetAttribute('Variant',row.Variant);Hooks.Prepared(model,row.DogId,'BestFinds')end
+ return model
 end
 function S.Clear(yard)
  S.Reconcile(yard,{UserId=0,Dogs={},Items={},Stats={}})

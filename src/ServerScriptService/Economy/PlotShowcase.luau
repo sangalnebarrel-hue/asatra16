@@ -1,6 +1,7 @@
 local S={}
 local Templates=game.ServerStorage:WaitForChild('DogTemplates')
 local Defs=require(game.ReplicatedStorage.DogEconomy.DogDefinitions)
+local Hooks=require(game.ReplicatedStorage.DogDisplayHooks)
 local function visibleBounds(model)
  local low,high=Vector3.one*math.huge,Vector3.one*-math.huge
  for _,part in model:GetDescendants()do if part:IsA('BasePart')and part.Transparency<1 then
@@ -29,6 +30,7 @@ local function create(d,slot)
  if tint[d.Variant]then for _,o in m:GetDescendants()do if o:IsA('BasePart')then o.Color=o.Color:Lerp(tint[d.Variant],.38)end end end
  m.Name='DisplayDog';m:SetAttribute('DogUid',d.DogUid);m:SetAttribute('DogId',d.DogId);m:SetAttribute('Variant',d.Variant)
  m:SetAttribute('OwnerUserId',d.OwnerUserId);m:SetAttribute('PlotShowcase',true)
+ Hooks.Prepared(m,d.DogId,'Showcase')
  return m
 end
 function S.Clear(yard)

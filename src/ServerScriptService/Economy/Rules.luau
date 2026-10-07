@@ -201,7 +201,7 @@ function R.Dig(p,now,random)
     if found then I.Mint(p,found,chance,d.DogUid..':'..d.WorkSequence..':'..attempt,now,random,effects)end
    end
    local special=C.SpecialDiscovery or {LongDogChance=1/20000,LongDogMinLayer=4}
-   if produced>0 and p.CurrentLayer>=special.LongDogMinLayer and not p.DogDex.LongDog and not p.SpecialDiscoveries.LongDogPending and random()<special.LongDogChance then
+   if produced>0 and p.CurrentLayer>=special.LongDogMinLayer and not p.DogDex.LongDog and not p.SpecialDiscoveries.LongDogPending and random()<special.LongDogChance*(1+math.max(0,e.LongDogLuck or 0))then
     p.SpecialDiscoveries.LongDogPending=true;p.SpecialDiscoveries.LongDogFoundAt=now
    end
   end

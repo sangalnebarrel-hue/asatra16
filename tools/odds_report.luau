@@ -32,7 +32,7 @@ local REAL = {
 	["ServerScriptService/Economy/Config"] = true, ["ServerScriptService/Economy/DogDefinitions"] = true,
 	["ServerScriptService/Economy/Engine"] = true, ["ReplicatedStorage/LuckyBlockConfig"] = true,
 	["ReplicatedStorage/RewardMachineText"] = true, ["ReplicatedStorage/RewardMachineConfig"] = true,
-	["ReplicatedStorage/RewardMachineOdds"] = true,
+	["ReplicatedStorage/RewardMachineOdds"] = true, ["ReplicatedStorage/LuckMath"] = true,
 }
 function loadModule(path)
 	if cache[path] then return cache[path] end
@@ -108,6 +108,32 @@ end
 assert(not D.LongDog.CanSpawnOnLine and not D.Aurion.CanSpawnOnLine, "exclusives stay off the tongue")
 for _ = 1, 20000 do assert(D[engine:Choose(5)].Rank < 6, "token rolls never mint a secret") end
 print("invariants: ok")
+
+-- Server luck (the shop's 1x-5x): the same Engine:LineOdds with a LuckMath boost.
+local LuckMath = loadModule("ReplicatedStorage/LuckMath")
+print("server luck on the tongue (per spawn, natural mean interval per server):")
+for luck = 1, 5 do
+	local c2, t2 = engine:LineOdds(nil, LuckMath.ServerBoost(luck))
+	local ranks, theDog = {}, 0
+	for _, c in c2 do
+		ranks[c.Rank] = (ranks[c.Rank] or 0) + c.Weight
+		if c.Id == "TheDog" then theDog = c.Weight / t2 end
+	end
+	local parts = {}
+	for rank = 3, 6 do
+		local p = (ranks[rank] or 0) / t2
+		local minutes = 60 / (dogsPerHour * p)
+		table.insert(parts, string.format("%s %.3f%% (%.1f min)", C.Rarities[rank], p * 100, minutes))
+	end
+	print(string.format("  x%d  Common %.1f%%  %s  THE DOG 1 in %.0f", luck, (ranks[1] or 0) / t2 * 100, table.concat(parts, "  "), 1 / theDog))
+	assert(math.abs(t2 - total) < 1e-6, "luck keeps the total")
+	assert(math.abs(theDog - perDog.TheDog) < 1e-12, "THE DOG is pinned")
+end
+-- Luck stacked with an event stays bounded: Common keeps LuckMath.CommonFloor.
+local stacked = LuckMath.Combine(LuckMath.ServerBoost(5), { 1, 1, 1, 3, 3, 5 })
+local b = LuckMath.Budgets(C.Weights, stacked)
+assert(b[1] >= 100 * LuckMath.CommonFloor - 1e-9, "common floor")
+print(string.format("  x5 luck + x3 Legendary/Mythic + x5 Secret: Common %.1f%% Secret %.2f%%", b[1], b[6]))
 
 -- The real Engine:Choose must reproduce LineOdds (checked on a sample).
 local SAMPLE = 200000

@@ -19,6 +19,8 @@ C.SecretLineWeights={Cubedog=290,Dogdogdogdog=210,Spiderdog=160,WrongDog=120,Nuc
  ['404Dog']=60,UnfinishedDog=38,DivineDog=30,TheDog=7}
 -- What a Secret costs on the tongue (BasePrice stays C.Prices[6] for every other use).
 -- Like Steal a Brainrot, the rarer it walks, the more it costs.
+-- Luck (server luck, world events) never changes these dogs' tongue odds.
+C.LuckPinned={TheDog=true}
 C.SecretLinePrices={Cubedog=2500000,Dogdogdogdog=3000000,Spiderdog=3500000,WrongDog=4000000,NuclearPug=4500000,
  ['404Dog']=5500000,UnfinishedDog=7000000,DivineDog=8000000,TheDog=16000000}
 -- Rarity is not tied to depth: the conveyor is shared by players at every depth.

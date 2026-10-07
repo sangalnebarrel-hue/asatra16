@@ -9,9 +9,10 @@ return {
  FreeOnly=true, -- Release invariant: only game-issued free DOG TOKENS can activate.
 Cost=0,TicketCost=1,TicketCapacity=1,StartingTickets=1,TicketRefillSeconds=18000,Cooldown=7,OddsDenominator=10000,
  TicketProducts={
-  {Key='TicketSingle',Name='1 Legacy DOG TOKEN',Count=1,Id=0,Enabled=false,PriceRobux=nil},
-  {Key='TicketPack5',Name='5 Legacy DOG TOKENS',Count=5,Id=0,Enabled=false,PriceRobux=nil},
-  {Key='TicketPack15',Name='15 Legacy DOG TOKENS',Count=15,Id=0,Enabled=false,PriceRobux=nil},
+  -- The shop's spins (Creator Hub: Lucky Spin, Lucky Bundle, Mega Spin Bundle).
+  {Key='TicketSingle',Name='Lucky Spin',Count=1,Id=2006535822,Enabled=true,PriceRobux=nil},
+  {Key='TicketPack5',Name='Lucky Bundle',Count=5,Id=2008394530,Enabled=true,PriceRobux=nil},
+  {Key='TicketPack15',Name='Mega Spin Bundle',Count=15,Id=2006259883,Enabled=true,PriceRobux=nil},
  },Rewards={
  {Kind='Dog',Id='Breadog',Weight=22,Name='Breadog'},
  {Kind='Dog',Id='CoffeeDog',Weight=6,Name='Coffee Dog'},

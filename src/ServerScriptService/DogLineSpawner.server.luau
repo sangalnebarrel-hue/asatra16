@@ -21,6 +21,12 @@ local BlockConfig=require(Replicated.LuckyBlockConfig)
 local BlockVisuals=require(Replicated.LuckyBlockVisuals)
 local Arrivals=require(Replicated.SecretArrivalConfig)
 local Format=require(Replicated.PriceFormat)
+local LuckMath=require(Replicated.LuckMath)
+local Hooks=require(Replicated.DogDisplayHooks)
+local WorldModifiers=require(Replicated.WorldEvents.WorldEventModifiers)
+local EconomyConfig=require(Replicated.DogEconomy.Config)
+-- Server luck and the world event's gameplay, combined (Economy/LineModifiers).
+local LineModifiers=require(script.Parent.Economy.LineModifiers)
 local WALK_SPEED=Stream.Speed
 local travel,lastSpawn=0,0
 -- A Secret with a SpeedScale (THE DOG) slows the whole tongue while it is on it, and
@@ -40,6 +46,7 @@ local function dissolve(model)
  end
  task.delay(.7,function()if model.Parent then model:Destroy()end end)
 end
+local VARIANT_COLOR={Shiny=Color3.fromRGB(220,245,255),Golden=Color3.fromRGB(255,199,54),Corrupted=Color3.fromRGB(184,67,233),Glitched=Color3.fromRGB(40,239,213),Void=Color3.fromRGB(150,90,255)}
 local RARITY = {["Brainrot God"]=Color3.fromRGB(255,230,110),Secret=Color3.fromRGB(245,245,255),Uncommon=Color3.fromRGB(100,210,75),Common=Color3.fromRGB(220,220,220),Rare=Color3.fromRGB(70,150,255),Epic=Color3.fromRGB(190,80,255),Legendary=Color3.fromRGB(255,180,40),Mythic=Color3.fromRGB(255,60,100)}
 
 local function pivotOf(o) return o:IsA("Model") and o:GetPivot() or o.CFrame end
@@ -160,6 +167,12 @@ local function billboard(dog,data)
 		local l=Instance.new("TextLabel"); l.Name=n; l.BackgroundTransparency=1; l.Size=UDim2.new(1,0,.32,0); l.Position=UDim2.new(0,0,y,0); l.Text=text; l.TextColor3=color; l.TextStrokeTransparency=.3; l.Font=Enum.Font.GothamBold; l.TextSize=size; l.Parent=bb
 	end
 	label("NameLabel",string.upper(data.DisplayName),0,Color3.new(1,1,1),20); label("RarityLabel",string.upper(data.Rarity),.34,RARITY[data.Rarity] or Color3.new(1,1,1),16); label("PriceLabel","$"..Format.Number(data.LinePrice or data.Price),.66,Color3.fromRGB(255,235,120),17)
+	-- A dog that spawned with a variant says so before anyone buys it (GOLDEN EPIC).
+	local variant=dog:GetAttribute("Variant")
+	if VARIANT_COLOR[variant] then
+		local rarity=bb:FindFirstChild("RarityLabel")
+		if rarity then rarity.RichText=true;rarity.Text='<font color="#'..VARIANT_COLOR[variant]:ToHex()..'">'..string.upper(variant).."</font> "..string.upper(data.Rarity) end
+	end
 end
 local function inventory(dog,player,data)
     local uid=dog:GetAttribute("DogUid")
@@ -195,7 +208,7 @@ local function purchaseDog(dog,player,data)
     local character=player.Character;local root=character and character:FindFirstChild("HumanoidRootPart")
     if not destination or not root or (root.Position-dog:GetPivot().Position).Magnitude>18 then return end
     dog:SetAttribute("PurchaseBusy",true)
-    local transport,ok,result=pcall(Economy.BuyLine,player,dog:GetAttribute("DogId"),dog:GetAttribute("DogUid"))
+    local transport,ok,result=pcall(Economy.BuyLine,player,dog:GetAttribute("DogId"),dog:GetAttribute("DogUid"),{Variant=dog:GetAttribute("Variant")})
     if transport and ok and dog.Parent then
         for key,value in pairs(result.Dog) do
             if type(value)=="string" or type(value)=="number" or type(value)=="boolean" then dog:SetAttribute(key,value) end
@@ -220,7 +233,7 @@ end
 local Guarantee=require(Replicated.DogEconomy.Config).LineGuarantee or {}
 local lastRank={}
 local function choose()
-    local id=Economy.Engine:Choose()
+    local id=Economy.Engine:Choose(nil,LineModifiers.Current().RankBoost)
     local rolled=id and definitions[id] and definitions[id].Rank or 0
     local now=os.clock()
     for rank=6,1,-1 do
@@ -285,6 +298,24 @@ local function holdArrival(dog,arrival)
     if not arrival.FreezeLine then lastSpawn+=arrival.Hold*Stream.Speed end
 end
 local function lineTween(dog) entries[dog]=lastSpawn;dog:SetAttribute('StreamOffset',lastSpawn) end
+-- The variant is rolled when the dog appears (not when it is bought), so a Golden or Void
+-- dog walks the tongue looking like one. World-event mutations and LineModifiers.Variants
+-- lift the rarer rows; Normal absorbs the difference, as WorldEventModifiers.MutationRows does.
+local function rollVariant(mods)
+    local rows=WorldModifiers.MutationRows(EconomyConfig.Variants,'Name','Weight',os.time())
+    if mods.ForceVariant then for _,row in ipairs(rows)do if row.Name==mods.ForceVariant then return row.Name end end end
+    local list,extra,total={},0,0
+    for i,row in ipairs(rows)do
+        local w=row.Weight
+        if i>1 then local m=math.max(0,mods.Variants[row.Name]or 1);extra+=w*m-w;w*=m end
+        list[i]={row.Name,w}
+    end
+    list[1][2]=math.max(0,list[1][2]-extra)
+    for _,r in ipairs(list)do total+=r[2]end
+    local roll=rng:NextNumber()*total
+    for _,r in ipairs(list)do roll-=r[2];if roll<0 then return r[1]end end
+    return list[1][1]
+end
 local function spawnDog(forced)
     local id, data
     if forced then id=forced;data=definitions[id]else id,data=choose()end
@@ -299,6 +330,7 @@ local function spawnDog(forced)
         return
     end
 	dog.Name=id; 
+	dog:SetAttribute("Variant",rollVariant(LineModifiers.Current()));
 	dog:SetAttribute("DogUid",HttpService:GenerateGUID(false)); 
 	dog:SetAttribute("DogId",id); 
 	dog:SetAttribute("DisplayName",data.DisplayName); 
@@ -309,6 +341,7 @@ local function spawnDog(forced)
 	dog:SetAttribute("OwnerName",""); 
 	dog:SetAttribute("LocomotionSpeed",math.clamp(line:GetAttribute('EventLineSpeed')or Stream.Speed,2,Stream.Speed))
 	dog:SetAttribute("State","OnLine");dog:SetAttribute("AnimationName","Walk");dog:SetAttribute("AnimationLooped",true);dog:SetAttribute("AnimationStartedAt",workspace:GetServerTimeNow()); 
+	Hooks.Prepared(dog,id,"Line")
 	-- A Secret's arrival cinematic is its announcement on every client. It arrives on a
 	-- stage Arrivals.Stage studs down the tongue, in the mouth opening where it is seen.
 	local arrival=(data.Rank or 1)>=6 and Arrivals.Dogs[id]
@@ -335,10 +368,11 @@ end
 local function spawnBlock(forced)
  local tier=forced
  if not tier then
+  local weights=LuckMath.Budgets(BlockConfig.SpawnWeights,LineModifiers.Current().BlockRankBoost)
   local total=0
-  for _,w in ipairs(BlockConfig.SpawnWeights)do total+=w end
+  for _,w in ipairs(weights)do total+=w end
   local n=rng:NextNumber()*total
-  for i,w in ipairs(BlockConfig.SpawnWeights)do n-=w;if n<0 then tier=BlockConfig.Rarities[i];break end end
+  for i,w in ipairs(weights)do n-=w;if n<0 then tier=BlockConfig.Rarities[i];break end end
  end
  local model=BlockVisuals.Build(tier or 'Common');weldToRoot(model);model.Parent=active
  movePivot(model,pivotAt(model,linePosition(spawnPoint),facing(endPoint.Position-spawnPoint.Position,Vector3.zAxis)))
@@ -346,15 +380,37 @@ local function spawnBlock(forced)
  billboard(model,{DisplayName=(tier or 'Common')..' BLOCK',Rarity=tier,Price=BlockConfig.ConveyorPrices[tier]})
  return model
 end
+-- A spawn queued by a LineModifiers provider ({DogId}|{Rank}|{MinRank,MaxRank?}|{Block}).
+local function spawnForced(spec)
+ if spec.Block then return spawnBlock(BlockConfig.Rank(spec.Block)and spec.Block or nil)end
+ local id=spec.DogId
+ if not id then
+  local lo=math.clamp(spec.Rank or spec.MinRank or 1,1,6);local hi=math.clamp(spec.Rank or spec.MaxRank or 5,lo,6)
+  local total=0;for r=lo,hi do total+=EconomyConfig.Weights[r]or 0 end
+  local roll=rng:NextNumber()*total;local rank=hi
+  for r=lo,hi do roll-=EconomyConfig.Weights[r]or 0;if roll<0 then rank=r;break end end
+  for _=1,12 do
+   local pick=Economy.Engine:ChooseRank(rank)
+   if pick and not(spec.Exclude and spec.Exclude[pick])then id=pick;break end
+  end
+ end
+ local data=id and definitions[id]
+ if not data then return spawnDog()end
+ lastRank[data.Rank]=os.clock()
+ return spawnDog(id)
+end
 spawnDog()
 game:GetService('RunService').Heartbeat:Connect(function(dt)
  local now=workspace:GetServerTimeNow();local slowest=1
  -- This frame's freeze (decided first, so no dog idles for a frame as a hold ends).
- lineFrozen=false
- for entity in pairs(entries)do
+ local mods=LineModifiers.Current(now)
+ -- A provider (an event) or an arrival off the tongue (ExternalFreezeUntil, the Long Dog
+ -- coming out of the mouth) can stop the tongue too.
+ lineFrozen=mods.Freeze or (line:GetAttribute('ExternalFreezeUntil')or 0)>now
+ if not lineFrozen then for entity in pairs(entries)do
   if entity.Parent and entity:GetAttribute('FreezeLine')and (entity:GetAttribute('ArrivalHoldUntil')or 0)>now then lineFrozen=true;break end
- end
- local speed=lineFrozen and 0 or math.clamp(line:GetAttribute('EventLineSpeed')or Stream.Speed,2,Stream.Speed)*lineScale
+ end end
+ local speed=lineFrozen and 0 or math.clamp(line:GetAttribute('EventLineSpeed')or Stream.Speed,2,Stream.Speed)*lineScale*mods.SpeedScale
  travel+=dt*speed
  -- Nothing reads this every frame; publishing it 60x/s only cost bandwidth.
  travelPublishedAt+=dt;if travelPublishedAt>=.5 then travelPublishedAt=0;line:SetAttribute('StreamTravel',travel)end
@@ -393,11 +449,26 @@ game:GetService('RunService').Heartbeat:Connect(function(dt)
   end
  end
  lineScale=math.clamp(slowest,.2,1)
- if travel-lastSpawn>=spacing and count<Stream.MaxActive then
-  lastSpawn+=spacing
-  if rng:NextNumber()<Stream.BlockChance then spawnBlock()else spawnDog()end
+ local gap=spacing/mods.SpawnRate
+ if travel-lastSpawn>=gap and count<math.min(16,math.ceil(Stream.MaxActive*math.max(1,mods.SpawnRate)))then
+  lastSpawn+=gap
+  local forced=LineModifiers.NextForced()
+  if forced then spawnForced(forced)
+  elseif rng:NextNumber()<(mods.BlockChance or Stream.BlockChance)then spawnBlock()else spawnDog()end
  end
 end)
+-- The live tongue for LineModifiers providers (world-event gameplay).
+LineModifiers.Line={
+ Entities=function()local list={};for entity in pairs(entries)do if entity.Parent then table.insert(list,entity)end end;return list end,
+ Remove=function(model,how)
+  if not entries[model]then return false end
+  entries[model]=nil;if how~='keep'and model.Parent then dissolve(model)end;return true
+ end,
+ SpawnDog=function(id)return spawnDog(id)end,
+ SpawnBlock=function(tier)return spawnBlock(tier)end,
+ Spawn=linePosition(spawnPoint),End=linePosition(endPoint),
+ Stage=linePosition(spawnPoint)+(linePosition(endPoint)-linePosition(spawnPoint)).Unit*Arrivals.Stage,
+}
 -- Server-only development harness, never a public admin remote.
 if game:GetService('RunService'):IsStudio() and game.GameId==0 then
  local dev=Instance.new('BindableFunction');dev.Name='SpawnLuckyBlock';dev.Parent=script
@@ -410,6 +481,17 @@ if game:GetService('RunService'):IsStudio() then
  local preview=Instance.new('RemoteFunction');preview.Name='StudioSecretArrival'
  local function arrive(player,id,here)
   if type(id)~='string' or not Arrivals.Dogs[id] or not definitions[id] then return false,'Unknown secret' end
+  -- Aurion is won at the DOG-O-MATIC: the drum spins to it and it arrives on the stand.
+  if definitions[id].Acquisition=='RouletteOnly' then
+   local machine=require(script.Parent.Economy.RewardMachineService)
+   if machine.PreviewWorldPrize then return machine.PreviewWorldPrize(player,id) end
+  end
+  -- The Long Dog comes where a dug-up Long Dog comes (Runtime.RevealExcavation).
+  if id=='LongDog' then
+   local ok,model=pcall(Economy.RevealExcavation,player,id,{Preview=true})
+   if not ok then return false,'Reveal failed: '..tostring(model) end
+   if model then return true,'The Long Dog is coming' end
+  end
   -- Off-tongue Secrets (or "here") arrive in front of the player, as from a Lucky Block.
   if here==true or not definitions[id].CanSpawnOnLine then
    local root=player.Character and player.Character:FindFirstChild('HumanoidRootPart')

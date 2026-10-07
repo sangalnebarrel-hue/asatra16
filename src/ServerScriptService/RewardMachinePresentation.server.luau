@@ -12,6 +12,11 @@ require(RS.RewardMachineText).Apply(rig)
 local angle=0;local busy=false;local playerAttempts={};local animated={}
 local function clearPrize()local old=rig:FindFirstChild('CommittedPrize');if old then old:Destroy()end end
 local Reveal=require(script.Parent.SecretReveal)
+local Hooks=require(RS.DogDisplayHooks)
+-- The Aurion models built into the machine (the drum's sector 9, the TreasureTower vitrine).
+for _,o in ipairs(rig:GetDescendants())do
+ if o:IsA('Model')and o:GetAttribute('DogId')=='Aurion'then Hooks.Prepared(o,'Aurion','Static')end
+end
 local function display(result,winner)
  clearPrize();local container=Instance.new('Model');container.Name='CommittedPrize';container.Parent=rig
  local focus=rig.CameraHooks.RevealFocus;local spawn=rig.CameraHooks.RewardSpawn
@@ -38,7 +43,7 @@ local function display(result,winner)
    local prepared=require(RS.DogRig).Prepare(model,Vector3.new(12,10,12))
    if prepared then
     local cf,size=model:GetBoundingBox();local target=CFrame.new(spawn.Position+Vector3.new(0,size.Y/2,0))*CFrame.Angles(0,-math.pi/2,0)
-    model:PivotTo(target*cf:Inverse()*model:GetPivot());model.Parent=container
+    model:PivotTo(target*cf:Inverse()*model:GetPivot());Hooks.Prepared(model,result.Dog.DogId,'Machine');model.Parent=container
    else model:Destroy()end
   end
  elseif result.Item then

@@ -11,7 +11,8 @@ local function position(p)
  return o and o:IsA('BasePart')and o.Position or nil
 end
 local function add(p)
- if ownedByLucky(p)or p:GetAttribute('MuseumLight')then return end
+ -- SecretAura: the persistent Secret dog VFX manage their own budget (SecretAuras).
+ if ownedByLucky(p)or p:GetAttribute('MuseumLight')or p:GetAttribute('SecretAura')then return end
  if p:IsA('PointLight')or p:IsA('SpotLight')or p:IsA('SurfaceLight')then lights[p]=true;p.Shadows=false
  elseif p:IsA('ParticleEmitter')then emitters[p]=p.Rate end
 end

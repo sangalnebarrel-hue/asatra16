@@ -7,6 +7,7 @@ local RS=game:GetService('ReplicatedStorage');local SS=game:GetService('ServerSt
 local Http=game:GetService('HttpService');local Tween=game:GetService('TweenService')
 local Rig=require(RS.DogRig);local Arrivals=require(RS.SecretArrivalConfig)
 local Definitions=require(RS.DogEconomy.DogDefinitions)
+local Hooks=require(RS.DogDisplayHooks)
 local M={}
 local folder=workspace:FindFirstChild('DOGROTS_SecretReveals')
 if not folder then folder=Instance.new('Folder');folder.Name='DOGROTS_SecretReveals';folder.Parent=workspace end
@@ -51,6 +52,7 @@ function M.Show(dogId,ground,facing,options)
  model:SetAttribute('RevealVenue',options.Venue or 'Yard');model:SetAttribute('RevealBy',options.By or '')
  model:SetAttribute('SecretArrivalAt',now);model:SetAttribute('ArrivalHoldUntil',now+arrival.Hold)
  model:SetAttribute('ArrivalOrigin',ground);model:SetAttribute('LocomotionSpeed',0)
+ Hooks.Prepared(model,dogId,options.Venue=='Machine'and'Machine'or'Reveal')
  -- Every player's camera visits the arrival: the whole dog reaches every client.
  pcall(function()model.ModelStreamingMode=Enum.ModelStreamingMode.Persistent end)
  local function clip(name,looped,at)
