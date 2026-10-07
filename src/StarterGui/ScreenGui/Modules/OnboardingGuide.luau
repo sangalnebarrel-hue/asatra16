@@ -14,7 +14,7 @@ local cards={
  [4]={Title='GIVE YOUR DOG A JOB',Icon='Dogs',Body='At your yard, use an empty kennel and choose your dog. It will begin digging automatically.',Button='SHOW MY YARD',Destination='Your yard'},
  [5]={Title='YOUR FIRST DISCOVERY',Icon='Discoveries',Body='Let your dog finish a digging cycle. Its find appears beside the kennel and is saved in BAG.',Button='VIEW MY DOGS',Page='Dogs'},
  [6]={Title='TURN FINDS INTO COINS',Icon='Coins',Body='Visit the Collector in your own yard. Choose an unlocked find, review its value, then confirm the sale.',Button='SHOW MY YARD',Destination='Your yard'},
- [7]={Title='YOU\'RE READY!',Icon='Ticket',Body='Supplies give timed boosts. Activate DOG-O-MATIC with a free DOG TOKEN. A new token arrives 5 hours after use; you can hold one. Explore at your pace!',Button='KEEP EXPLORING'},
+ [7]={Title='YOU\'RE READY!',Icon='Ticket',Body='Supplies give timed boosts. Spin DOG-O-MATIC with your free DOG TOKEN (a new one 5 hours after use) to chase Aurion, the 0.01% jackpot. Explore!',Button='KEEP EXPLORING'},
 }
 function Guide.Replay()
  if controller then controller.Replay()end

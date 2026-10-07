@@ -5,6 +5,10 @@ local rig=workspace:WaitForChild('DOGROTS_District'):WaitForChild('37_Attraction
 local hooks=rig:WaitForChild('CameraHooks');local drum=rig:WaitForChild('SpinningDrum')
 local center=hooks:WaitForChild('DrumCenter',60).CFrame;local focus=hooks:WaitForChild('RevealFocus',60)
 local cue;local lastReceipt;local lastTick=-1;local lastSound=-1;local revealed={};local cameraSession
+-- The winner's camera frames the prize until returnAt. A Secret prize (the Aurion jackpot)
+-- keeps it framed for its whole arrival on the stand: its Hold + 1 s after the drum lands.
+local returnAt=0;local ownFinish,ownReturn=0,0
+local function revealUntil(finish)return math.abs(finish-ownFinish)<1.5 and math.max(finish+5,ownReturn)or finish+5 end
 local lights={};for _,o in ipairs(rig:GetDescendants())do if o:IsA('PointLight')or o:IsA('SurfaceLight')then table.insert(lights,{o,o.Color,o.Brightness})end end
 local function reduced()return touch or player:GetAttribute('ReducedMotion')==true or player:GetAttribute('WorldEventFX')=='Low'end
 local function audible()local camera=workspace.CurrentCamera;return cameraSession~=nil or camera and(camera.CFrame.Position-focus.Position).Magnitude<105 end
@@ -33,7 +37,12 @@ local function receive(value)
  -- Do not replay old celebrations for a player arriving long after the spin.
  if workspace:GetServerTimeNow()>value.Presentation.StartedAt+value.Presentation.Duration+2 then return end
  cue=value;lastReceipt=value.Receipt;lastTick=-1
- if value.WinnerUserId==player.UserId then player:SetAttribute('RewardMachinePendingAt',nil);player:SetAttribute('RewardMachinePendingRequest',nil)end
+ if value.WinnerUserId==player.UserId then
+  player:SetAttribute('RewardMachinePendingAt',nil);player:SetAttribute('RewardMachinePendingRequest',nil)
+  local hold=motion.UltraRare(value)and motion.ArrivalHold(value)or 0
+  ownFinish=value.Presentation.StartedAt+value.Presentation.Duration;ownReturn=ownFinish+(hold>0 and hold+1 or 5)
+  returnAt=math.max(returnAt,ownReturn)
+ end
 end
 RS:WaitForChild('RewardMachinePresentation').OnClientEvent:Connect(receive)
 local function readSnapshot()local raw=rig:GetAttribute('SpinInfo');if raw then local ok,value=pcall(Http.JSONDecode,Http,raw);if ok then receive(value)end end end
@@ -70,7 +79,6 @@ while not gui do
  local child=playerGui.ChildAdded:Wait()
  if child.Name=='ScreenGui' then gui=child end
 end
-local returnAt=0
 local GuiService=game:GetService('GuiService')
 local function boxPoints(points,cf,size)
  for _,x in ipairs({-1,1})do for _,y in ipairs({-1,1})do for _,z in ipairs({-1,1})do
@@ -197,14 +205,16 @@ gui:GetAttributeChangedSignal('RewardMachineWorldOpen'):Connect(function()
 end)
 gui:GetAttributeChangedSignal('RewardMachineActiveUntil'):Connect(function()
  local finish=gui:GetAttribute('RewardMachineActiveUntil')
- if type(finish)=='number'and finish>workspace:GetServerTimeNow()-1 then returnAt=finish+5 end
+ if type(finish)=='number'and finish>workspace:GetServerTimeNow()-1 then returnAt=revealUntil(finish)
+ elseif finish==0 then returnAt=0 end -- A failed activation: back to the wheel.
 end)
 player.CharacterRemoving:Connect(cameraClose)
 cameraOpen()
 Run:BindToRenderStep('RewardMachineWorldCamera',Enum.RenderPriority.Camera.Value+1,function(dt)
  if not cameraSession then return end
  local camera=workspace.CurrentCamera;if camera~=cameraSession.Camera then cameraClose();return end
- local now=workspace:GetServerTimeNow();local finish=gui:GetAttribute('RewardMachineActiveUntil')or 0
+ -- ownFinish also covers a cue this client did not request (a Studio preview).
+ local now=workspace:GetServerTimeNow();local finish=math.max(tonumber(gui:GetAttribute('RewardMachineActiveUntil'))or 0,ownFinish)
  local revealing=finish>0 and now>finish+.45 and now<returnAt
  local rect=cameraRect(camera)
  local rectKey=table.concat({rect.W,rect.H,rect.Left,rect.Right,rect.Top,rect.Bottom},':')

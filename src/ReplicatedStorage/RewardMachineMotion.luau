@@ -13,4 +13,10 @@ M.Colors={Common=Color3.fromRGB(44,201,255),Rare=Color3.fromRGB(52,113,255),Epic
 function M.Rarity(result)return result.Rarity or (result.Kind=='Cash'and 'Coins'or result.Kind=='Boost'and 'Boost'or 'Common')end
 function M.Color(result)return M.Colors[M.Rarity(result)]or M.Colors.Common end
 function M.UltraRare(result)return result.Jackpot==true or result.Id=='Aurion'or(result.Dog and result.Dog.DogId=='Aurion')or result.Name=='Aurion'end
+-- Seconds a dog prize's Secret arrival plays on the stand (SecretArrivalConfig Hold), else 0.
+function M.ArrivalHold(result)
+ local id=type(result)=='table'and(type(result.Dog)=='table'and result.Dog.DogId or result.Kind=='Dog'and result.Id)
+ local arrival=type(id)=='string'and require(script.Parent.SecretArrivalConfig).Dogs[id]
+ return arrival and tonumber(arrival.Hold)or 0
+end
 return M
