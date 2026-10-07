@@ -1,14 +1,18 @@
 -- CUBEDOG, "THE PERFECT CUBE", for the whole island. The day dims to a cyan dusk for
--- everyone and a colossal wireframe cube draws itself edge by edge over the yards around a
--- glowing ghost of Cubedog; every dog on the island looks up at it, voxels rain around every
--- player and a few blocks fall and shatter right next to each of them. The cube snaps
+-- everyone and a colossal wireframe cube draws itself edge by edge in every player's own
+-- sky (low over the horizon, beyond the stage or ahead of them, so nobody has to look up)
+-- around a glowing ghost of Cubedog; every dog on the island looks at it, voxels rain around
+-- every player and a few blocks fall and shatter right next to each of them. The cube snaps
 -- through three hard quarter-turns (a CLACK everyone hears, every lamp on the island blinks
 -- cyan), collapses and dives into the stage, where it stops dead with the dog inside: a
--- shockwave rolls across the map and every camera is pulled in for the stage act. There
--- (the mouth lit cyan, a landing square blinking on the belt) the little cube snaps three
--- times like a puzzle being solved, drops and shatters into voxels; confetti on the flip,
--- sparkles on the happy spin, and the sky eases back. Off the tongue (a Lucky Block pad,
--- open air) a ring of voxel runes marks the stage instead of the mouth's lanterns.
+-- square shockwave (the cube's own footprint) sweeps the whole district, from the yards to
+-- the plaza, the museum and the DOG-O-MATIC, blinking every lamp and jolting every player it
+-- passes, while every camera is pulled in for the stage act. There (the mouth lit cyan, a
+-- landing square blinking on the belt) the little cube snaps three times like a puzzle being
+-- solved, drops and shatters into voxels and a second, white square sweeps the island;
+-- confetti on the flip, sparkles on the happy spin, and the sky eases back. Off the tongue
+-- (a Lucky Block pad, open air) a ring of voxel runes marks the stage instead of the
+-- mouth's lanterns.
 local Players=game:GetService('Players')
 local C=Color3.fromRGB
 local WHITE,DEEP,BLINK=C(236,251,255),C(40,130,255),C(130,238,255)
@@ -24,7 +28,13 @@ local PRE=7.2
 -- lid from two opposite corners); its three CLACKs (quarter-turns about its right, up and
 -- forward axes, TURN seconds each); then it collapses (SHRINK) and dives (DIVE) to stop
 -- dead around the dog at PRE+.5.
-local SIDE,THICK,TURN=260,3.2,.32
+local SIDE,THICK,TURN=220,4,.32
+-- Where it hangs for each player: SKY_OUT studs from their camera with its centre SKY_RISE
+-- degrees over their horizon (it spans ~2-20°: inside a default third-person view, which
+-- sees only ~15-20° above the horizon). The square shockwaves cross the district in SLAM_T
+-- and LAND_T seconds.
+local SKY_OUT,SKY_RISE=680,11
+local SLAM_T,LAND_T=3.6,3
 local function v3(x,y,z)return Vector3.new(x,y,z)end
 local STROKES={
  {v3(-1,-1,-1),v3(1,-1,-1),.9,.28},{v3(1,-1,-1),v3(1,-1,1),1.15,.28},
@@ -68,11 +78,12 @@ local CLACK={ReverbSoundEffect={DecayTime=2.6,WetLevel=-2,DryLevel=0,Density=1,D
 local CLICK={ReverbSoundEffect={DecayTime=1.6,WetLevel=-5}}
 local function backOut(x)local c=1.70158;x-=1;return 1+(c+1)*x*x*x+c*x*x end
 local function smooth(x)x=math.clamp(x,0,1);return x*x*(3-2*x)end
-local function across(a:Vector3,b:Vector3):number return Vector3.new(a.X-b.X,0,a.Z-b.Z).Magnitude end
--- When the edge of a Kit ring growing r0→r1 over `seconds` (easing out) reaches distance d.
-local function reach(d:number,r0:number,r1:number,seconds:number):number?
- if d>r1 then return nil end
- return seconds*(1-(1-math.clamp((d-r0)/(r1-r0),0,1))^(1/3))
+-- A square growing h0→h1 over `seconds` eases out (quadratic): its half-side at a (0..1),
+-- and when it reaches half-side d (nil: never).
+local function grow(a:number,h0:number,h1:number):number return h0+(h1-h0)*(1-(1-math.clamp(a,0,1))^2)end
+local function reach(d:number,h0:number,h1:number,seconds:number):number?
+ if d>h1 then return nil end
+ return seconds*(1-math.sqrt(1-math.clamp((d-h0)/(h1-h0),0,1)))
 end
 -- A bar from local point a to b of a cube posed at cf (its edges and lines are axis-aligned).
 local function bar(cf:CFrame,a:Vector3,b:Vector3,w:number):(CFrame,Vector3)
@@ -228,22 +239,69 @@ return function(ctx)
  end
 
  ---------------------------------------------------------------- the whole island
- -- The colossal cube hangs over the yards (a little north, clear of the giant head's nose)
- -- when the stage is on the island, else above a far stage (the DOG-O-MATIC), toward the
- -- island and over the roofs there.
+ -- Can this point be seen from `from`? (Nothing solid and visible between them: not the
+ -- dog, the players or this arrival's own parts.)
+ local function sees(from:Vector3,to:Vector3):boolean
+  local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.IgnoreWater=true
+  local skip:{Instance}={model,scope.Folder}
+  for _,p in ipairs(Players:GetPlayers())do if p.Character then table.insert(skip,p.Character)end end
+  for _=1,6 do
+   params.FilterDescendantsInstances=skip
+   local hit=workspace:Raycast(from,to-from,params)
+   if not hit then return true end
+   if hit.Instance.Transparency<.9 then return false end
+   table.insert(skip,hit.Instance)
+  end
+  return true
+ end
+ -- The colossal cube hangs in THIS player's sky, where a default camera sees it: SKY_OUT
+ -- studs from their camera, SKY_RISE degrees up, beyond the stage as they see it when they
+ -- face it (within 70°), else straight ahead of their camera (they stand at the stage or
+ -- look away from it), swung up to 50° aside until nothing solid (the giant head, a roof)
+ -- hides it. Overlapping Cubedogs hang theirs further aside.
  local slot=1
  while slots[slot]do slot+=1 end
  slots[slot]=true
  scope:Add(function()slots[slot]=nil end)
- local flat=Vector3.new(origin.X-map.Center.X,0,origin.Z-map.Center.Z)
- local G=flat.Magnitude<260 and map.Center+Vector3.new(0,44+SIDE/2,15)
-  or origin-flat.Unit*70+Vector3.new(0,100+SIDE/2,0)
- G+=Vector3.new(0,(slot-1)*(SIDE+60),0)
- -- A cyan dusk: the sun goes down, the haze and the clouds turn cyan, neon blooms.
+ local G,toward
+ do
+  local cam=workspace.CurrentCamera
+  local eye=cam and cam.CFrame.Position or Kit.Me()
+  local look=cam and cam.CFrame.LookVector or fwd
+  local ahead=Vector3.new(look.X,0,look.Z)
+  ahead=ahead.Magnitude>.05 and ahead.Unit or fwd
+  local flat=Vector3.new(origin.X-eye.X,0,origin.Z-eye.Z)
+  flat=(flat.Magnitude>=60 and flat.Unit:Dot(ahead)>.34)and flat.Unit or ahead
+  local aside=slot>1 and(slot%2==0 and 1 or -1)*math.ceil((slot-1)/2)*.55 or 0
+  local e=math.rad(SKY_RISE)
+  -- The bearing itself first, then the swung ones nearest where they look.
+  local turns={0,.44,-.44,.87,-.87}
+  local function seen(a:number):number return CFrame.Angles(0,a+aside,0):VectorToWorldSpace(flat):Dot(ahead)end
+  table.sort(turns,function(a,b)if a==0 or b==0 then return a==0 and b~=0 end;return seen(a)>seen(b)end)
+  for i,a in ipairs(turns)do
+   local dir=CFrame.Angles(0,a+aside,0):VectorToWorldSpace(flat)
+   local at=eye+dir*SKY_OUT*math.cos(e)+Vector3.new(0,SKY_OUT*math.sin(e),0)
+   if i==1 then G,toward=at,dir end
+   if sees(eye,at)then G,toward=at,dir;break end
+  end
+ end
+ -- It turns a corner toward them (two faces show); it squares up to the dog in the dive.
+ local bigFace=CFrame.lookAt(Vector3.zero,-toward)*CFrame.Angles(0,math.rad(28),0)
+ -- The square shockwaves run along the ground (the island's floors lie at y 0-4) to the
+ -- farthest corner of the district (SecretArrivalConfig.Map.Min/Max), whatever the venue.
+ local FLOOR=math.abs(origin.Y-map.Center.Y)<8 and map.Center.Y or origin.Y-1
+ local FAR=0
+ for _,x in ipairs({map.Min.X,map.Max.X})do FAR=math.max(FAR,math.abs(x-origin.X))end
+ for _,z in ipairs({map.Min.Z,map.Max.Z})do FAR=math.max(FAR,math.abs(z-origin.Z))end
+ FAR=math.clamp(FAR+60,300,990)
+ -- How far a side of a square round the stage must travel to pass p.
+ local function boxed(p:Vector3):number return math.max(math.abs(p.X-origin.X),math.abs(p.Z-origin.Z))end
+ -- A cyan dusk: the sun goes down, the haze and the clouds turn cyan, neon blooms. The
+ -- haze stays thin: the cube is ~700 studs out.
  local sky=scope:Sky({
   Lighting={ClockTime=18.6,Brightness=1.25,ExposureCompensation=-.04,Ambient=C(58,92,120),OutdoorAmbient=C(74,124,156),
    ColorShift_Top=C(110,214,255)},
-  Atmosphere={Density=.3,Offset=.12,Color=C(118,214,255),Decay=C(26,70,136),Glare=.3,Haze=1.4},
+  Atmosphere={Density=.22,Offset=.12,Color=C(118,214,255),Decay=C(26,70,136),Glare=.3,Haze=1.2},
   Clouds={Cover=.6,Density=.4,Color=C(150,228,255)},
   Grade={TintColor=C(214,244,255),Saturation=.12,Contrast=.12},
   Bloom={Intensity=.8,Size=30,Threshold=1.15},
@@ -261,34 +319,109 @@ return function(ctx)
  end
 
  -- Every lamp on the island (its lights, the tongue's lantern lenses and edge guides), found
- -- once a few thousand instances a frame: the CLACKs blink them all cyan, the shockwaves
- -- blink them as they pass.
+ -- once, walking the district 1500 instances a frame (it holds ~37k; one GetDescendants
+ -- would hitch): the CLACKs blink them all cyan, the shockwaves blink them as they pass.
  local lamps={}
  task.spawn(function()
   if not district then return end
-  for i,o in ipairs(district:GetDescendants())do
-   if o:IsA('Light')then
-    local p=o.Parent
-    if p and p:IsA('BasePart')then table.insert(lamps,{Lamp=o,At=p.Position})
-    elseif p and p:IsA('Attachment')then table.insert(lamps,{Lamp=o,At=p.WorldPosition})end
-   elseif (o.Name=='WarmLens'or o.Name=='WarmEdgeGuide')and o:IsA('BasePart')then table.insert(lamps,{Lamp=o,At=o.Position})end
-   if i%3000==0 then task.wait();if not scope.Alive then return end end
-  end
- end)
- -- center: a wave from there (a Kit ring r0→r1 over span), else all at once.
- local function blink(seconds:number,center:Vector3?,r0:number?,r1:number?,span:number?)
-  for _,l in ipairs(lamps)do
-   local o=l.Lamp
-   local delay:number?=0
-   if center then delay=reach(across(l.At,center),r0 or 0,r1 or 1,span or 1)end
-   if delay and o.Parent then
-    task.delay(delay,function()
-     if not scope.Alive or not o.Parent then return end
-     local _,release=scope:Override(o,{Color=BLINK})
-     task.delay(seconds,release)
-    end)
+  local queue:{Instance},head,tail={district},1,1
+  while head<=tail do
+   local node=queue[head];queue[head]=nil;head+=1
+   for _,o in ipairs(node:GetChildren())do
+    if o:IsA('Light')then
+     local p=o.Parent
+     if p and p:IsA('BasePart')then table.insert(lamps,{Lamp=o,At=p.Position})
+     elseif p and p:IsA('Attachment')then table.insert(lamps,{Lamp=o,At=p.WorldPosition})end
+    elseif (o.Name=='WarmLens'or o.Name=='WarmEdgeGuide')and o:IsA('BasePart')then table.insert(lamps,{Lamp=o,At=o.Position})end
+    tail+=1;queue[tail]=o
+    if tail%1500==0 then task.wait();if not scope.Alive then return end end
    end
   end
+ end)
+ -- Every lamp blinks cyan for `seconds`: all at once, or each when when(position) says
+ -- (seconds from now; nil: never). One stepper a blink, not a delay a lamp.
+ local function blink(seconds:number,when:((Vector3)->number?)?)
+  local due={}
+  for _,l in ipairs(lamps)do
+   local at:number?=0
+   if when then at=when(l.At)end
+   if at and l.Lamp.Parent then table.insert(due,{Lamp=l.Lamp,At=at})end
+  end
+  if #due==0 then return end
+  table.sort(due,function(a,b)return a.At<b.At end)
+  local lit,on,off={},1,1
+  scope:Every(function(_,age)
+   while on<=#due and due[on].At<=age do
+    local o=due[on].Lamp
+    if o.Parent then
+     local _,release=scope:Override(o,{Color=BLINK})
+     table.insert(lit,{Release=release,Off=due[on].At+seconds})
+    end
+    on+=1
+   end
+   -- Lit in order, so they go out in order.
+   while off<=#lit and lit[off].Off<=age do lit[off].Release();off+=1 end
+   return on<=#due or off<=#lit
+  end)
+ end
+
+ -- An expanding square outline: its centre, the axes its sides run along (U, W), half-side
+ -- h0→h1 over `seconds` (easing out), bar thickness and depth (along the square's normal),
+ -- transparency (it fades over the last quarter), white corner blocks when `corners`.
+ -- step(h) runs every frame with the current half-side.
+ local function squareWave(center:Vector3,U:Vector3,W:Vector3,h0:number,h1:number,seconds:number,color:Color3,
+  thick:number,depth:number,alpha:number,corners:boolean,step:((number)->())?)
+  local N=U:Cross(W).Unit
+  local rot=CFrame.fromMatrix(Vector3.zero,U,N)
+  local parts,frames,nodes={},{},{}
+  for i=1,4 do parts[i]=scope:Part({Name='SquareWave',Color=color,Transparency=1,Size=Vector3.one,CFrame=CFrame.new(center)})end
+  if corners and not low then
+   for i=1,4 do
+    nodes[i]=scope:Part({Name='SquareCorner',Color=WHITE,Transparency=1,Size=Vector3.one*thick*2.4,CFrame=CFrame.new(center)})
+    parts[4+i]=nodes[i]
+   end
+  end
+  local sides={{W,true},{-W,true},{U,false},{-U,false}}
+  local cornerAt={U+W,U-W,-U+W,-U-W}
+  scope:Every(function(_,age)
+   local a=math.min(age/seconds,1)
+   local h=grow(a,h0,h1)
+   local fade=alpha+(1-alpha)*smooth((a-.75)/.25)
+   for i,s in ipairs(sides)do
+    local p=parts[i]
+    -- Sides along U sit at ±W·h; sides along W at ±U·h.
+    p.Size=s[2]and Vector3.new(2*h+thick,depth,thick)or Vector3.new(thick,depth,2*h+thick)
+    p.Transparency=fade
+    frames[i]=rot+(center+s[1]*h)
+   end
+   for i,n in ipairs(nodes)do
+    n.Transparency=fade
+    frames[4+i]=(rot+(center+cornerAt[i]*h))*CFrame.Angles(0,age*3,0)
+   end
+   workspace:BulkMoveTo(parts,frames,Enum.BulkMoveMode.FireCFrameChanged)
+   if step then step(h)end
+   if a<1 then return true end
+   for _,p in ipairs(parts)do p:Destroy()end
+   return false
+  end)
+ end
+ -- The district-wide square: a low wall of light (a faint tall sheet above it, not on Low)
+ -- from the stage to FAR in `seconds`; each lamp blinks as a side passes it, and react(power)
+ -- runs once when it passes this player (or the cutaway's camera that is watching for them).
+ local function sweep(color:Color3,seconds:number,thick:number,tall:number,alpha:number,glow:number,power:number,
+  react:(number)->())
+  local base=Vector3.new(origin.X,FLOOR-1+tall/2,origin.Z)
+  local passed=false
+  squareWave(base,Vector3.xAxis,Vector3.zAxis,6,FAR,seconds,color,thick,tall,alpha,true,function(h)
+   if passed then return end
+   local cam=workspace.CurrentCamera
+   local watching=cut and cut.Active and cam
+   if h>=boxed(watching and cam.CFrame.Position or Kit.Me())then passed=true;react(power)end
+  end)
+  if not low then
+   squareWave(base+Vector3.new(0,tall/2+10,0),Vector3.xAxis,Vector3.zAxis,6,FAR,seconds,color:Lerp(WHITE,.3),.3,22,.84,false)
+  end
+  blink(glow,function(at)return reach(boxed(at),6,FAR,seconds)end)
  end
 
  -- The colossal cube: 12 edges, 8 corners and (not on Low) its ruled faces, moved together
@@ -309,10 +442,11 @@ return function(ctx)
   for i,c in ipairs(CLACKS)do
    local u=math.clamp((t-c)/TURN,0,1)
    if u>0 then
-    local axis=i==1 and face.RightVector or i==2 and Vector3.yAxis or face.LookVector
+    local axis=i==1 and bigFace.RightVector or i==2 and Vector3.yAxis or bigFace.LookVector
     turn=CFrame.fromAxisAngle(axis,math.pi/2*backOut(u))*turn
    end
   end
+  local rot=turn*bigFace
   local at,h,white=G,SIDE/2,0
   if t>=SHRINK then
    -- It swells a little, then collapses to a 16-stud cube...
@@ -321,11 +455,13 @@ return function(ctx)
    white=u
   end
   if t>=DIVE then
-   -- ...and dives, faster and faster, to stop dead around the dog a size too big.
+   -- ...and dives, faster and faster, squaring up to the dog, to stop dead around it a
+   -- size too big.
    local u=math.clamp((t-DIVE)/(PRE+.5-DIVE),0,1)
    at=G:Lerp(hover,u*u);h=8+(small-8)*u;white=1
+   rot=rot:Lerp(face,smooth(u))
   end
-  return CFrame.new(at)*turn*face,h,white
+  return CFrame.new(at)*rot,h,white
  end
  local function still(t)
   if t<DRAWN+.45 or t>=SHRINK then return false end
@@ -474,7 +610,7 @@ return function(ctx)
     Spin=Vector3.new(Kit.Random(-10,10),Kit.Random(-10,10),Kit.Random(-10,10)),Floor=at.Y+k/2,Free=true})
   end
   throw(pieces,80,1.2)
-  scope:Ring(at+Vector3.new(0,.3,0),CYAN,.5,8,.4,{Thickness=.3,Segments=20})
+  squareWave(at+Vector3.new(0,.3,0),Vector3.xAxis,Vector3.zAxis,.4,6.5,.4,CYAN,.3,.3,.1,false)
   local a=scope:Anchor(at+Vector3.new(0,1,0),'Clack')
   Kit.Cue('Impact',a,.55)
   Kit.Shot(a,Kit.Tick,.8,1.5,CLICK)
@@ -501,16 +637,16 @@ return function(ctx)
    return false
   end)
  end
- -- CLACK: the colossal cube snaps a quarter-turn. A ring flies off it in the plane it turns
- -- in, the ghost inside flinches, every lamp blinks, every screen pulses.
+ -- CLACK: the colossal cube snaps a quarter-turn. A square flies off it in the plane it
+ -- turns in, the ghost inside flinches, every lamp blinks, every screen pulses.
  local function clack(i)
   Kit.Shot(nil,Kit.Tick,1,.5,CLACK)
   task.delay(.05,function()if scope.Alive then Kit.Shot(nil,Kit.Tick,.7,1.2,CLICK)end end)
   Kit.Cue('Impact',nil,.45)
   blink(.3)
-  local U=i==1 and Vector3.yAxis or face.RightVector
-  local W=i==3 and Vector3.yAxis or face.LookVector
-  scope:Ring(bigAt,CYANL,SIDE*.62,SIDE*1.25,.9,{Thickness=3,Alpha=.2,U=U,W=W})
+  local U=i==1 and Vector3.yAxis or bigFace.RightVector
+  local W=i==3 and Vector3.yAxis or bigFace.LookVector
+  squareWave(bigAt,U,W,SIDE*.55,SIDE*1.15,.9,CYANL,3,3,.2,false)
   if giant and ctx:Elapsed()<SHRINK-.2 then
    giant:Play('Impact')
    giant:Fade(.15,.05)
@@ -519,35 +655,51 @@ return function(ctx)
   bump(.16,.45)
   shake(.18,.25)
  end
- -- Every camera is pulled to the stage for the dive and the stage act: wide on the sky (the
- -- cube collapsing over the island), down with the dive, then in close for the little
- -- cube's snaps, the drop and the shatter. Each spot is pulled in front of anything solid
- -- between it and what it looks at.
+ -- Every camera is pulled in for the dive and the stage act: from where this player stands
+ -- (their camera saw the cube) onto the cube collapsing, following it as it dives, then a
+ -- cut to the stage as it stops dead there, and in close for the little cube's snaps, the
+ -- drop and the shatter. Each spot is pulled in front of anything solid between it and
+ -- what it looks at.
  local function cutaway()
   local sight=RaycastParams.new();sight.FilterType=Enum.RaycastFilterType.Exclude
   local me=Players.LocalPlayer.Character
   sight.FilterDescendantsInstances=me and {model,me,scope.Folder}or {model,scope.Folder}
-  local function shot(at:number,pos:Vector3,look:Vector3,fov:number)
+  local function shot(at:number,pos:Vector3,look:Vector3,fov:number,jump:boolean?)
    local d=pos-look
    local hit=d.Magnitude>1 and workspace:Raycast(look,d,sight)
    if hit then pos=hit.Position-d.Unit*1.5 end
-   return {At=at,CFrame=Kit.Frame(pos,look),Fov=fov}
+   return {At=at,CFrame=Kit.Frame(pos,look),Fov=fov,Cut=jump}
   end
   local up=Vector3.yAxis
   local side=fwd:Cross(up)
   if side:Dot(map.Center-origin)<0 then side=-side end
-  local mid=(G+hover)/2
+  local cam=workspace.CurrentCamera
+  local eye=cam and cam.CFrame.Position+up*3
+  -- A camera that cannot see the cube (it moved behind something) watches from the stage.
+  local view=(eye and sees(eye,G))and eye or hover+fwd*90+side*40+up*30
+  local closer=view+(G-view).Unit*30
   return ctx:Cutaway({
-   shot(6.45,mid+side*390+fwd*120+up*30,mid+up*25,64),
-   shot(DIVE,mid+side*230+fwd*90+up*10,mid,56),
-   shot(PRE+.55,hover+fwd*58+side*16+up*10,hover,50),
+   shot(6.45,view,G,60),
+   shot(DIVE,closer,G,50),
+   shot(PRE+.25,closer,bigPose(PRE+.25).Position,58),
+   shot(PRE+.3,hover+fwd*58+side*16+up*10,hover,50,true),
    shot(PRE+1.5,hover+fwd*30+side*6-up*2,hover-up,46),
    shot(PRE+LAND,origin+fwd*24+side*4+up*6.5,origin+up*3,50),
    shot(PRE+2.95,origin+fwd*21+side*3+up*5.5,origin+up*3.5,56),
   },{Focus=origin,Shake=.1})
  end
- -- It stops dead around the dog: a shockwave rolls across the map (the lamps blink as it
- -- passes, and it shakes each player as it reaches them) and light shoots up from the stage.
+ -- A side of a square shockwave passing this player: the ground clacks under them (the
+ -- cutaway's camera shakes instead while it is watching for them).
+ local function struck(power:number)
+  if cut and cut.Active then cut:Shake(power*2.5,.45);return end
+  Kit.Shake(power,.35)
+  Kit.Shot(nil,Kit.Tick,.55,1.3+power,CLICK)
+  local feet=Kit.Me()-Vector3.new(0,2.9,0)
+  squareWave(feet,Vector3.xAxis,Vector3.zAxis,.6,9,.45,CYAN,.3,.3,.2,false)
+ end
+ -- It stops dead around the dog: a square shockwave sweeps the whole district (the lamps
+ -- blink as it passes, each player is jolted as it reaches them) and light shoots up from
+ -- the stage.
  local function slam()
   if glance then glance:Stop(1.2)end
   if trail then
@@ -558,17 +710,9 @@ return function(ctx)
   if not fresh(PRE+.5)then return end
   Kit.Cue('Impact',nil,1)
   Kit.Shot(nil,Kit.Tick,1,.42,CLACK)
-  local R=map.Radius*1.3
-  scope:Ring(origin+Vector3.new(0,.6,0),CYAN,6,R,1.8,{Thickness=3.5,Alpha=.1})
-  if not low then scope:Ring(origin+Vector3.new(0,1.4,0),WHITE,3,map.Radius*1.05,1.3,{Thickness=1.4,Alpha=.3,Segments=40})end
+  sweep(CYAN,SLAM_T,1.8,4.6,.06,1.2,.32,struck)
   scope:Pillar(origin,origin+Vector3.new(0,260,0),CYAN,10,1.3)
-  blink(1.2,origin,6,R,1.8)
-  if cut and cut.Active then cut:Shake(.9,.5)
-  else
-   local t=reach(across(Kit.Me(),origin),6,R,1.8)
-   if t then task.delay(t,function()if scope.Alive and not(cut and cut.Active)then Kit.Shake(.3,.35)end end)end
-  end
-  Kit.Flash(C(220,250,255),.55,.45)
+  if not calm then Kit.Flash(C(220,250,255),.55,.45)end
   bump(.2,.5)
  end
 
@@ -593,16 +737,16 @@ return function(ctx)
   if not ctx:Wait(1.3)then return end
   -- The ghost of Cubedog rises into the cube while it is drawn.
   if ctx:Elapsed()<SHRINK-.6 then
-   giant=ctx:Colossus({Height=SIDE*.55,At=CFrame.new(G)*face,Style='Ghost',Color=CYAN,Alpha=.5,Clip='Idle',
+   giant=ctx:Colossus({Height=SIDE*.55,At=CFrame.new(G)*bigFace,Style='Ghost',Color=CYAN,Alpha=.5,Clip='Idle',
     Rise=36,FadeIn=math.max(.6,3.3-ctx:Elapsed())})
   end
   if not ctx:Wait(2.6)then return end
-  -- Every dog on the island looks up at it (and follows it down the dive).
+  -- Every dog on the island looks at it (and follows it down the dive).
   if ctx:Elapsed()<PRE then glance=scope:Glance(function()return bigAt end,{Exclude=model,Turn=1,Ripple=500})end
   if not ctx:Wait(DRAWN)then return end
   if fresh(DRAWN)then
    Kit.Cue('Chime',nil,.5)
-   scope:Ring(bigAt,WHITE,SIDE*.62,SIDE*1.4,1.1,{Thickness=2.5,Alpha=.25})
+   squareWave(bigAt,bigFace.RightVector,bigFace.LookVector,SIDE*.55,SIDE*1.3,1.1,WHITE,2.5,2.5,.25,false)
   end
   if not ctx:Wait(3.1)then return end
   local stopRain=ctx:Elapsed()<SHRINK and rain()or nil
@@ -784,13 +928,13 @@ return function(ctx)
   local n=Kit.Near(origin,120)
   Kit.Cue('Impact',nil,.95)
   task.delay(.1,function()if scope.Alive then Kit.Cue('Chime',nil,.4)end end)
-  if n>.05 then shake(.6*n,.45);Kit.Flash(C(200,242,255),1-.3*n,.35)end
+  if n>.05 then shake(.6*n,.45);if not calm then Kit.Flash(C(200,242,255),1-.3*n,.35)end end
   if n>.25 then Kit.FOVPunch(-4*n,.05,.5)end
-  scope:Ring(origin+Vector3.new(0,.2,0),CYAN,1,13,.45,{Thickness=.35})
-  if not low then scope:Ring(origin+Vector3.new(0,.25,0),WHITE,.6,8,.3,{Thickness=.18,Alpha=.35,Segments=24})end
-  -- A second, softer wave across the whole map; the lamps answer it as it passes.
-  scope:Ring(origin+Vector3.new(0,.4,0),WHITE,4,map.Radius,1.4,{Thickness=2,Alpha=.2})
-  blink(.8,origin,4,map.Radius,1.4)
+  -- Square rings, square to the dog.
+  squareWave(origin+Vector3.new(0,.2,0),face.RightVector,face.LookVector,.8,10,.45,CYAN,.35,.35,0,false)
+  if not low then squareWave(origin+Vector3.new(0,.25,0),face.RightVector,face.LookVector,.5,6,.3,WHITE,.18,.18,.35,false)end
+  -- A second, white square sweeps the whole district; the lamps answer it as it passes.
+  sweep(WHITE,LAND_T,1.1,2.6,.2,.8,.16,struck)
   if n>.05 then grade.Brightness=.22*n;Kit.Tween(grade,.35,{Brightness=0})end
   if glow then glow.Brightness=5;Kit.Tween(glow,1.4,{Brightness=shine})end
   scope:Burst(origin+Vector3.new(0,.4,0),C(214,240,255),16,{Texture=Kit.Textures.Smoke,LightEmission=.2,Drag=5,

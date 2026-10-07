@@ -1,20 +1,21 @@
 -- BIBLICALLY ACCURATE DOG, "BE NOT AFRAID". Heaven opens over the whole island. For every
 -- player, wherever they stand, the day turns gold-white (golden clouds, god rays, bloom), a
--- choir rises, the lamps turn gold and a colossal golden wheel draws itself in the sky over
--- the stage: wheels within wheels, their eyes opening one by one and all of them looking at
--- YOU (the wheel turns to face each player), the great eye last. Every dog looks up, feathers
--- fall around everyone and a seraph of light as tall as the sky rises behind the stage.
--- Pillars of light slam down on the yards one after another, then one finds every player and
--- stays on them. The wheel opens: every camera is pulled out to watch its great eye pour a
--- pillar of light onto the stage (every dog bows, a gold shockwave crosses the island) and in
--- along it to the stage act, 7 s later than it used to be: the dog comes down inside the
+-- choir rises, the lamps turn gold and a colossal golden wheel draws itself in their own
+-- sky, low over the horizon beyond the stage or ahead of them (nobody has to look up): wheels
+-- within wheels, their eyes opening one by one and all of them looking at YOU (the wheel
+-- turns to face each player), the great eye last. Every dog looks at it, feathers fall
+-- around everyone and a seraph of light as tall as the sky rises behind the stage. Pillars
+-- of light slam down on the yards one after another, then one finds every player and stays
+-- on them. The wheel opens: every camera is pulled to it as its great eye pours a beam of
+-- light down onto the stage (every dog bows, a gold shockwave crosses the whole district)
+-- and cut in to the stage act, 7 s later than it used to be: the dog comes down inside the
 -- light, turning once, to a falling harp. As it touches down its twenty eyes open in a flash
 -- and every eye in the sky blinks with it. Six orbs of luck circle it and burst one by one,
 -- six suns around the wheel with them, while its halo burns brighter; one of its rays finds
 -- you and your light counts you, twice. Then every eye closes, the light goes back up, the
--- seraph sinks, the wheel rises away and the day comes back. On the tongue the light pours
--- through the giant head into the mouth; off it (a Lucky pad, a dig, the DOG-O-MATIC) the
--- wheel hangs over the stage and the light falls in the open.
+-- seraph sinks, the wheel rises away and the day comes back, all of it gone before the
+-- arrival ends. On the tongue the light strikes the giant head and pours through the mouth's
+-- roof; off it (a Lucky pad, a dig, the DOG-O-MATIC) it falls on the stage in the open.
 local Players=game:GetService('Players')
 local SoundService=game:GetService('SoundService')
 local C=Color3.fromRGB
@@ -31,6 +32,10 @@ local SHAFT,DESCEND,LAND,ROLL,PEAK,CLOSE=7.3,7.8,9.8,10.4,13.1,13.6
 local CALM=11.6
 -- The second whisper's typing speed: its ray locks on as "you" is typed.
 local TYPE=.034
+-- Where the wheel hangs for each player: SKY_OUT studs from their camera with its hub
+-- SKY_RISE degrees over their horizon (its rim spans ~2-21°, inside a default third-person
+-- view, which sees only ~15-20° above the horizon).
+local SKY_OUT,SKY_RISE=640,11.5
 local PENTA={1,9/8,5/4,3/2,5/3,2,9/4,5/2,3,10/3,4}
 -- The eight yards' floors (04_PlayerYards/*/GroundThemeArea), from the island's centre.
 local FLOORS={}
@@ -48,8 +53,9 @@ local function curve(points)
  return NumberSequence.new(k)
 end
 local function setSkin(s:SurfaceAppearance,strength:number,tint:Color3)s.EmissiveTint=tint;s.EmissiveStrength=strength end
--- Cylinders lie along X: this stands them up.
+-- Cylinders lie along X: this stands them up; `along` lays one along a look vector.
 local upright=CFrame.Angles(0,0,math.pi/2)
+local along=CFrame.Angles(0,math.pi/2,0)
 
 return function(ctx)
  ctx.WhisperStyle={Font=Enum.Font.Garamond,Color=CREAM,Glitch=0,Chroma=false,Shake=true,Type=.085}
@@ -82,19 +88,24 @@ return function(ctx)
  local lid=roofed and top-Vector3.new(0,0,1.2)or top
  local roof=roofed and top-up*.4 or origin+up*21.3
  local RISE=roofed and 12 or 15
- -- Map scale. The wheel hangs plumb over the stage at the island's sky altitude, so its light
- -- falls straight down: on the tongue through the giant head into the mouth's roof (the shaft
- -- below goes on inside), in the open all the way to the ground. The seraph stands behind the
- -- stage as the island sees it.
- local HUB=Vector3.new(origin.X,Map.Center.Y+Map.Sky+20,origin.Z)
+ -- Map scale. The wheel (rim radius R1) hangs in each player's own sky (HUB, below) and pours
+ -- its light down onto the stage's foot: on the tongue the giant head's crown over the
+ -- mouth's roof (the shaft below goes on inside), in the open the stage itself. The seraph
+ -- stands behind the stage as the island sees it.
  local R1=100
  local foot=roofed and top+up*.6 or origin
  local away=Vector3.new(Map.Center.X-origin.X,0,Map.Center.Z-origin.Z)
  local aud=away.Magnitude>40 and away.Unit or fwd
- -- Shockwaves from the stage run along the floors (never under them, from a dig pit) and
- -- reach past the far yards.
+ -- Shockwaves from the stage run along the floors (never under them, from a dig pit) out to
+ -- the farthest corner of the district (the plaza, the museum, the lab, the DOG-O-MATIC).
  local WAVE=Vector3.new(origin.X,math.max(origin.Y,Map.Center.Y),origin.Z)
- local REACH=away.Magnitude+Map.Radius*1.1
+ local REACH=0
+ for _,x in ipairs({Map.Min.X,Map.Max.X})do
+  for _,z in ipairs({Map.Min.Z,Map.Max.Z})do REACH=math.max(REACH,Vector3.new(x-origin.X,0,z-origin.Z).Magnitude)end
+ end
+ REACH=math.clamp(REACH+60,300,1000)
+ -- The light columns fall out of the sky from this high (over the yards and every player).
+ local SKY_TOP=Map.Center.Y+Map.Sky+140
  -- The second whisper: "...it counted you twice." Its ray finds you on "you", counts on "twice".
  local spoken=config.Whispers and config.Whispers[2]
  local said,text=spoken and spoken[1]or LAND+.2,spoken and spoken[2]or ''
@@ -168,6 +179,31 @@ return function(ctx)
   end
   return nil
  end
+ -- The wheel's hub in THIS player's sky, where a default camera sees it: SKY_OUT studs from
+ -- their camera, SKY_RISE degrees up, beyond the stage as they see it when they face it
+ -- (within 70°), else straight ahead of their camera (they stand at the stage or look away
+ -- from it), swung up to 50° aside until nothing solid (the giant head, a roof) hides it.
+ local HUB:Vector3
+ do
+  local cam=workspace.CurrentCamera
+  local from=cam and cam.CFrame.Position or Kit.Me()
+  local look=cam and cam.CFrame.LookVector or fwd
+  local ahead=Vector3.new(look.X,0,look.Z)
+  ahead=ahead.Magnitude>.05 and ahead.Unit or fwd
+  local flat=Vector3.new(origin.X-from.X,0,origin.Z-from.Z)
+  flat=(flat.Magnitude>=60 and flat.Unit:Dot(ahead)>.34)and flat.Unit or ahead
+  local e=math.rad(SKY_RISE)
+  -- The bearing itself first, then the swung ones nearest where they look.
+  local turns={0,.44,-.44,.87,-.87}
+  local function seen(a:number):number return CFrame.Angles(0,a,0):VectorToWorldSpace(flat):Dot(ahead)end
+  table.sort(turns,function(a,b)if a==0 or b==0 then return a==0 and b~=0 end;return seen(a)>seen(b)end)
+  for i,a in ipairs(turns)do
+   local spot=from+CFrame.Angles(0,a,0):VectorToWorldSpace(flat)*SKY_OUT*math.cos(e)+up*SKY_OUT*math.sin(e)
+   local clear=blocked(from,spot)==nil
+   if i==1 or clear then HUB=spot end
+   if clear then break end
+  end
+ end
 
  -- 0: heaven opens over the whole island: a gold-white day, golden clouds, god rays, bloom,
  -- and a choir every player hears. The music bows out.
@@ -193,7 +229,7 @@ return function(ctx)
 
  -- The wheel: a dashed ring of gold carrying twelve eyes, a second ring turning through it
  -- with eight more, a third tumbling inside them, the great eye in the middle, and six suns
- -- waiting round it for the rolls. It turns to face whoever looks up at it, from anywhere.
+ -- waiting round it for the rolls. It turns to face whoever looks at it, from anywhere.
  local count=low and 16 or 40
  local R2,R3=R1*.78,R1*.6
  local wheel,inner,third={},{},{}
@@ -421,7 +457,6 @@ return function(ctx)
  -- Columns of light out of the sky: one on each yard (they fall, ring the ground, fade) and
  -- one on every player (it falls on them at FOUND, stays on them, counts them at the pings;
  -- yours is the brightest, and on Low the only one).
- local SKY_TOP=HUB.Y+120
  local function column(floor:Vector3,rank:number)
   local glow=scope:Part({Name='Column',Shape=Enum.PartType.Cylinder,Color=CREAM,Transparency=1,Size=Vector3.one*.1})
   local inside=(not low)and scope:Part({Name='ColumnCore',Shape=Enum.PartType.Cylinder,Color=PALE,Transparency=1,
@@ -653,14 +688,14 @@ return function(ctx)
    setAlpha(s.Part,g<.02 and 1 or .05)
    if g>=.02 then setSize(s.Part,Vector3.one*9*g*(1+.06*math.sin(el*9+k)))end
   end
-  -- The light of heaven falls from the great eye at the strike, thins after the landing and
-  -- goes back up as it closes.
+  -- The light of heaven falls from the great eye across the sky onto the stage at the
+  -- strike, thins after the landing and goes back up as it closes.
   local f=math.clamp((el-SHAFT)/.28,0,1)
   local reach=f*f*(1-smooth((el-CLOSE)/1))
-  local bottom=hub.Y+(foot.Y-hub.Y)*reach
-  local cf=CFrame.new(hub.X,(hub.Y+bottom)/2,hub.Z)*upright
+  local bottom=hub+(foot-hub)*reach
+  local cf=Kit.LookAt((hub+bottom)/2,bottom)*along
   local bw=22*(1-.45*smooth((el-LAND-.2)/.6))*(1+.03*math.sin(el*6))
-  local long=math.max(hub.Y-bottom,.1)
+  local long=math.max((bottom-hub).Magnitude,.1)
   put(pour,cf);setAlpha(pour,reach>.001 and .55+.45*gone or 1)
   if reach>.001 then setSize(pour,Vector3.new(long,bw,bw))end
   if pourCore then
@@ -709,7 +744,7 @@ return function(ctx)
   if scope.Alive then feathers.Rate=0;glints.Rate=0 end
  end)
 
- -- 4: every dog on the island looks up at it (and bows when the light strikes).
+ -- 4: every dog on the island looks at it (and bows when the light strikes).
  if not ctx:Wait(GREAT+.4)then return end
  local glance=scope:Glance(HUB,{Exclude=model,Turn=1.1,Ripple=260})
  task.spawn(function()
@@ -730,9 +765,10 @@ return function(ctx)
   if seraph and not low then seraph:Play(clip,looped)end
  end
 
- -- 4.8: the cutaway every player gets is booked (from OPEN: wide on the sky as the wheel opens
- -- and the light strikes, then in along the light to the stage for the landing), and pillars
- -- of light slam down on the yards, nearest the stage first.
+ -- 4.8: the cutaway every player gets is booked (from OPEN: from where they stand onto the
+ -- wheel as it opens, panning down its light as it strikes, then a cut in along the light
+ -- to the stage for the landing), and pillars of light slam down on the yards, nearest the
+ -- stage first.
  if not ctx:Wait(PILLARS)then return end
  fwd=facing()
  local right=fwd:Cross(up)
@@ -742,10 +778,17 @@ return function(ctx)
   if hit then from=hit+(seen-from).Unit*2 end
   return Kit.Frame(from,look)
  end
- local skyward,stage=origin+up*60,origin+up*4
+ local stage=origin+up*4
+ -- This player's camera sees the wheel (it was hung where it would); one that has since
+ -- moved behind something watches from a third of the way out from the stage instead.
+ local cam=workspace.CurrentCamera
+ local lens=cam and cam.CFrame.Position+up*3
+ local watch=(lens and not blocked(lens,HUB))and lens or origin:Lerp(HUB,.33)+up*20
+ local nearer=watch+(HUB-watch).Unit*40
  local cut=ctx:Cutaway({
-  {At=OPEN,CFrame=shot(origin+fwd*300+right*60+up*45,origin+up*110,skyward),Fov=70},
-  {At=SHAFT,CFrame=shot(origin+fwd*230+right*45+up*38,origin+up*110,skyward),Fov=68},
+  {At=OPEN,CFrame=Kit.Frame(watch,HUB),Fov=58},
+  {At=SHAFT,CFrame=Kit.Frame(nearer,HUB:Lerp(foot,.5)),Fov=66},
+  {At=SHAFT+.45,CFrame=shot(origin+fwd*70+right*14+up*16,origin+up*14,stage),Fov=66,Cut=true},
   {At=DESCEND+.8,CFrame=shot(origin+fwd*52+up*13,origin+up*9,stage),Fov=62},
   {At=LAND-.1,CFrame=shot(origin+fwd*22+right*3.5+up*5,origin+up*4.2,stage),Fov=54},
   {At=LAND+.9,CFrame=shot(origin+fwd*19+right*2.6+up*4.6,origin+up*4.5,stage),Fov=52,Linear=true},
@@ -811,7 +854,7 @@ return function(ctx)
    task.delay((i-1)*.05,function()bell(1.2*step,.18,heaven,3)end)
   end
   Kit.Cue('Impact',nil,.9);Kit.Cue('Sting',nil,.6);bell(.5,.5,nil,5)
-  scope:Ring(WAVE+up*.4,GOLD,8,REACH,2.6,{Thickness=3,Segments=48,Alpha=.12})
+  scope:Ring(WAVE+up*.4,GOLD,8,REACH,3.4,{Thickness=3,Segments=48,Alpha=.12})
   if face then scope:Ring(HUB,PALE,12,190,1.3,{U=face.RightVector,W=face.UpVector,Thickness=3,Segments=40,Alpha=.25})end
   -- Where it lands: the giant head's crown over the mouth, or the stage itself.
   local struck=blocked(HUB,foot-up*.5)or foot
@@ -857,7 +900,7 @@ return function(ctx)
   scope:Ring(origin+up*.25,SUN,1.5,22,1.3,{Thickness=.35,Segments=28})
   if not low then scope:Ring(origin+up*.3,PALE,1,13,.9,{Thickness=.18,Alpha=.35,Segments=20})end
   scope:Burst(center(),PALE,36,{Speed=NumberRange.new(8,16),Lifetime=NumberRange.new(.5,1),Drag=3,Size=NumberSequence.new(.45,0)})
-  scope:Ring(WAVE+up*.5,PALE,6,REACH,2.2,{Thickness=2.2,Segments=40,Alpha=.25})
+  scope:Ring(WAVE+up*.5,PALE,6,REACH,3,{Thickness=2.2,Segments=40,Alpha=.25})
   if cut then cut:Shake(.45,.45)end
   if not calm then
    sky:Set({Lighting={ExposureCompensation=.45},Bloom={Intensity=.95}},.15)
@@ -957,6 +1000,7 @@ return function(ctx)
  if not ctx:Wait(CLOSE+1)then return end
  unlight()
  if not ctx:Wait(hold)then return end
- -- It walks away (on a pad: stays) under the last of the light.
- ctx:Wait(hold+.5)
+ -- It walks away (on a pad: stays) under the last of the light; the arrival ends once the
+ -- wheel has risen away and the seraph has sunk (both gone by CLOSE+2.8), never on them.
+ ctx:Wait(math.max(hold+.5,CLOSE+2.8))
 end
