@@ -27,6 +27,7 @@ end
 local function holdReason()
  local left=holdUntil-os.clock()
  if left>0 then return (holdName or 'The prize')..' is arriving on the stand · try again in '..math.ceil(left)..'s'end
+ return nil
 end
 local function display(result,winner)
  clearPrize();local container=Instance.new('Model');container.Name='CommittedPrize';container.Parent=rig

@@ -85,7 +85,10 @@ local function track(model,update)
  return entry
 end
 local frame=0
-Run.PreSimulation:Connect(function(dt)
+-- Stepped just after SecretArrivals/Stare (it binds at Camera-1 and turns the vitrine copy's
+-- head as a "static" dog): this pose, Idle plus the same head turn, is the one rendered.
+-- While a stare runs every copy steps each frame, so Stare's own writes never show.
+Run:BindToRenderStep('DOGROTS_AurionShowcase',Enum.RenderPriority.Camera.Value,function(dt)
  frame+=1
  local now=workspace:GetServerTimeNow();local camera=workspace.CurrentCamera;local origin=camera and camera.CFrame.Position
  for model,entry in pairs(entries)do
@@ -100,7 +103,7 @@ Run.PreSimulation:Connect(function(dt)
   if DogLook.Current then body,head,target,bow=DogLook.For(model,entry.State,at,false)end
   if body then
    local look=entry.Look or{};look.Target,look.Body,look.Head,look.Bow=target,0,head,bow;entry.Look=look;animation.Look=look
-   if head<1 or bow~=0 then interval=1 end
+   interval=1
   elseif animation.Look then animation.Look=nil;interval=1 end
   if interval==1 or(frame+entry.Phase)%interval==0 then animation:Step(now)end
  end
@@ -131,22 +134,32 @@ local function restore(p,crown)
  p.Transparency=t;p.CanCollide=flag('CanCollide',p.CanCollide);p.CanQuery=flag('CanQuery',p.CanQuery)
  p.CanTouch=flag('CanTouch',p.CanTouch);p.CastShadow=flag('CastShadow',p.CastShadow)
 end
+-- WaitForChild without the infinite-yield warning: the court's parts stream in on their own time.
+local function child(parent,name)
+ while parent.Parent do
+  local found=parent:WaitForChild(name,30)
+  if found then return found end
+ end
+ return nil
+end
 local function buildHero()
- local court=district:WaitForChild('27_RewardMachinePlaza'):WaitForChild('Forecourt'):WaitForChild('RareRewardCourt')
- court:WaitForChild('UltraRareCrown',15)
+ local plaza=child(district,'27_RewardMachinePlaza');local forecourt=plaza and child(plaza,'Forecourt')
+ local court=forecourt and child(forecourt,'RareRewardCourt');if not court then return end
+ local crown=court:WaitForChild('UltraRareCrown',15)
  local function restoreAll()
   for _,o in ipairs(court:GetDescendants())do restore(o,o:FindFirstAncestor('UltraRareCrown')~=nil)end
  end
  restoreAll()
  -- Parts stream in (and back in) on their own; restore each one as it arrives.
  court.DescendantAdded:Connect(function(o)task.defer(function()if o.Parent then restore(o,o:FindFirstAncestor('UltraRareCrown')~=nil)end end)end)
- local cap=court:WaitForChild('PedestalCap')
+ local cap=child(court,'PedestalCap');if not cap or not cap:IsA('BasePart')then return end
  local base=Vector3.new(cap.Position.X,cap.Position.Y+cap.Size.Y/2,cap.Position.Z)
- -- Hover just above the crown's jewels.
+ -- The crown streams with the pedestal; give its jewels a moment to arrive with it.
+ if crown then crown:WaitForChild('CrownJewel',10);task.wait(.5)end
+ -- Hover just above the crown's jewels (8.5 studs up is the authored crown's top).
  local top=base.Y+5.3;local jewels={}
- local crown=court:FindFirstChild('UltraRareCrown')
  for _,p in ipairs(crown and crown:GetDescendants()or{})do
-  if p:IsA('BasePart')then local _,hi=box({p});top=math.max(top,hi.Y);if p.Name=='CrownJewel'then table.insert(jewels,p)end end
+  if p:IsA('BasePart')then local _,hi=box({p});top=math.max(top,hi.Y);if p.Name=='CrownJewel'then table.insert(jewels,p.Position+Vector3.new(0,p.Size.Y/2,0))end end
  end
  local m=copyAurion();if not m then return end
  if not Rig.Prepare(m,Vector3.new(12,9,12))then m:Destroy();return end
@@ -163,16 +176,24 @@ local function buildHero()
  local heart=Instance.new('Attachment');heart.Name='Heart';heart.Parent=anchor
  local light=Instance.new('PointLight');light.Color=COLOR;light.Range=18;light.Brightness=1.8;light.Shadows=false;light.Parent=anchor
  sparkles(heart,5,RAINBOW)
- for i,jewel in ipairs(jewels)do
+ -- The rays start on our own attachments, so a jewel streaming out later changes nothing.
+ for i,at in ipairs(jewels)do
   local foot=Instance.new('Attachment');foot.Name='Jewel'..i;foot.Parent=anchor
-  foot.Position=anchor.CFrame:PointToObjectSpace(jewel.Position+Vector3.new(0,jewel.Size.Y/2,0))
+  foot.Position=anchor.CFrame:PointToObjectSpace(at)
   local hue=Color3.fromHSV((i-1)/#jewels,.55,1)
   local beam=Instance.new('Beam');beam.Attachment0=foot;beam.Attachment1=heart;beam.FaceCamera=true;beam.Segments=1
   beam.Width0=.45;beam.Width1=.1;beam.LightEmission=1;beam.LightInfluence=0;beam.Color=ColorSequence.new(hue,Color3.new(1,1,1))
   beam.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,.25),NumberSequenceKeypoint.new(1,.75)});beam.Parent=anchor
  end
- local tag=part('AurionHeroLabel',Vector3.new(.2,.2,.2),CFrame.new(hover+Vector3.new(0,height+2.4,0)))
- label(tag,'AURION',chance..' · DOG-O-MATIC JACKPOT',UDim2.fromScale(13,3.1),Vector3.zero,170)
+ -- The name plaque stands at the pedestal's foot on the carpet side (+Z): above the dog
+ -- SecretAuras already floats its "SECRET" nameplate.
+ local reach=4.5
+ for _,name in ipairs({'PedestalStep','PedestalBase','PedestalCap'})do
+  local p=court:FindFirstChild(name)
+  if p and p:IsA('BasePart')then local lo,hi=box({p});reach=math.max(reach,hi.Z-base.Z,base.Z-lo.Z)end
+ end
+ local tag=part('AurionHeroLabel',Vector3.new(.2,.2,.2),CFrame.new(base.X,base.Y+1.6,base.Z+reach+1.2))
+ label(tag,'AURION',chance..' · DOG-O-MATIC JACKPOT',UDim2.fromScale(12,2.9),Vector3.zero,170)
  local heartRest=heart.Position
  track(m,function(_,_,distance)
   if distance>300 then return end
@@ -249,6 +270,7 @@ local function find(name)
   if model and model:IsA('Model')then return model end
   task.wait(1)
  end
+ return nil
 end
 -- The vitrine copy floated 2.8 studs over its plinth with its snout through the glass. Set it
 -- on the plinth, looking out toward the reveal stand, shrunk only as much as the case needs.

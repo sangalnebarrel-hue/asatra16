@@ -187,7 +187,9 @@ local function cameraOpen()
  local camera=workspace.CurrentCamera;if not camera or cameraSession then return end
  cameraSession={Camera=camera,Type=camera.CameraType,Subject=camera.CameraSubject,FieldOfView=camera:GetAttribute('SecretZoom')or camera.FieldOfView,CFrame=camera.CFrame,Focus=camera.Focus,Geometry=cameraGeometry(),Snap=true,LabelRestore={}}
  local prize=rig:FindFirstChild('CommittedPrize');if prize then for _,object in ipairs(prize:GetDescendants())do hidePrizeLabel(object)end end
- camera.CameraType=Enum.CameraType.Scriptable;returnAt=0
+ -- Keep a reveal that is still running for this player (a Studio preview opens the machine
+ -- after its cue arrived); anything older is over.
+ camera.CameraType=Enum.CameraType.Scriptable;returnAt=ownReturn>workspace:GetServerTimeNow()and ownReturn or 0
 end
 local function cameraClose()
  local previous=cameraSession;if not previous then return end;cameraSession=nil

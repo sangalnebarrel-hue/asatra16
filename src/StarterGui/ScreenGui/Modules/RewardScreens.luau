@@ -204,7 +204,7 @@ local function prizeRarity(row)
  return row.Rarity or(def and def.Rarity)or({Cash='Coins',Bones='Bones',Boost='Boost'})[row.Kind]or row.Kind or'Reward'
 end
 local function chanceText(row)return row.ChanceText or string.format('%.2f%%',(row.Chance or 0)*100)end
-local function jackpotRow(rewards)for _,row in ipairs(rewards or{})do if row.Jackpot then return row end end end
+local function jackpotRow(rewards)for _,row in ipairs(rewards or{})do if row.Jackpot then return row end end;return nil end
 -- The jackpot first, with its 3D model: ULTRA RARE JACKPOT · 0.01%.
 local function jackpotCard(c,parent,row,x,y,w)
  local U=c.U
@@ -255,7 +255,8 @@ function S.WorldRewardMachine(c)
  local ready=total>0 and info.CanSpin~=false and info.InRange~=false and not cooling and not spinning and not s.RewardBusy and not holding and not drumBusy
  local getSpins=total==0 and buy and info.InRange~=false and not spinning and not s.RewardBusy
  U.Text(panel,U.Fmt(total)..(wide and tokenWord(total)or total==1 and' TOKEN'or' TOKENS'),12,wide and 9 or 24,wide and 190 or 131,28,wide and 23 or 18,P.text,true)
- U.Text(panel,'FREE '..free..'/1'..(paid>0 and(' · PAID '..U.Fmt(paid)..(spendable and''or' KEPT'))or''),wide and 12 or 145,wide and 36 or 26,wide and 190 or W-195,23,wide and 15 or 13,P.purple,true)
+ -- Paid tokens this account may not use are shown as kept, not as spins.
+ U.Text(panel,'FREE '..free..'/1'..(paid>0 and(spendable and' · PAID '..U.Fmt(paid)or' · '..U.Fmt(paid)..' KEPT')or''),wide and 12 or 145,wide and 36 or 26,wide and 190 or W-195,23,wide and 15 or 13,P.purple,true)
  local at=tonumber(info.NextFreeTicketAt or info.NextTicketAt)or 0
  local statusText=spinning and'Watch the reward drum!'or holding and(tostring(holdName or'The prize')..' is arriving!')or free>0 and'FREE READY · 1 / 5H'or'Free in '..clockText(at-c.Now())
  local reason=info.CanSpin==false and total>0 and info.UnavailableReason
@@ -300,9 +301,9 @@ function S.WorldRewardMachine(c)
    local _,_,width,height=U.SafeArea(c.Gui);local ow=math.min(460,width-28);local oh=math.min(470,height-28)
    -- Rebuild only when the chances or the size change: the rail redraws every few seconds
    -- and 3D thumbnails should not flicker.
-   local key={tostring(ow),tostring(oh)}
-   for _,row in ipairs(info.Rewards or{})do table.insert(key,tostring(row.Name)..':'..tostring(row.ChanceUnits or row.Chance))end
-   key=table.concat(key,'|')
+   local parts={tostring(ow),tostring(oh)}
+   for _,row in ipairs(info.Rewards or{})do table.insert(parts,tostring(row.Name)..':'..tostring(row.ChanceUnits or row.Chance))end
+   local key=table.concat(parts,'|')
    if not old or old:GetAttribute('OddsKey')~=key then
     local previous=old and old:FindFirstChild('OddsList',true);local savedScroll=previous and previous.CanvasPosition
     if old then old:Destroy()end
@@ -354,6 +355,18 @@ function S.RewardMachine(c)
   U.Center(chance,chanceText(row),3,0,cw-22,25,18,P.text,true)
  end
 end
+-- The live Robux price of a product once it is known (nil before): the price the server
+-- publishes with each product's kind (ReplicatedStorage.ProductKinds) or ProductPricing's
+-- own lookup. Only used for the per-spin hint; the Buy button always comes from Quote.
+local function knownPrice(Pricing,id)
+ local kinds=RS:FindFirstChild('ProductKinds')
+ if kinds and kinds:IsA('ModuleScript')then
+  local ok,price=pcall(function()return require(kinds).Price(id)end)
+  if ok and type(price)=='number'then return price end
+ end
+ local entry=type(Pricing.Cache)=='table'and Pricing.Cache[id]
+ return type(entry)=='table'and tonumber(entry.Price)or nil
+end
 -- GET SPINS: DOG TOKEN packs (live Roblox prices through ProductPricing), with every chance
 -- shown on the same page before anything is bought. Accounts that may not buy paid random
 -- items see why instead of a Buy button.
@@ -364,7 +377,13 @@ function S.TicketShop(c)
  local sc=U.Scroll(c.Parent,'DogTokenShop',0,0,W,c.H)
  local y=wallet(c,sc,info)
  local _,_,paid=tokens(info)
- U.Text(sc,'GET MORE SPINS',12,y,W-32,40,26,P.purple,true);y+=46
+ -- Set once the chances list is laid out; the CHANCES button scrolls to it.
+ local oddsAt
+ local function showChances()if oddsAt then sc.CanvasPosition=Vector2.new(0,math.max(0,oddsAt-6))end end
+ local narrow=W<480
+ U.Text(sc,'GET MORE SPINS',12,y,narrow and W-32 or W-182,40,26,P.purple,true)
+ if narrow then y+=42 end
+ U.Button(sc,'ShowChances','SEE CHANCES',narrow and 8 or W-162,narrow and y or y+2,narrow and W-24 or 146,36,showChances,P.blue).Caption.TextSize=15;y+=46
  local jackpot=jackpotRow(info.Rewards)
  if not salesOpen(info)then
   U.Text(sc,'DOG TOKEN sales are paused right now. Your free DOG TOKEN still arrives 5 hours after use'..(paid>0 and', and the paid DOG TOKENS you own are kept.'or'.'),12,y,W-32,66,17,P.text);y+=74
@@ -382,8 +401,7 @@ function S.TicketShop(c)
   -- Per-spin price from the live Roblox price once it is known; the lowest one is marked.
   local per,best={},nil
   for _,row in ipairs(rows)do
-   local entry=type(Pricing.Cache)=='table'and Pricing.Cache[row.ProductId]
-   local price=type(entry)=='table'and tonumber(entry.Price)
+   local price=knownPrice(Pricing,row.ProductId)
    if price and(tonumber(row.Count)or 0)>0 then per[row]=price/row.Count;if not best or per[row]<per[best]then best=row end end
   end
   for i,row in ipairs(rows)do
@@ -404,7 +422,8 @@ function S.TicketShop(c)
   y+=math.ceil(#rows/cols)*(ch+12)
  end
  local message=s.CommerceMessage
- if message and message~=''then U.Text(sc,tostring(message),12,y,W-32,44,16,P.red,true);y+=50 end
+ if message and message~=''then U.Text(sc,tostring(message),12,y,W-32,44,16,P.text,true);y+=50 end
+ oddsAt=y
  U.Text(sc,'CHANCES FOR EVERY DOG TOKEN',12,y,W-32,34,22,P.text,true);y+=40
  y=oddsList(c,sc,info.Rewards,y,W-24)+6
  U.Text(sc,'The free DOG TOKEN is always used first. One DOG TOKEN = one activation at DOG-O-MATIC PLAZA, with exactly these chances. Paid DOG TOKENS never expire.',12,y,W-32,66,15,P.muted);y+=74

@@ -38,7 +38,8 @@ while player.Parent do
   if snapshot then
    local now=snapshot.ServerNow+(os.clock()-fetchedAt);local free=snapshot.FreeTickets or 0
    -- Paid DOG TOKENS count only where this account may use them (PolicyService).
-   local paid=(snapshot.FreeOnly~=true and snapshot.PaidRandomAllowed==true)and(snapshot.PaidTickets or 0)or 0
+   local spendable=snapshot.PaidSpendable==true or(snapshot.PaidSpendable==nil and snapshot.FreeOnly~=true and snapshot.PaidRandomAllowed==true)
+   local paid=spendable and(tonumber(snapshot.PaidTickets)or 0)or 0
    local status=free>=1 and 'READY TO ACTIVATE'or paid>0 and 'PAID DOG TOKENS READY'or 'NEXT FREE DOG TOKEN  '..clockText((snapshot.NextTicketAt or 0)-now)
    board.Status.Text=(paid>0 and 'YOUR DOG TOKENS '..(free+paid)..' · FREE '..free..'/1'or 'FREE DOG TOKEN '..free..'/1')..'\n'..status
    if prompt then prompt.ActionText=free+paid>=1 and 'ACTIVATE · 1 DOG TOKEN'or 'VIEW';prompt.ObjectText='DOG-O-MATIC'end

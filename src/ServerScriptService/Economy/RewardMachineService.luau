@@ -112,7 +112,7 @@ function S.Request(player,action,a,worldAuthorized)
  local runtime=require(script.Parent.Runtime)
  if not runtime.Ready(player)or not runtime.Allow(player,1)then return false,'Please wait'end
  if action=='RewardMachineProduct'then
-  if type(a)~='table'then return false,'Choose a ticket pack'end
+  if type(a)~='table'then return false,'Choose a DOG TOKEN pack'end
   return true,Purchases.Product(player,a.Key)
  end
  if action=='RewardMachineInfo'then

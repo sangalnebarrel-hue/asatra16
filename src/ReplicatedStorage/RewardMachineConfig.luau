@@ -1,5 +1,6 @@
 -- DOG TOKENS: one free token refills five hours after use (it holds one), and extra tokens
--- are sold as developer products (Lucky Spin 1, Lucky Bundle 5, Mega Spin Bundle 15).
+-- are sold for Robux (Lucky Spin 1, Lucky Bundle 5, Mega Spin Bundle 15; GET SPINS at the
+-- machine and the shop's Spins tab).
 -- The free token is always spent first; paid tokens never expire and are spent only by
 -- accounts whose PolicyService allows paid random items (others keep them).
 -- All outcomes occupy integer slots in the same 10,000-slot server pool shown
