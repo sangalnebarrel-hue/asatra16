@@ -66,11 +66,15 @@ C.Map = {
 
 C.Dogs = {
 	Cubedog = {
-		Hold = 5.5,
-		Clips = { { 0, "Idle", true }, { 2.3, "Impact" }, { 3.2, "Flip" }, { 4.2, "Happy" } },
-		Whispers = { { 0.3, "something with six flat sides is coming." }, { 2.4, "every side of it is the front." } },
+		-- Dogs/Cubedog: the map-wide act runs 7.2 s (PRE) before the stage act; the cube
+		-- lands at 9.5, the flip at 10.4, the happy spin at 11.4.
+		Hold = 12.7,
+		FreezeLine = true,
+		Clips = { { 0, "Idle", true }, { 9.5, "Impact" }, { 10.4, "Flip" }, { 11.4, "Happy" } },
+		Whispers = { { 0.3, "something with six flat sides is coming." }, { 9.6, "every side of it is the front." } },
 		Title = "CUBEDOG",
 		Color = Color3.fromRGB(86, 214, 255),
+		Banner = { At = 0.15, Style = "Glitch", Kicker = "■  SECRET DOG · SIX SIDES  ■", Text = "A PERFECT CUBE IS DRAWING ITSELF IN YOUR SKY", Hold = 3 },
 	},
 	Dogdogdogdog = {
 		Hold = 6.6,
@@ -83,14 +87,18 @@ C.Dogs = {
 		Color = Color3.fromRGB(255, 196, 64),
 	},
 	Spiderdog = {
-		Hold = 6.2,
-		Clips = { { 0, "Run", true }, { 2.9, "Ability_MultiDig" } },
+		-- Dogs/Spiderdog: the stage act starts 9.2 s (STAGE) in; it lands at 12.05 and digs
+		-- from 12.1 to 15.4.
+		Hold = 15.4,
+		FreezeLine = true,
+		Clips = { { 0, "Run", true }, { 12.1, "Ability_MultiDig" } },
 		Whispers = {
 			{ 0.3, "you checked under the bed. you never checked the ceiling." },
-			{ 3.0, "eight legs. zero questions." },
+			{ 12.2, "eight legs. zero questions." },
 		},
 		Title = "SPIDERDOG",
 		Color = Color3.fromRGB(255, 120, 40),
+		Banner = { At = 0.15, Style = "Horror", Kicker = "EIGHT LEGS · EIGHT EYES", Text = "THE LIGHTS ARE GOING OUT", Hold = 2.8 },
 	},
 	WrongDog = {
 		-- Dogs/WrongDog: the island turns wrong first; the dog is on its stage from 5.4 (hidden
@@ -113,9 +121,13 @@ C.Dogs = {
 		Color = Color3.fromRGB(255, 40, 40),
 	},
 	NuclearPug = {
-		Hold = 6.6,
-		Clips = { { 0, "Idle", true }, { 1.2, "Radiation_Cloud" }, { 4.2, "Result_Success" } },
-		Whispers = { { 0.3, "geiger counter: barking." }, { 4.4, "half-life: forever. good boy: also forever." } },
+		-- Dogs/NuclearPug: the countdown runs 5 s (PRE) before the pug appears; it charges at
+		-- 6.2, blows at 6.6, the cloud lets go at 9.2 and everything eases back from 12
+		-- (Hold - 3). It shows its own Toxic radiation alert (ctx.ManualBanner).
+		Hold = 15,
+		FreezeLine = true,
+		Clips = { { 0, "Idle", true }, { 6.2, "Radiation_Cloud" }, { 9.2, "Result_Success" } },
+		Whispers = { { 0.3, "geiger counter: barking." }, { 9.4, "half-life: forever. good boy: also forever." } },
 		Title = "NUCLEAR PUG",
 		Color = Color3.fromRGB(150, 255, 60),
 	},
@@ -135,14 +147,19 @@ C.Dogs = {
 		Color = Color3.fromRGB(255, 0, 255),
 	},
 	DivineDog = {
-		Hold = 7,
-		Clips = { { 0, "Levitate_Walk", true }, { 2.8, "Blink" }, { 3.4, "Ability_MultiRoll" }, { 6.6, "Blink" } },
+		-- Dogs/DivineDog: it lands at 9.8 (Blink), rolls at 10.4, its eyes close at 13.6
+		-- (Blink); the light, the wheel and the seraph are gone by 16.4, after it sets off.
+		-- The second whisper's typing times the ray that counts you: keep it at 10.0.
+		Hold = 15,
+		FreezeLine = true,
+		Clips = { { 0, "Levitate_Walk", true }, { 9.8, "Blink" }, { 10.4, "Ability_MultiRoll" }, { 13.6, "Blink" } },
 		Whispers = {
 			{ 0.2, "BE NOT AFRAID." },
-			{ 3.0, "it has counted every dog that ever lived. it counted you twice." },
+			{ 10.0, "it has counted every dog that ever lived. it counted you twice." },
 		},
 		Title = "BIBLICALLY ACCURATE DOG",
 		Color = Color3.fromRGB(255, 236, 170),
+		Banner = { At = 0.15, Style = "Divine", Kicker = "✦  A SECRET DOG DESCENDS  ✦", Text = "HEAVEN IS OPENING OVER THE ISLAND", Hold = 3.2 },
 	},
 	-- Never on the tongue: these arrive where they are obtained (SecretReveal).
 	LongDog = {

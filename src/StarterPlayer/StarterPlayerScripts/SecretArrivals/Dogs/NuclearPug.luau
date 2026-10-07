@@ -2,9 +2,10 @@
 -- counter starts clicking for every player and will not stop, a radiation alert crosses
 -- every screen (saying where, and who set it off), the sky curdles a sickly green, every
 -- light in the district turns green (and the giant head's eyes), radioactive motes rise
--- around every player, a colossal radiation trefoil assembles in the sky (out in front of the
--- giant head on the tongue), every dog on the island looks up at it and a countdown runs on
--- every screen: 5 at 1.6 ... 0 at 6.6. At 4.4 every camera is pulled to the stage. At 5 the
+-- around every player, a colossal radiation trefoil assembles in every player's own sky (low
+-- over the horizon beyond the stage or ahead of them, so nobody has to look up), every dog on
+-- the island looks at it and a countdown runs on every screen: 5 at 1.6 ... 0 at 6.6. At 4.4
+-- every camera is pulled onto the trefoil, then cut to the stage. At 5 the
 -- pug appears in a hiss of steam and the stage act plays as before, 5 s later: a hazard plate
 -- lights under it, three hazard rings lift off the belt and spin faster with the clicks, the
 -- mouth's runes glow toxic. At 6.2 the reactor on its back lights, green sparks rush into it,
@@ -36,11 +37,11 @@ local CHARGE,BOOM,CLEAR=PRE+1.2,PRE+1.6,PRE+4.2
 -- The trefoil assembles, the countdown shows 5 (a number a second, 0 at the blast), the
 -- cutaway's first shot, the ghost pug fades in inside the cap.
 local SIGN,COUNT,CUT,GHOST=1.2,BOOM-5,PRE-.6,BOOM+2
--- The blast wave crosses the district in WAVE_T seconds. The trefoil hangs LIFT over the
--- stage (on the tongue AHEAD studs out in front of the giant head, in open sky, where the
--- yards look); R0 is its centre disc's radius and the blades run from 1.5x to 5x it, as on
--- the real sign. BEAM: the reactor's beam into the sky.
-local WAVE_T,LIFT,AHEAD,R0,BEAM=6,125,50,11,700
+-- The blast wave crosses the district in WAVE_T seconds. The trefoil hangs SIGN_OUT studs
+-- from each player's camera, its centre SIGN_RISE degrees over their horizon (it spans
+-- ~5-19°, inside a default third-person view); R0 is its centre disc's radius and the
+-- blades run from 1.5x to 5x it, as on the real sign. BEAM: the reactor's beam into the sky.
+local WAVE_T,SIGN_OUT,SIGN_RISE,R0,BEAM=6,430,12,11,700
 -- The hazard rings: resting height above the belt and spin direction.
 local RINGS={{.25,1},{3,-1},{6,1}}
 local BONES={'Vent_L','Vent_R','Body'}
@@ -378,9 +379,47 @@ return function(ctx)
   local flat=Vector3.new(f.X,0,f.Z)
   return flat.Magnitude>.1 and flat.Unit or Vector3.zAxis
  end
+ -- Can this point be seen from `from`? (Nothing solid and visible between them: not the
+ -- dog, the players or this arrival's own parts.)
+ local function sees(from:Vector3,to:Vector3):boolean
+  local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.IgnoreWater=true
+  local skip:{Instance}={model,scope.Folder}
+  for _,p in ipairs(Players:GetPlayers())do if p.Character then table.insert(skip,p.Character)end end
+  for _=1,6 do
+   params.FilterDescendantsInstances=skip
+   local hit=workspace:Raycast(from,to-from,params)
+   if not hit then return true end
+   if hit.Instance.Transparency<.9 then return false end
+   table.insert(skip,hit.Instance)
+  end
+  return true
+ end
  -- The trefoil: a centre disc and three blades of radial bars (two up, one down) in its own
- -- plane, turned to this camera every frame and spun about its face.
- local signAt=origin+(onTongue and front()*AHEAD or Vector3.zero)+Vector3.new(0,LIFT,0)
+ -- plane, turned to this camera every frame and spun about its face. It hangs in THIS
+ -- player's sky, beyond the stage as they see it when they face it (within 70°), else
+ -- straight ahead of their camera (they stand at the stage or look away from it), swung up
+ -- to 50° aside until nothing solid (the giant head, a roof) hides it.
+ local signAt:Vector3
+ do
+  local cam=workspace.CurrentCamera
+  local from=cam and cam.CFrame.Position or Kit.Me()
+  local gaze=cam and cam.CFrame.LookVector or front()
+  local ahead=Vector3.new(gaze.X,0,gaze.Z)
+  ahead=ahead.Magnitude>.05 and ahead.Unit or front()
+  local flat=Vector3.new(origin.X-from.X,0,origin.Z-from.Z)
+  flat=(flat.Magnitude>=60 and flat.Unit:Dot(ahead)>.34)and flat.Unit or ahead
+  local e=math.rad(SIGN_RISE)
+  -- The bearing itself first, then the swung ones nearest where they look.
+  local swings={0,.44,-.44,.87,-.87}
+  local function toward(a:number):number return CFrame.Angles(0,a,0):VectorToWorldSpace(flat):Dot(ahead)end
+  table.sort(swings,function(a,b)if a==0 or b==0 then return a==0 and b~=0 end;return toward(a)>toward(b)end)
+  for i,a in ipairs(swings)do
+   local spot=from+CFrame.Angles(0,a,0):VectorToWorldSpace(flat)*SIGN_OUT*math.cos(e)+Vector3.new(0,SIGN_OUT*math.sin(e),0)
+   local clear=sees(from,spot)
+   if i==1 or clear then signAt=spot end
+   if clear then break end
+  end
+ end
  local signParts:{BasePart}={}
  local signLayout={}
  local signCF:{CFrame}={}
@@ -921,29 +960,43 @@ return function(ctx)
   table.insert(unlit,release)
   tint(p,{Color=irisColor})
  end
- -- 1.2: the trefoil assembles in the sky over the stage.
+ -- 1.2: the trefoil assembles in this player's sky.
  if not ctx:Wait(SIGN)then return end
  if fresh(SIGN)then Kit.Cue('Whoosh',nil,.5)end
- -- 2: every dog on the island looks up at it.
+ -- 2: every dog on the island looks at it.
  if not ctx:Wait(2)then return end
  if ctx:Elapsed()<PRE-.6 then glance=scope:Glance(signAt,{Exclude=model,Turn=.8,Ripple=260})end
- -- PRE-1: the cutaway, built once the dog (and its facing) has streamed in. Wide on the
- -- green sky and the trefoil, a dive to the mouth, close on the reactor; at the blast the
- -- side of the island as the wave crosses it, then back to see the cloud over the stage.
+ -- PRE-1: the cutaway, built once the dog (and its facing) has streamed in. From where this
+ -- player stands onto the pulsing trefoil (their camera saw it; one that has since moved
+ -- behind something gets the wide shot of the green sky over the stage), a cut down to the
+ -- mouth as the pug appears, close on the reactor; at the blast the side of the island as
+ -- the wave crosses it, then back to see the cloud over the stage.
  if not ctx:Wait(PRE-1)then return end
  do
   local F=front()
   local S=F:Cross(Vector3.yAxis)
   local function at(a:number,b:number,c:number):Vector3 return origin+F*a+S*b+Vector3.new(0,c,0)end
-  cutaway=ctx:Cutaway({
-   {At=CUT,CFrame=Kit.Frame(at(150,-70,85),at(0,0,80)),Fov=70},
+  local cam=workspace.CurrentCamera
+  local lens=cam and cam.CFrame.Position+Vector3.new(0,3,0)
+  local shots
+  if lens and sees(lens,signAt)then
+   shots={
+    {At=CUT,CFrame=Kit.Frame(lens,signAt),Fov=60},
+    {At=PRE-.15,CFrame=Kit.Frame(lens+(signAt-lens).Unit*25,signAt),Fov=50},
+    {At=PRE-.1,CFrame=Kit.Frame(at(64,-24,30),at(0,0,7)),Fov=64,Cut=true},
+   }
+  else
+   shots={{At=CUT,CFrame=Kit.Frame(at(150,-70,85),at(0,0,80)),Fov=70}}
+  end
+  for _,s in ipairs({
    {At=PRE+.35,CFrame=Kit.Frame(at(52,-20,26),at(0,0,7)),Fov=62},
    {At=BOOM-.1,CFrame=Kit.Frame(at(13,-5,6),at(0,0,3.6)),Fov=54},
    {At=BOOM+.05,CFrame=Kit.Frame(at(11.4,-4.4,5.6),at(0,0,3.6)),Fov=50,Linear=true},
    {At=BOOM+.08,CFrame=Kit.Frame(at(120,-180,70),at(110,0,25)),Fov=80,Cut=true},
    {At=BOOM+1.15,CFrame=Kit.Frame(at(128,-172,72),at(118,0,40)),Fov=78,Linear=true},
    {At=BOOM+2.55,CFrame=Kit.Frame(at(205,-62,44),at(0,0,150)),Fov=80},
-  },{Focus=origin,Bars=.08})
+  })do table.insert(shots,s)end
+  cutaway=ctx:Cutaway(shots,{Focus=origin,Bars=.08})
  end
  if not ctx:Wait(PRE-.2)then return end
  if glance then glance:Stop(1);glance=nil end

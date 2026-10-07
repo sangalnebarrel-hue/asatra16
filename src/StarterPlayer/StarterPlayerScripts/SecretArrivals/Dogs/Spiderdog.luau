@@ -3,18 +3,21 @@
 -- is shot across the sky, strand by strand from every horizon to a hub high over the island,
 -- and spun round, outside in, while little Spiderdogs drop on silk threads all around every
 -- player (out of the ceiling, indoors) and hang there upside down, turning. Eight colossal
--- orange eyes open at the hub, every dog on the island looks up, and a giant Spiderdog
--- takes shape round them, crawls down the web toward the stage (the strand shivers under
--- it), lowers itself on a silk line and drops into the roof; the dogs cower. Every camera
--- follows it in (the cutaway) for the stage act: the mouth is already dark. Eight orange
--- eyes open up in the roof and a web is shot across the tunnel, strand by strand. The dog
--- drops in upside down on a silk line, legs scuttling, and creeps down, swinging. The line
--- snaps: it flips, lands, the web tears down behind it, and its eight legs dig, each kick
--- lighting one of the mouth's eight runes. On the landing a shockwave rolls across the
--- island, the sky web falls, the little ones climb away, the lights come back on and the
--- night lifts. Off the tongue the giant drops onto the pad instead of the giant head's roof,
--- the web is a tent over the pad, the eyes open in a knot of shadow at its top and the legs
--- light eight stakes round it.
+-- orange eyes open on the web low in each player's own sky, right where they are looking
+-- (nobody has to look up), every dog on the island looks at them, and a giant Spiderdog
+-- takes shape round them, creeps along its strand (it shivers under it), leaps across the
+-- sky to the hub's first strand, runs down it toward the stage, lowers itself on a silk
+-- line and drops into the roof; the dogs cower. Every camera follows it in (the cutaway)
+-- for the stage act: the mouth is already dark. Eight orange eyes open up in the roof and a
+-- web is shot across the tunnel, strand by strand. The dog drops in upside down on a silk
+-- line, legs scuttling, and creeps down, swinging. The line snaps: it flips, lands, the web
+-- tears down behind it, and its eight legs dig, each kick lighting one of the mouth's eight
+-- runes. On the landing the sky web falls and comes down over the whole district as a
+-- spreading web of light (to the plaza, the museum and the DOG-O-MATIC): as it passes each
+-- player it jolts them and their lights come back on with a crackle; the little ones climb
+-- away and the night lifts. Off the tongue the giant drops onto the pad instead of the
+-- giant head's roof, the web is a tent over the pad, the eyes open in a knot of shadow at
+-- its top and the legs light eight stakes round it.
 local SoundService=game:GetService('SoundService')
 local Players=game:GetService('Players')
 local TweenService=game:GetService('TweenService')
@@ -151,12 +154,16 @@ return function(ctx)
  else
   R=origin+up*18
   anchors,fan={},{}
-  for i=1,10 do
-   local slot=(i-1)*3%10
-   local a=slot/10*math.pi*2
-   anchors[i]=floored(origin+(right*math.cos(a)+fwd*math.sin(a))*10.5)+up*.05
-   fan[slot+1]=i
+  -- Pegged round the pad from its facing (re-pegged once the real facing streams in).
+  local function pitch()
+   for i=1,10 do
+    local slot=(i-1)*3%10
+    local a=slot/10*math.pi*2
+    anchors[i]=floored(origin+(right*math.cos(a)+fwd*math.sin(a))*10.5)+up*.05
+    fan[slot+1]=i
+   end
   end
+  pitch();table.insert(placers,pitch)
   closed=true
  end
  local Rh=R.Y-origin.Y
@@ -219,24 +226,111 @@ return function(ctx)
   if i~=1 and i~=N/2+1 then a+=seeded:NextNumber(-.14,.14)end
   horizon[i]=Vector3.new(apex.X,island.Y+4,apex.Z)+CFrame.Angles(0,a,0):VectorToWorldSpace(dir)*REACH
  end
- -- The first strand, `r` flat studs out from the hub.
+ -- A point on strand k, a fraction f of the way out from the hub; the first strand (the one
+ -- out beyond the nest) `r` flat studs out.
+ local function on(k:number,f:number):Vector3 return apex+(horizon[k]-apex)*f end
  local slope=(horizon[1]-apex).Unit
- local function strand(r:number):Vector3 return apex+(horizon[1]-apex)*(r/REACH)end
+ local function strand(r:number):Vector3 return on(1,r/REACH)end
  local HALF=GIANT/2
  local perch=strand(span)
+ local PERCH=span/REACH
  -- After lowering itself it falls until its back is deep in the roof (or ~30 over the pad).
  local falling=math.max(20,perch.Y-GIANT-LOWERING-(roofed and nest.Y-30 or origin.Y+30))
- -- The giant at time e (its centre, upside down under the strand, facing down it) and how
- -- see-through it is.
+ -- Can this point be seen from `from`? (Nothing solid and visible between them: not the
+ -- dog, the players or this arrival's own parts.)
+ local function sees(from:Vector3,to:Vector3):boolean
+  local look=RaycastParams.new();look.FilterType=Enum.RaycastFilterType.Exclude;look.IgnoreWater=true
+  local skip:{Instance}={model,scope.Folder}
+  for _,player in ipairs(Players:GetPlayers())do if player.Character then table.insert(skip,player.Character)end end
+  for _=1,6 do
+   look.FilterDescendantsInstances=skip
+   local hit=workspace:Raycast(from,to-from,look)
+   if not hit then return true end
+   if hit.Instance.Transparency<.9 then return false end
+   table.insert(skip,hit.Instance)
+  end
+  return true
+ end
+ -- Where the giant shows itself to THIS player: on the strand most in front of their camera,
+ -- as far out as puts it SHOWN degrees over their horizon (inside a default third-person
+ -- view, which sees only ~15-20° up), with nothing solid in between; failing that on the
+ -- nearest-to-view strand that can be seen, and only if none can, at the hub. It creeps in
+ -- along that strand, leaps across the sky to the top of the first strand and runs down it
+ -- to its perch over the nest (on the first strand already, it just crawls).
+ local SHOWN=14
+ local K0,F0=1,0
+ do
+  local cam=workspace.CurrentCamera
+  local eye=cam and cam.CFrame.Position or Kit.Me()
+  local look=cam and cam.CFrame.LookVector or fwd
+  local ahead=Vector3.new(look.X,0,look.Z)
+  ahead=ahead.Magnitude>.05 and ahead.Unit or fwd
+  -- Each strand's spot nearest SHOWN degrees up (within 7), scored by how far it is from
+  -- where they look and how far off that height.
+  local picks={}
+  for k=1,N do
+   local best
+   for step=2,32 do
+    local f=step*.03
+    local c=on(k,f)-up*HALF
+    local d=c-eye
+    local flat=Vector3.new(d.X,0,d.Z)
+    if flat.Magnitude>80 then
+     local miss=math.abs(math.deg(math.atan2(d.Y,flat.Magnitude))-SHOWN)
+     local off=math.deg(math.acos(math.clamp(flat.Unit:Dot(ahead),-1,1)))
+     local score=off+2*miss
+     if miss<7 and(not best or score<best.Score)then best={K=k,F=f,At=c,Score=score}end
+    end
+   end
+   if best then table.insert(picks,best)end
+  end
+  table.sort(picks,function(a,b)return a.Score<b.Score end)
+  for _,p in ipairs(picks)do
+   if sees(eye,p.At)then K0,F0=p.K,p.F;break end
+  end
+ end
+ -- The leap (from LEAP0 to LEAP1, ARC studs over the straight line), from FROM on strand K0
+ -- (at most 60 studs in from where it showed itself) to ATOP on the first strand, just
+ -- under the hub.
+ local LEAP0,LEAP1,ARC,ATOP=CRAWL+.45,CRAWL+1.75,80,.04
+ local FROM=math.max(ATOP,F0-60/math.max((horizon[K0]-apex).Magnitude,1))
+ local inward=(apex-horizon[K0]).Unit
+ local function turned(a:Vector3,b:Vector3,u:number):Vector3
+  local v=a:Lerp(b,smooth(u))
+  return v.Magnitude>.05 and v.Unit or b
+ end
+ -- The giant at time e (its centre, upside down under the web, facing the way it goes) and
+ -- how see-through it is.
  local function giantAt(e:number):(CFrame,number)
-  local r=span*sine((e-CRAWL)/(LOWER-CRAWL))
+  local at,heading
+  if K0==1 then
+   at=on(1,F0+(PERCH-F0)*sine((e-CRAWL)/(LOWER-CRAWL)))
+   heading=PERCH>=F0 and slope or -slope
+  elseif e<LEAP0 then
+   at=on(K0,F0+(FROM-F0)*sine((e-CRAWL)/(LEAP0-CRAWL)));heading=inward
+  elseif e<LEAP1 then
+   local u=(e-LEAP0)/(LEAP1-LEAP0)
+   local s=smooth(u)
+   local a,b=on(K0,FROM),on(1,ATOP)
+   at=a:Lerp(b,s)+up*(ARC*4*s*(1-s))
+   local tangent=(b-a)+up*(ARC*4*(1-2*s))
+   -- Never straight up or down (it would spin about its own back).
+   local level=Vector3.new(tangent.X,0,tangent.Z)
+   if level.Magnitude<.3*tangent.Magnitude then
+    tangent=(level.Magnitude>.05 and level.Unit or slope)+up*(tangent.Y>=0 and 2 or -2)
+   end
+   tangent=tangent.Magnitude>.05 and tangent.Unit or slope
+   heading=turned(turned(inward,tangent,u/.25),slope,(u-.75)/.25)
+  else
+   at=on(1,ATOP+(PERCH-ATOP)*sine((e-LEAP1)/(LOWER-LEAP1)));heading=slope
+  end
   local drop,alpha=0,0
   if e>=FALL then
    local x=math.min((e-FALL)/(GONE-FALL),1)
    drop=LOWERING+falling*x*x;alpha=smooth((x-.3)/.7)
   elseif e>=LOWER then drop=LOWERING*sine((e-LOWER)/(FALL-LOWER))end
-  local centre=strand(r)-up*(HALF+drop)
-  return CFrame.lookAt(centre,centre+slope,-up),alpha
+  local centre=at-up*(HALF+drop)
+  return CFrame.lookAt(centre,centre+heading,-up),alpha
  end
 
  -- 0: the island goes dark. The sun drops out of the sky; the music sinks under a slowed drone.
@@ -440,7 +534,8 @@ return function(ctx)
   local top,belly=scope:Anchor(perch,'GiantSilk'),scope:Anchor(perch,'GiantSilkEnd')
   local a0,a1=Instance.new('Attachment'),Instance.new('Attachment');a0.Parent=top;a1.Parent=belly
   local line=scope:Beam(a0,a1,SILK,1,{Transparency=NumberSequence.new(1),LightEmission=.8,Segments=2})
-  local hanging,shivering=false,false
+  local hanging=false
+  local shaking:any=nil
   scope:Every(function()
    local e=ctx:Elapsed()
    if e<OPEN-.05 then return true end
@@ -475,13 +570,16 @@ return function(ctx)
     frames[i]=CFrame.new(mid+across*d[1]+crown*(d[2]*s)+look*(.12*s))
    end
    workspace:BulkMoveTo(eyes,frames,Enum.BulkMoveMode.FireCFrameChanged)
-   -- The strand it crawls down shivers under it.
-   local ray=rays[1]
+   -- The strand it crawls on shivers under it (none while it is in the air).
+   local ray=nil
+   if e>=CRAWL and e<LOWER then
+    if K0==1 or e>=LEAP1 then ray=rays[1]elseif e<LEAP0 then ray=rays[K0]end
+   end
+   if shaking and shaking~=ray then shaking.Beam.CurveSize0=0;shaking.Beam.CurveSize1=0 end
+   shaking=ray
    if ray then
-    if e>=CRAWL and e<LOWER then
-     local w=(calm and 2 or 5)*math.sin(e*14)
-     ray.Beam.CurveSize0=w;ray.Beam.CurveSize1=-w;shivering=true
-    elseif shivering then shivering=false;ray.Beam.CurveSize0=0;ray.Beam.CurveSize1=0 end
+    local w=(calm and 2 or 5)*math.sin(e*14)
+    ray.Beam.CurveSize0=w;ray.Beam.CurveSize1=-w
    end
    if e>=LOWER then
     belly.CFrame=CFrame.new(cf.Position+up*(HALF-GIANT*.36))
@@ -517,20 +615,76 @@ return function(ctx)
    {At=STAGE+LAND+.6,CFrame=Kit.Frame(origin+fwd*24+up*6.5,origin+up*3.5),Fov=62},
   }
  end
- -- The landing's shockwave rolls out across the whole island and shakes each player as it
- -- passes them.
- local function shockwave()
-  local at=Vector3.new(origin.X,island.Y+3,origin.Z)
-  local reach=MAP.Radius*1.3
-  scope:Ring(at,ORANGE,6,reach,2.4,{Thickness=3,Alpha=.2,Segments=48})
-  if not low then
-   task.delay(.15,function()if scope.Alive then scope:Ring(at+up*.8,SILK,4,reach*.9,2.2,{Thickness=1.4,Alpha=.4,Segments=40})end end)
+ -- The landing's shockwave: the web comes down over the whole district. A lap of orange silk
+ -- on the sky web's own bearings (a silk lap trailing it, not on Low) and its threads out
+ -- from the stage spread past the farthest corner of the district (SecretArrivalConfig.Map
+ -- Min/Max: the yards, the plaza, the museum, the lab, the DOG-O-MATIC) in WAVE_T seconds
+ -- along the floors (y 0-4). onPass(distance, watching) runs once when it passes this
+ -- player (or the cutaway's camera that is watching for them), or when it has spread all
+ -- the way.
+ local WAVE_T=3.2
+ local WAVE_R=0
+ for _,x in ipairs({MAP.Min.X,MAP.Max.X})do
+  for _,z in ipairs({MAP.Min.Z,MAP.Max.Z})do WAVE_R=math.max(WAVE_R,Vector3.new(x-origin.X,0,z-origin.Z).Magnitude)end
+ end
+ WAVE_R=math.clamp(WAVE_R+60,300,1000)
+ local function shockwave(onPass:(number,boolean)->())
+  local at=Vector3.new(origin.X,math.abs(origin.Y-island.Y)<8 and island.Y+1.5 or origin.Y+.5,origin.Z)
+  local spokes:{Vector3}={}
+  for i=1,N do
+   local d=horizon[i]-Vector3.new(apex.X,horizon[i].Y,apex.Z)
+   spokes[i]=d.Magnitude>.05 and d.Unit or Vector3.xAxis
   end
-  local me=Kit.Me()
-  local d=Vector3.new(me.X-at.X,0,me.Z-at.Z).Magnitude
-  if d>24 and d<reach then
-   task.delay(2.4*(1-(1-(d-6)/(reach-6))^(1/3)),function()if scope.Alive then Kit.Shake(.22,.35)end end)
+  local parts:{BasePart},frames:{CFrame}={},{}
+  local laps={{Color=ORANGE,K=1,Thick=1.8,Tall=3,Alpha=.12}}
+  if not low then table.insert(laps,{Color=SILK,K=.8,Thick=.7,Tall=1.2,Alpha=.35})end
+  for _,lap in ipairs(laps)do
+   lap.Parts={}
+   for i=1,N do
+    lap.Parts[i]=scope:Part({Name='WebWave',Color=lap.Color,Transparency=1,Size=Vector3.one,CFrame=CFrame.new(at)})
+    table.insert(parts,lap.Parts[i])
+   end
   end
+  local threads={}
+  for i=1,N do
+   threads[i]=scope:Part({Name='WebThread',Color=SILK,Transparency=1,Size=Vector3.one,CFrame=CFrame.new(at)})
+   table.insert(parts,threads[i])
+  end
+  -- A lap's sides are nearest the stage halfway between threads.
+  local inner=math.cos(math.pi/N)
+  local passed=false
+  scope:Every(function(_,age)
+   local a=math.min(age/WAVE_T,1)
+   local r=6+(WAVE_R-6)*(1-(1-a)^2)
+   local fade=smooth((a-.7)/.3)
+   local n=0
+   for _,lap in ipairs(laps)do
+    local lr=r*lap.K
+    local alpha=lap.Alpha+(1-lap.Alpha)*fade
+    for i=1,N do
+     local p,q=at+spokes[i]*lr,at+spokes[i%N+1]*lr
+     local side=lap.Parts[i]
+     side.Size=Vector3.new(lap.Thick,lap.Tall,(q-p).Magnitude+lap.Thick);side.Transparency=alpha
+     n+=1;frames[n]=CFrame.lookAt((p+q)/2,q)
+    end
+   end
+   for i,t in ipairs(threads)do
+    local tip=at+spokes[i]*r
+    t.Size=Vector3.new(.45,.35,r);t.Transparency=.3+.7*fade
+    n+=1;frames[n]=CFrame.lookAt((at+tip)/2,tip)
+   end
+   workspace:BulkMoveTo(parts,frames,Enum.BulkMoveMode.FireCFrameChanged)
+   if not passed then
+    local cam=workspace.CurrentCamera
+    local watching=film~=nil and film.Active and cam~=nil
+    local p=watching and cam.CFrame.Position or Kit.Me()
+    local d=Vector3.new(p.X-at.X,0,p.Z-at.Z).Magnitude
+    if r*inner>=d or a>=1 then passed=true;onPass(d,watching)end
+   end
+   if a<1 then return true end
+   for _,p in ipairs(parts)do p:Destroy()end
+   return false
+  end)
  end
 
  -- The mouth goes dark with the island (OUT). The runes wait for the legs; the lamps come
@@ -622,6 +776,8 @@ return function(ctx)
    end
    strands[i]=s
   end
+  -- (A tent re-pegged to the real facing moves its strands' far ends with it.)
+  table.insert(placers,function()for i,s in ipairs(strands)do s.To=anchors[i]end end)
   if not low then
    for k in ipairs(RINGS)do
     rings[k]={}
@@ -835,7 +991,7 @@ return function(ctx)
    Kit.Cue('Sting',nil,.75);Kit.Flash(C(255,150,70),.86,.7)
    task.delay(.25,function()if scope.Alive then Kit.Cue('Heartbeat',nil,.9)end end)
   end
-  -- Every dog on the island looks up at its eyes, and follows them down the web.
+  -- Every dog on the island looks at its eyes, and follows them across the web.
   if not ctx:Wait(OPEN+.15)then return end
   glance=scope:Glance(function()return gaze end,{Exclude=model,Turn=.7,Ripple=600})
   if not ctx:Wait(REVEAL)then return end
@@ -880,12 +1036,17 @@ return function(ctx)
    if due(t,1)then drop(i==1)end
   end
  end)
- -- The giant's legs on the web: a skitter every player hears while it crawls.
+ -- The giant's legs on the web: a skitter every player hears while it crawls; a rush of air
+ -- as it leaps and the web's thud as it lands on the first strand.
+ local leaps=K0~=1
  task.spawn(function()
   local t,step=CRAWL,low and .14 or .075
+  local leapt,landed=false,false
   while t<LOWER do
    if not ctx:Wait(t)then return end
-   if due(t,.1)then pip(Kit.Random(.5,.9),Kit.Random(.04,.075),nil,true)end
+   if leaps and not leapt and t>=LEAP0 then leapt=true;if due(LEAP0,.15)then Kit.Cue('Whoosh',nil,.6)end end
+   if leaps and not landed and t>=LEAP1 then landed=true;if due(LEAP1,.15)then pip(.22,.4,nil,true)end end
+   if not(leaps and t>=LEAP0 and t<LEAP1)and due(t,.1)then pip(Kit.Random(.5,.9),Kit.Random(.04,.075),nil,true)end
    t+=step
   end
  end)
@@ -915,20 +1076,44 @@ return function(ctx)
   scope:Burst(cut,SILK,12,{Speed=NumberRange.new(4,9),Lifetime=NumberRange.new(.25,.5),Size=NumberSequence.new(.3,0)})
  end
  -- 2.85: it lands. The web tears down (its own stepper) and the mouth's lamps flicker back
- -- on. Map-wide: the power comes back everywhere (released first, so the mouth's lamps
- -- flicker from dark), the sky web falls, the little ones run and a shockwave rolls out.
+ -- on. Map-wide: the sky web falls, the little ones run and the web's shockwave spreads over
+ -- the whole district, bringing the power back for each player as it passes them.
  if not waitStage(LAND)then return end
- if blackout then blackout()end
  if wisps then wisps.Rate=0 end
  tearDown();scatter()
+ -- The power comes back for this player as the shockwave passes them: every light on the
+ -- island (released first, so the mouth's lamps flicker from dark), then the mouth's lamps
+ -- flickering on from the stage outward.
+ local powered=false
+ local function power(flicker:boolean)
+  if powered then return end
+  powered=true
+  if blackout then blackout()end
+  for _,entry in ipairs(lamps)do
+   local o=entry.O
+   if flicker then
+    local delay=(entry.At-origin).Magnitude*.012
+    for _,step in ipairs(FLICKER)do
+     task.delay(delay+step[1],function()if scope.Alive then switch(o,step[2],step[3])end end)
+    end
+   else switch(o,true,.3)end
+  end
+ end
  if live(LAND)then
   local n=near()
   Kit.Cue('Impact',nil,.7);Kit.Cue('Sting',nil,.45)
   for i=0,3 do task.delay(.1+i*.09,pip,Kit.Random(3.4,4.4),.08,nil)end
   if film and film.Active then film:Shake(.8,.5)end
-  if n>.05 then Kit.Shake(.35*n,.4);Kit.Flash(C(255,206,170),1-.22*n,.35)end
+  if n>.05 then Kit.Shake(.35*n,.4);if not calm then Kit.Flash(C(255,206,170),1-.22*n,.35)end end
   if n>.25 then Kit.FOVPunch(-4*n,.06,.6)end
-  shockwave()
+  -- Away from the stage it jolts them and the power comes back with a crackle.
+  shockwave(function(d:number,watching:boolean)
+   power(true)
+   if d>24 then
+    if watching then film:Shake(.5,.4)else Kit.Shake(.22,.35)end
+    Kit.Cue('Glitch',nil,.16);pip(.3,.22,nil,true)
+   end
+  end)
   scope:Ring(origin+up*.15,DUST,2,14,.6,{Thickness=.32,Alpha=.45})
   if not low then scope:Ring(origin+up*.2,ORANGE,1,9,.45,{Thickness=.18,Alpha=.3,Segments=24})end
   scope:Burst(origin+up*.4,DUST,20,{Texture=Kit.Textures.Smoke,LightEmission=.05,Drag=4,Speed=NumberRange.new(6,12),
@@ -937,17 +1122,11 @@ return function(ctx)
   flash.FillColor=EMBER;flash.FillTransparency=.3;flash.OutlineTransparency=.1
   Kit.Tween(flash,.9,{FillTransparency=1,OutlineTransparency=1})
   task.delay(1,function()if scope.Alive and flash.Parent then flash:Destroy()end end)
- elseif hl then hl:Destroy()end
- if shadow then Kit.Tween(shadow,.3,{Transparency=1})end
- for _,entry in ipairs(lamps)do
-  local o=entry.O
-  if live(LAND)then
-   local delay=(entry.At-origin).Magnitude*.012
-   for _,step in ipairs(FLICKER)do
-    task.delay(delay+step[1],function()if scope.Alive then switch(o,step[2],step[3])end end)
-   end
-  else switch(o,true,.3)end
+ else
+  if hl then hl:Destroy()end
+  power(false)
  end
+ if shadow then Kit.Tween(shadow,.3,{Transparency=1})end
  ctx:Title({Font=Enum.Font.Creepster})
 
  -- 2.9: Ability_MultiDig. Dirt flies off each paw in turn, every 0.1 s; on the first
