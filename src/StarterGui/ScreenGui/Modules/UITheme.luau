@@ -542,7 +542,7 @@ U.WindowSpecs={
  Trade={Title='TRADE',Subtitle='Swap with players in this server',Color=C(41,204,168),Icon='Trade'},
  Shop={Title='PAW MARKET',Subtitle='Everything for a happier pack',Color=C(248,79,170),Icon='Shop'},
  Supplies={Title='SUPPLIES',Subtitle='Small boosts. Big adventures.',Color=C(123,219,51),Icon='Supplies'},
- RewardMachine={Title='DOG-O-MATIC',Subtitle='One free DOG TOKEN. One random reward.',Color=C(171,105,247),Icon='RewardMachine'},
+ RewardMachine={Title='DOG-O-MATIC',Subtitle='One DOG TOKEN. One random reward.',Color=C(171,105,247),Icon='RewardMachine'},
  Events={Title='GLOBAL EVENT',Subtitle='A new adventure is on the way',Color=C(255,192,32),Icon='Events'},
  Lab={Title='GENETICS LAB',Subtitle='Discover new possibilities',Color=C(162,105,246),Icon='Lab'},
  Cosmetics={Title='YARD STYLES',Subtitle='Make your home your own',Color=C(248,79,170),Icon='Yard'},
@@ -551,7 +551,7 @@ U.WindowSpecs={
  LuckyPad={Title='LUCKY PAD',Subtitle='Place a block, wait, then open it',Color=C(255,169,38),Icon='Inventory'},
  OfflineEarnings={Title='WELCOME BACK',Subtitle='Your pack kept working',Color=C(125,219,48),Icon='Dogs'},
  Shelter={Title='DOG SHELTER',Subtitle='Find your extra dogs a new home',Color=C(255,169,38),Icon='Dogs'},
- TicketShop={Title='FREE DOG TOKEN',Subtitle='Free DOG TOKEN every 5 hours',Color=C(171,105,247),Icon='Ticket'},
+ TicketShop={Title='GET SPINS',Subtitle='DOG TOKENS for DOG-O-MATIC · chances shown before you buy',Color=C(171,105,247),Icon='Ticket'},
  Settings={Title='SETTINGS',Subtitle='Play your way',Color=C(92,142,250),Icon='Settings'},
 }
 function U.WindowChrome(page,key,width,close)

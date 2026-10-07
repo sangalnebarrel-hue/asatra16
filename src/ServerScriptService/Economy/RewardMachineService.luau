@@ -49,17 +49,23 @@ local function deliveryReason(p,pool,now)
 end
 function S.Info(p,runtime,now,paidAllowed)
  now=now or os.time();local pool,total,requiredReason=S.Pool(p,runtime,now)
- local free,deadline=Tickets.State(p,now);local paid=Tickets.Paid(p);local count=C.FreeOnly and free or free+paid
+ -- Tickets counts what an activation can spend: the free token, plus paid ones only when
+ -- this account may use paid random items (otherwise they are shown as kept).
+ local count,free,paid,spendable=Tickets.Usable(p,now,paidAllowed);local _,deadline=Tickets.State(p,now)
  local reason=requiredReason or(total<=0 and 'Rewards are temporarily unavailable')or deliveryReason(p,pool,now)
- if not reason and count<C.TicketCost then reason='Your free DOG TOKEN is still recharging'end
- if not reason and not C.FreeOnly and free<C.TicketCost and paidAllowed~=true then reason='Paid random tickets are unavailable for this account; your tickets are kept'end
+ if not reason and count<C.TicketCost then
+  if paid>=C.TicketCost and not spendable then reason=C.FreeOnly and 'Paid DOG TOKENS are paused; yours are kept'or Purchases.RestrictedReason
+  else reason='Your free DOG TOKEN is still recharging'end
+ end
  if not reason and now<(p.NextRouletteAt or 0)then reason='Please wait for this activation to finish'end
- return {Cost=0,TicketCost=C.TicketCost,Tickets=count,FreeTickets=free,PaidTickets=paid,MaxFreeTickets=C.TicketCapacity,MaxTickets=C.TicketCapacity,
-  NextTicketAt=deadline,NextFreeTicketAt=deadline,SpendOrder=C.FreeOnly and 'FreeOnly'or'FreeFirst',FreeOnly=C.FreeOnly==true,PaidRandomAllowed=paidAllowed==true,
-  PaidRandomRestrictionReason=paidAllowed~=true and 'Paid tickets are unavailable for this account. Free tickets still work.'or nil,
-  TicketRefillSeconds=C.TicketRefillSeconds,ServerNow=now,NextSpinAt=p.NextRouletteAt or 0,
+ local sales=not C.FreeOnly
+ return {Cost=0,TicketCost=C.TicketCost,Tickets=count,FreeTickets=free,PaidTickets=paid,PaidSpendable=spendable,MaxFreeTickets=C.TicketCapacity,MaxTickets=C.TicketCapacity,
+  NextTicketAt=deadline,NextFreeTicketAt=deadline,SpendOrder='FreeFirst',FreeOnly=C.FreeOnly==true,SalesOpen=sales,PaidRandomAllowed=paidAllowed==true,
+  PaidRandomRestrictionReason=sales and paidAllowed~=true and Purchases.RestrictedReason or nil,
+  TicketRefillSeconds=C.TicketRefillSeconds,Cooldown=C.Cooldown,ServerNow=now,NextSpinAt=p.NextRouletteAt or 0,
   Rewards=pool,OddsDenominator=C.OddsDenominator,CanSpin=reason==nil,UnavailableReason=reason,
-  TicketDescription='One free DOG TOKEN every 5 hours after use. Holds one. DOG TOKENS cannot be purchased.'}
+  TicketDescription=sales and 'One free DOG TOKEN every 5 hours after use (holds one). Extra DOG TOKENS: GET SPINS. The free token is always used first; every token has the same chances.'
+   or 'One free DOG TOKEN every 5 hours after use. Holds one. DOG TOKEN sales are paused.'}
 end
 -- Server-only pure transaction body. It can be tested against the existing
 -- transaction journal without bypassing the remote/world authorization gates.
@@ -96,7 +102,7 @@ function S.Resolve(v,userId,key,uid,now,runtime,paidAllowed,random,forced)
   result.Boost=chosen.Id;result.Duration=chosen.Duration
  end
  p.NextRouletteAt=now+C.Cooldown;p.RewardHistory=p.RewardHistory or {}
- result.FreeTickets=p.RouletteTickets;result.PaidTickets=p.PaidRouletteTickets;result.Tickets=C.FreeOnly and p.RouletteTickets or p.RouletteTickets+p.PaidRouletteTickets;result.NextSpinAt=p.NextRouletteAt
+ result.Tickets,result.FreeTickets,result.PaidTickets=Tickets.Usable(p,now,paidAllowed);result.NextSpinAt=p.NextRouletteAt
  result.NextTicketAt=p.NextRouletteTicketAt;result.NextFreeTicketAt=p.NextRouletteTicketAt
  table.insert(p.RewardHistory,1,result);while #p.RewardHistory>12 do table.remove(p.RewardHistory)end
  R.Validate(p);v[key]=result;return result
@@ -106,7 +112,7 @@ function S.Request(player,action,a,worldAuthorized)
  local runtime=require(script.Parent.Runtime)
  if not runtime.Ready(player)or not runtime.Allow(player,1)then return false,'Please wait'end
  if action=='RewardMachineProduct'then
-  if type(a)~='table'then return false,'Choose a ticket pack'end
+  if type(a)~='table'then return false,'Choose a DOG TOKEN pack'end
   return true,Purchases.Product(player,a.Key)
  end
  if action=='RewardMachineInfo'then
@@ -121,11 +127,12 @@ function S.Request(player,action,a,worldAuthorized)
  if action~='RewardMachineActivate'then return false,'Unknown machine action'end
  if not worldAuthorized then return false,'Use the drum at DOG-O-MATIC PLAZA'end
  if type(a)~='table'or type(a.Request)~='string'or #a.Request~=32 or not a.Request:match('^%x+$')then return false,'Invalid activation'end
- -- Release is free-only. Never yield on PolicyService for an activation that
- -- cannot spend a paid random ticket.
- local paidAllowed=false;if not C.FreeOnly then paidAllowed=Purchases.Allowed(player)end
  local now=os.time();local userId=player.UserId;local profile=runtime.Engine:Get(userId)
  runtime.Engine:Authorize(profile,userId);R.Normalize(profile,userId,now)
+ -- The world drum is held while this runs: never yield on PolicyService for an activation
+ -- that spends the free token. The open machine window keeps the answer cached.
+ local paidAllowed=Purchases.Cached(player)
+ if paidAllowed==nil then paidAllowed=Tickets.State(profile,now)<C.TicketCost and Purchases.Allowed(player)or false end
  local preview=S.Info(profile,runtime,now,paidAllowed);R.Check(preview.CanSpin,preview.UnavailableReason)
  local seed=rng:NextInteger(1,2147483646);local picker=Random.new(seed)
  local chosen=Odds.Pick(preview.Rewards,picker:NextInteger(1,C.OddsDenominator),C.OddsDenominator)

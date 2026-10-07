@@ -1,12 +1,21 @@
--- Free DOG TOKENS refill five hours after use. Legacy paid balances are preserved but cannot activate this machine.
+-- DOG TOKENS: one free token refills five hours after use (it holds one), and extra tokens
+-- are sold for Robux (Lucky Spin 1, Lucky Bundle 5, Mega Spin Bundle 15; GET SPINS at the
+-- machine and the shop's Spins tab).
+-- The free token is always spent first; paid tokens never expire and are spent only by
+-- accounts whose PolicyService allows paid random items (others keep them).
 -- All outcomes occupy integer slots in the same 10,000-slot server pool shown
--- on the odds board. Aurion always owns exactly one slot: 0.01%, or 1 in 10,000.
+-- on the odds board. Aurion always owns exactly one slot: 0.01%, or 1 in 10,000,
+-- for a free or a paid token alike.
 -- Other eligible prizes share the remaining slots in their existing proportions.
--- Retained compatibility slots only. Do not enable token sales or assign product IDs.
 -- PriceRobux is intentionally unset; the UI reads each live Roblox product price.
 -- Retain configured IDs/counts for retired products so pending receipts can resolve.
 return {
- FreeOnly=true, -- Release invariant: only game-issued free DOG TOKENS can activate.
+ -- Kill switch. true = no token sales and paid balances are kept but never spent;
+ -- receipts still credit (a completed purchase is never lost).
+ FreeOnly=false,
+ -- Cooldown is the per-player gap between activations: the drum's 6.2 s spin rounded up to
+ -- whole seconds (profiles keep whole seconds). A gap is never shorter than the spin itself,
+ -- so this is already the shortest one and paid tokens use it too: 15 tokens = 15 spins.
 Cost=0,TicketCost=1,TicketCapacity=1,StartingTickets=1,TicketRefillSeconds=18000,Cooldown=7,OddsDenominator=10000,
  TicketProducts={
   -- The shop's spins (Creator Hub: Lucky Spin, Lucky Bundle, Mega Spin Bundle).

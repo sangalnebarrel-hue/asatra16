@@ -34,6 +34,14 @@ function T.GrantPaid(p,count,now)
  p.PaidRouletteTickets+=count
  return p.PaidRouletteTickets
 end
+-- What one activation could spend right now: the free token, plus paid tokens when sales
+-- are on (not FreeOnly) and this account may use paid random items. Read-only.
+function T.Usable(p,now,paidAllowed)
+ local free=T.State(p,now);local paid=T.Paid(p)
+ local spendable=C.FreeOnly~=true and paidAllowed==true
+ return free+(spendable and paid or 0),free,paid,spendable
+end
+-- The free token is always spent first; it is the only one that restarts the refill timer.
 function T.Consume(p,now,paidAllowed)
  local count=T.Normalize(p,now)
  if count>=C.TicketCost then
@@ -41,9 +49,9 @@ function T.Consume(p,now,paidAllowed)
   p.NextRouletteTicketAt=now+C.TicketRefillSeconds
   return p.RouletteTickets,p.NextRouletteTicketAt,'Free'
  end
- assert(C.FreeOnly~=true,'Your free DOG TOKEN is still recharging')
  assert(p.PaidRouletteTickets>=C.TicketCost,'Your free DOG TOKEN is still recharging')
- assert(paidAllowed==true,'Paid random tickets are unavailable for this account; your tickets are kept')
+ assert(C.FreeOnly~=true,'Paid DOG TOKENS are paused; yours are kept')
+ assert(paidAllowed==true,'Paid DOG TOKENS are unavailable for this account; yours are kept')
  p.PaidRouletteTickets-=C.TicketCost
  -- Spending a purchased ticket does not restart the free ticket's timer.
  return p.RouletteTickets,p.NextRouletteTicketAt,'Paid'
