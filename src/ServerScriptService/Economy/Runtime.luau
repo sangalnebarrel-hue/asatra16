@@ -121,6 +121,11 @@ function Runtime.Project(player,p)
  for _,count in pairs(p.LuckyCredits or{})do available+=math.max(0,count)end
  player:SetAttribute('OwnedBlockCount',available+active);player:SetAttribute('AvailableBlockCount',available);player:SetAttribute('ActiveBlockCount',active)
  for key in pairs(Config.Supplies)do player:SetAttribute('SupplyExpires_'..key,require(script.Parent.SupplyRules).EndAt(p,key))end
+ -- The shop's income-scaled prices: coins/s (SupplyPricing.Rate) and each coin buff's price.
+ local Pricing=require(Replicated.SupplyPricing);local rate=Pricing.Rate(p,os.time())
+ player:SetAttribute('PriceRate',rate)
+ for _,key in ipairs(Config.SupplyShop or{})do player:SetAttribute('SupplyPrice_'..key,Pricing.SupplyPrice(key,rate))end
+ for id in pairs(type(p.CommercePasses)=='table'and p.CommercePasses or{})do player:SetAttribute('PassOwned_'..tostring(id),true)end
  player:SetAttribute('InventoryRevision',(player:GetAttribute('InventoryRevision')or 0)+1)
  player:SetAttribute('LatestFoundItem',p.DiscoveryFeed[1] and (p.DiscoveryFeed[1].DisplayName..' · '..string.format('%.4g kg',p.DiscoveryFeed[1].WeightKg)) or 'No finds yet')
  require(script.Parent.PlotDevelopment).Reconcile(player,p)

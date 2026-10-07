@@ -33,7 +33,11 @@ G.Assets={
  TicketPack5=91403734867700,
  TicketSingle=126768083956997,
 }
-G.Aliases={Ticket='TicketSingle',Supplies='StorageCrate',SupplyLuckyTreat='LuckyTreat',SupplyEnergySnack='EnergySnack',SupplyStorageCrate='StorageCrate'}
+G.Aliases={Ticket='TicketSingle',Supplies='StorageCrate',SupplyLuckyTreat='LuckyTreat',SupplyEnergySnack='EnergySnack',SupplyStorageCrate='StorageCrate',
+ -- Shop offers without their own art reuse the closest existing image.
+ ServerLuck='Luck',ServerLuck2='Luck',ServerLuck3='Luck',ServerLuck4='Luck',ServerLuck5='Luck',
+ MoneyChange='MoneyPocket',MoneyTreasure='MoneyChest',MoneyHoard='MoneyVault',
+ StarterScoutAlt='StarterScout',StarterExplorerAlt='StarterExplorer',StarterTurbo='EnergySnack',StarterCollector='TicketPack5'}
 local fallback={
  LuckyTreat='Luck',EnergySnack='Dig',StorageCrate='Storage',
  StarterScout='Yard',StarterExplorer='Dogs',StarterCaptain='Shop',

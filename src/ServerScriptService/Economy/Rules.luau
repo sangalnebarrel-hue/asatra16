@@ -11,6 +11,7 @@ local LabState=require(script.Parent.LabState)
 local Signatures=require(script.Parent.SignatureRules)
 local Tickets=require(script.Parent.RouletteTickets)
 local SupplyRules=require(script.Parent.SupplyRules)
+local SupplyPricing=require(game.ReplicatedStorage.SupplyPricing)
 local Onboarding=require(script.Parent.OnboardingRules)
 local R={Items=I}
 function R.Copy(v) if type(v)~="table" then return v end local r={};for k,x in pairs(v) do r[k]=R.Copy(x) end;return r end
@@ -259,10 +260,17 @@ function R.Action(p,action,a,now,random)
   error("Use the genetics terminal and review the lab preview first",0)
  elseif action=="Supply" then
   local def=C.Supplies[a.Kind];R.Check(def,"Unknown supply")
+  R.Check(def.Shop~=false,def.Name.." is retired: SERVER LUCK in the shop replaced it")
   local expires=math.max(now,p.Supplies[a.Kind] or 0)+def.Seconds
   -- A purchase always grants its full advertised duration, or charges nothing.
   R.Check(SupplyRules.CanAdd(p,a.Kind,now),"Maximum 60 minutes active; wait before adding another 10 minutes")
-  R.Pay(p,def.Cash);p.Supplies[a.Kind]=expires;return def.Name.." active for 10 more minutes"
+  -- The price follows the buyer's income (SupplyPricing); never charge more than the shop showed.
+  local price=SupplyPricing.SupplyPrice(a.Kind,SupplyPricing.Rate(p,now))
+  if a.ExpectedPrice~=nil then
+   R.Check(R.Int(a.ExpectedPrice,0,C.MaxCash),"Invalid price")
+   R.Check(price<=a.ExpectedPrice,"Price changed to "..price.." Coins; check and buy again")
+  end
+  R.Pay(p,price);p.Supplies[a.Kind]=expires;return def.Name.." active for 10 more minutes"
  elseif action=="Cosmetic" then
   local def=C.Cosmetics[a.Kind]
   if not def and p.Cosmetics[a.Kind] then p.EquippedCosmetic=a.Kind;return "Collection title equipped" end
@@ -281,7 +289,8 @@ function R.Action(p,action,a,now,random)
  elseif action=="Prestige" then
   R.Check(p.Level>=25 and p.UnlockedLayers['4'],"Requires level 25 and Corrupted Layer")
   R.Pay(p,250000*(p.Prestige+1));p.Prestige+=1;p.Bones+=100;p.XP=0;p.Level=1;p.CurrentLayer=1
-  p.Supplies={};p.SupplyReserve={};p.Cosmetics['Prestige'..p.Prestige]=true;return "Prestige complete; dogs, layers and permanent upgrades retained"
+  -- Buff timers survive Prestige: reserve time may have been bought with Robux.
+  p.Cosmetics['Prestige'..p.Prestige]=true;return "Prestige complete; dogs, layers and permanent upgrades retained"
  end
  error("Unknown action",0)
 end

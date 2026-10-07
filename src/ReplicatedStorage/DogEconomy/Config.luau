@@ -58,17 +58,23 @@ C.Upgrades={
  Kennel={Base=500,Factor=1.8,Max=10},Plot={Base=300,Factor=2.2,Max=8},
  DogStorage={Base=450,Factor=1.8,Max=10},Ability={Base=1000,Factor=2,Max=6},
 }
+-- Every supply timer the HUD shows. Lucky Treat is no longer sold (SERVER LUCK in the shop
+-- replaced it) but DonutCorgi and old timers still run it, so it keeps its definition.
 C.SupplyOrder={"LuckyTreat","EnergySnack","StorageCrate"}
+-- What the SUPPLIES shop sells, for coins (+Seconds) and Robux (CommerceConfig rows).
+C.SupplyShop={"EnergySnack","StorageCrate"}
+-- Cash is the coin price floor; the real price is PriceMinutes of the buyer's income per
+-- purchase (ReplicatedStorage.SupplyPricing), so a buff stays worth thinking about late game.
 C.Supplies={
- LuckyTreat={Name="Lucky Treat",Order=1,Cash=75,Seconds=600,MaxSeconds=3600,Effect="Luck",Magnitude=.12,
+ LuckyTreat={Name="Lucky Treat",Order=1,Cash=75,Seconds=600,MaxSeconds=3600,Effect="Luck",Magnitude=.12,Shop=false,
   EffectText="+12% base rare-find weight",
-  Description="Boosts Artifact, Treasure, Rare and Space weights in ordinary digging. Does not change lucky-block or reward chances."},
- EnergySnack={Name="Energy Snack",Order=2,Cash=60,Seconds=600,MaxSeconds=3600,Effect="Speed",Magnitude=.12,
-  EffectText="+12% base digging speed",
-  Description="Reduces the team's rest between digs. Stacks with other speed bonuses up to the team speed cap."},
- StorageCrate={Name="Storage Crate",Order=3,Cash=45,Seconds=600,MaxSeconds=3600,Effect="Storage",Magnitude=50,
-  EffectText="+50 ordinary-loot spaces",
-  Description="Holds more ordinary finds until you sell. Does not add dog or item slots. Existing loot stays safe when it expires."},
+  Description="Retired from the shop: SERVER LUCK replaced it. Donut Corgi still finds short treats while digging."},
+ EnergySnack={Name="Energy Snack",Order=2,Cash=60,PriceMinutes=1,Seconds=600,MaxSeconds=3600,Effect="Speed",Magnitude=.25,
+  EffectText="+25% digging speed",
+  Description="Your whole team rests less between digs: more loot, items and XP. Stacks with other speed bonuses up to the team speed cap."},
+ StorageCrate={Name="Storage Crate",Order=3,Cash=45,PriceMinutes=.5,Seconds=600,MaxSeconds=3600,Effect="Storage",Magnitude=100,
+  EffectText="+100 ordinary-loot spaces",
+  Description="Holds more ordinary finds until you sell, so your dogs keep digging while you are away. Existing loot stays safe when it expires."},
 }
 C.Cosmetics={GoldenKennel={Cash=5000},CyberKennel={Cash=25000},VoidAura={Cash=100000,Bones=100},FounderPlaque={Cash=10000}}
 C.EventGoal=100000
