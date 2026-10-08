@@ -4,6 +4,7 @@ local Economy=require(script.Parent.Config)
 local R=require(script.Parent.Rules)
 local Definitions=require(script.Parent.DogDefinitions)
 local Signatures=require(script.Parent.SignatureRules)
+local Pricing=require(game:GetService('ReplicatedStorage').DogEconomy.BoostPricing)
 local O={}
 local function finite(n)return type(n)=='number'and n==n and math.abs(n)<math.huge end
 local function bounded(n,limit)return finite(n)and math.clamp(math.floor(n),0,limit)or 0 end
@@ -56,6 +57,8 @@ end
 function O.Checkpoint(p,now)
  local o=O.Normalize(p)
  o.Rate,o.Dogs,o.BaseRate=O.Estimate(p);o.CheckpointAt=now
+ -- Boost prices follow the recent peak of this rate (BoostPricing).
+ Pricing.Track(p,now)
  return o
 end
 local function addContributors(o,seconds,coins)

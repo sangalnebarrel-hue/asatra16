@@ -38,41 +38,133 @@ function U.SafePosition(screen,w,h,factor,margin)
  local function fit(value,minimum,maximum)return maximum<minimum and(minimum+maximum)/2 or math.clamp(value,minimum,maximum)end
  return UDim2.fromOffset(fit(size.X/2,left+margin+halfW,left+width-margin-halfW),fit(size.Y/2,top+margin+halfH,top+height-margin-halfH))
 end
-function U.LayoutTouchHUD(screen)
+-- Roblox touch controls live in PlayerGui.TouchGui (PlayerModule TouchJump): the jump button is
+-- 70px (short side <= 500) or 120px, bottom-right of the Core UI safe area; the thumbstick rests
+-- bottom-left. Returns jump left/top in this ScreenGui's pixels and the thumbstick height to keep free.
+function U.TouchReserve(screen,left,top,width,height)
+ local small=math.min(width,height)<=500;local size=small and 70 or 120
+ local jx,jy=left+width-(size*1.5-10),top+height-(small and size+20 or size*1.75)
+ local touchGui=screen.Parent and screen.Parent:FindFirstChild('TouchGui')
+ local jump=touchGui and touchGui:FindFirstChild('JumpButton',true)
+ if jump and jump:IsA('GuiObject')and jump.Visible and jump.AbsoluteSize.X>0 then
+  local x,y=jump.AbsolutePosition.X-screen.AbsolutePosition.X,jump.AbsolutePosition.Y-screen.AbsolutePosition.Y
+  if x>left+width*.5 and y>top+height*.4 then jx,jy=math.min(jx,x),math.min(jy,y)end
+ end
+ return jx,jy,small and 100 or 170
+end
+-- One HUD layout for every device. A single factor from the smaller side of the Core UI safe area
+-- (top bar, notch and home bar excluded) sizes everything; the menu tiles form two vertically
+-- centred columns pinned to the left and right safe edges (first half left, second half right).
+-- Counters, SETTINGS, notices and boosts share the free zone between the columns.
+function U.LayoutHUD(screen)
  local hud=screen:FindFirstChild('HUD');if not hud then return end
+ local left,top,width,height=U.SafeArea(screen);local touch=UserInput.TouchEnabled
  local settings=hud:FindFirstChild('SimpleSettings');local notice=hud:FindFirstChild('OfflineEarningsNotice')
- local left,top,width=U.SafeArea(screen);local touch=UserInput.TouchEnabled
- if settings then
-  settings.AnchorPoint=Vector2.new(1,1);settings.Position=UDim2.new(1,-18,1,-18)
- end
- if notice then
-  notice.AnchorPoint=Vector2.new(.5,0);notice.Position=UDim2.fromOffset(left+width/2,top+10);notice.Size=UDim2.fromOffset(320,57)
-  local caption=notice:FindFirstChild('Caption');if caption then caption.TextSize=19;caption.Size=UDim2.new(1,-12,1,-4)end
- end
- if not touch then return end
- -- Keep informational HUD clear of the built-in thumbstick and jump regions.
- local factor=math.clamp(width/920,.48,.64);local right=left+width-12;local statX=right-320*factor
- for _,name in ipairs({'MoneyWidget','XPWidget'})do
-  local widget=hud:FindFirstChild(name)
-  if widget then
-   local scale=widget:FindFirstChildWhichIsA('UIScale');if scale then scale.Scale=factor end
-   widget.Position=UDim2.fromOffset(statX,top+(name=='MoneyWidget'and 10+46*factor or 13+78*factor))
-   if name=='XPWidget' then
-    local value=widget.Main:FindFirstChild('XPText')
-    if value then
-     value.TextWrapped=false;value.TextScaled=true
-     local limit=value:FindFirstChildWhichIsA('UITextSizeConstraint')or U.New('UITextSizeConstraint',{},value)
-     limit.MinTextSize=1;limit.MaxTextSize=13;limit.MinTextSize=11
-    end
-   end
+ local money,xp,dig=hud:FindFirstChild('MoneyWidget'),hud:FindFirstChild('XPWidget'),hud:FindFirstChild('GlobalDigWidget')
+ local s=math.clamp(math.min(width/1100,height/560),.45,1)
+ local jx,jy,thumb=U.TouchReserve(screen,left,top,width,height)
+ -- Columns end above the thumbstick and jump button (touch) or the counters and SETTINGS (desktop).
+ local bandTop=top+(touch and 8 or 12)
+ local bandBottom=touch and math.min(top+height-thumb,jy-8)or math.min(top+height-28-82*s,top+height-69)
+ local tiles=U.QuickTiles or{};local rows=math.max(1,math.ceil(#tiles/2))
+ s=math.max(.45,math.min(s,(bandBottom-bandTop)/(rows*92+(rows-1)*12)))
+ local tileW,tileH=math.max(58,math.floor(88*s)),math.max(46,math.floor(92*s))
+ local gap=math.max(4,math.min(math.floor(12*s),math.floor((bandBottom-bandTop-rows*tileH)/math.max(1,rows-1))))
+ local totalH=rows*tileH+(rows-1)*gap
+ local y0=math.floor(math.clamp(top+(height-totalH)/2,bandTop,math.max(bandTop,bandBottom-totalH)))
+ local xL,xR=left+12,left+width-12-tileW
+ -- Lay out tile text in native pixels. A parent UIScale combined with a
+ -- minimum text constraint made captions overflow their half-size buttons.
+ local k=tileH/92;local small=k<.75
+ for i,t in ipairs(tiles)do
+  local right=i>rows;local row=right and i-rows-1 or i-1
+  t.scale.Scale=1;t.root.AnchorPoint=Vector2.zero;t.root.Size=UDim2.fromOffset(tileW,tileH)
+  t.root.Position=UDim2.fromOffset(right and xR or xL,y0+row*(tileH+gap))
+  local caption=t.button:FindFirstChild('CandyCaption')
+  if caption then
+   local captionH=small and 17 or 25
+   caption.Position=UDim2.fromOffset(2,tileH-captionH);caption.Size=UDim2.fromOffset(tileW-4,captionH)
+   caption.TextWrapped=false;caption.TextScaled=true
+   local limit=caption:FindFirstChildWhichIsA('UITextSizeConstraint')or U.New('UITextSizeConstraint',{},caption)
+   limit.MinTextSize=1;limit.MaxTextSize=small and 12 or 17;limit.MinTextSize=small and 9 or 11
+  end
+  local icon=t.button:FindFirstChild('CandyIcon');if icon then local size=(small and 66 or 82)*k;icon.Position=UDim2.fromOffset((tileW-size)/2,-2);icon.Size=UDim2.fromOffset(size,size)end
+  local capacity=t.button:FindFirstChild('Capacity')
+  if capacity and capacity:IsA('TextLabel')then
+   capacity.Position=UDim2.fromOffset(0,-7);capacity.Size=UDim2.fromOffset(tileW,16)
+   capacity.TextWrapped=false;capacity.TextScaled=true
+   local limit=capacity:FindFirstChildWhichIsA('UITextSizeConstraint')or U.New('UITextSizeConstraint',{},capacity)
+   limit.MinTextSize=1;limit.MaxTextSize=small and 11 or 12;limit.MinTextSize=10
   end
  end
- local settingsY=top+20+78*factor
- if settings then settings.AnchorPoint=Vector2.new(1,0);settings.Position=UDim2.fromOffset(right,settingsY)end
- if notice then
-  notice.AnchorPoint=Vector2.new(1,0);notice.Position=UDim2.fromOffset(right,settingsY+49);notice.Size=UDim2.fromOffset(math.min(264,width-24),57)
-  local caption=notice:FindFirstChild('Caption');if caption then caption.TextSize=15 end
+ local innerL,innerR=xL+tileW+12,xR-12
+ -- Counters: top of the free zone on touch (the thumbstick owns the bottom-left), bottom-left on desktop.
+ local f=touch and math.clamp(s,.5,.64)or s
+ for _,root in ipairs({money,xp,dig})do local sc=root and root:FindFirstChildWhichIsA('UIScale');if sc then sc.Scale=f end end
+ local statX=touch and innerL or left+18;local base=touch and top+8+46*f or top+height-16
+ local statsBottom=touch and top+12+78*f or top+12
+ if money then money.Position=UDim2.fromOffset(statX,base)end
+ if xp then xp.Position=UDim2.fromOffset(statX,touch and base+4+32*f or base-50*f)end
+ if dig then dig.Position=UDim2.fromOffset(statX,touch and base+8+64*f or base-86*f)end
+ if touch and xp then
+  local value=xp.Main:FindFirstChild('XPText')
+  if value then
+   value.TextWrapped=false;value.TextScaled=true
+   local limit=value:FindFirstChildWhichIsA('UITextSizeConstraint')or U.New('UITextSizeConstraint',{},value)
+   limit.MinTextSize=1;limit.MaxTextSize=13;limit.MinTextSize=11
+  end
  end
+ local settingsW,settingsH=118,39
+ if touch then local m=math.clamp(s,.75,1);settingsW,settingsH=math.floor(118*m),math.floor(39*m)end
+ local settingsBottom=top+8
+ if settings then
+  settings.Size=UDim2.fromOffset(settingsW,settingsH)
+  local open=settings:FindFirstChild('Open');if open then open.Position=UDim2.new();open.Size=UDim2.fromScale(1,1)end
+  if touch then settings.AnchorPoint=Vector2.new(1,0);settings.Position=UDim2.fromOffset(innerR,top+8);settingsBottom=top+8+settingsH
+  else settings.AnchorPoint=Vector2.new(1,1);settings.Position=UDim2.fromOffset(left+width-18,top+height-18)end
+ end
+ -- The wallet grows right from its left edge, never into SETTINGS (touch) or the right column.
+ if money then money:SetAttribute('HUDGrowLeft',false);money:SetAttribute('HUDMaxRight',touch and settings and innerR-settingsW-8 or innerR)end
+ if notice then
+  local caption=notice:FindFirstChild('Caption')
+  if touch then
+   notice.AnchorPoint=Vector2.new(1,0);notice.Position=UDim2.fromOffset(innerR,settingsBottom+6);notice.Size=UDim2.fromOffset(math.max(160,math.min(264,math.floor((innerR-innerL)*.55))),50)
+   if caption then caption.TextSize=15;caption.Size=UDim2.new(1,-12,1,-4)end
+  else
+   notice.AnchorPoint=Vector2.new(.5,0);notice.Position=UDim2.fromOffset((innerL+innerR)/2,top+10);notice.Size=UDim2.fromOffset(math.min(320,innerR-innerL),57)
+   if caption then caption.TextSize=19;caption.Size=UDim2.new(1,-12,1,-4)end
+  end
+ end
+ -- Map marker button and the bag toast also stay inside the free zone, below the top bar.
+ local guide=screen:FindFirstChild('DistrictGuide');local clear=guide and guide:FindFirstChild('ClearMarker')
+ if clear then clear.AnchorPoint=Vector2.zero;clear.Position=UDim2.fromOffset(innerL,touch and statsBottom+8 or top+12)end
+ local toast=screen:FindFirstChild('InventoryToast')
+ if toast then toast.AnchorPoint=Vector2.new(.5,0);toast.Position=UDim2.fromOffset((innerL+innerR)/2,top+math.floor(height*.14));toast.Size=UDim2.fromOffset(math.min(math.floor(width*.42),innerR-innerL-16),math.max(34,math.floor(height*.07)))end
+ U.HUD={Touch=touch,Scale=s,Left=left,Top=top,Width=width,Height=height,InnerLeft=innerL,InnerRight=innerR,JumpX=jx,JumpY=jy,StatsBottom=statsBottom,
+  BuffRight=touch and innerR or math.min(innerR,left+width-18-settingsW-10),BuffTop=settingsBottom+8,BuffBottom=touch and(jx<innerR and jy-8 or top+height-8)or top+height-18}
+ screen:SetAttribute('HUDInnerLeft',innerL);screen:SetAttribute('HUDInnerRight',innerR)
+end
+U.LayoutTouchHUD=U.LayoutHUD
+-- Re-run a layout (coalesced) whenever the usable screen can change: window or camera viewport
+-- size, top bar inset, touch mode, or Roblox's touch controls appearing / moving.
+function U.WatchHUD(screen,layout)
+ local queued,cs,camera=false,{},nil
+ local function relayout()if queued then return end;queued=true;task.defer(function()queued=false;if screen.Parent then layout()end end)end
+ local function on(signal)table.insert(cs,signal:Connect(relayout))end
+ on(screen:GetPropertyChangedSignal('AbsoluteSize'));on(GuiService:GetPropertyChangedSignal('TopbarInset'));on(UserInput:GetPropertyChangedSignal('TouchEnabled'))
+ local function bindCamera()
+  if camera then camera:Disconnect()end
+  local cam=workspace.CurrentCamera;camera=cam and cam:GetPropertyChangedSignal('ViewportSize'):Connect(relayout);relayout()
+ end
+ table.insert(cs,workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(bindCamera));bindCamera()
+ local function touchGui(g)
+  if g.Name~='TouchGui'then return end
+  local function jump(o)if o.Name=='JumpButton'and o:IsA('GuiObject')then on(o:GetPropertyChangedSignal('AbsolutePosition'));on(o:GetPropertyChangedSignal('Visible'));relayout()end end
+  for _,o in ipairs(g:GetDescendants())do jump(o)end;table.insert(cs,g.DescendantAdded:Connect(jump))
+ end
+ local playerGui=screen.Parent
+ if playerGui then for _,g in ipairs(playerGui:GetChildren())do touchGui(g)end;table.insert(cs,playerGui.ChildAdded:Connect(touchGui))end
+ screen.Destroying:Connect(function()if camera then camera:Disconnect()end;for _,c in ipairs(cs)do c:Disconnect()end end)
 end
 local function decorate(o,template)
  for _,v in ipairs(template:GetChildren())do
@@ -448,46 +540,15 @@ function U.ApplyShell(screen)
   local sc=root:FindFirstChildWhichIsA('UIScale')or U.New('UIScale',{Name='CandyHUDScale'},root)
   table.insert(tiles,{root=root,button=b,scale=sc,key=spec.key})
  end
- local statScales={};for _,root in ipairs({money,xp,dig})do statScales[root]=root:FindFirstChildWhichIsA('UIScale')or U.New('UIScale',{Name='CandyHUDScale'},root)end
+ for _,root in ipairs({money,xp,dig})do if not root:FindFirstChildWhichIsA('UIScale')then U.New('UIScale',{Name='CandyHUDScale'},root)end end
  screen.Backdrop.BackgroundColor3=C(14,29,58);screen.Backdrop.BackgroundTransparency=.25
+ U.QuickTiles=tiles
  local function resize()
   local v=screen.AbsoluteSize
   if not screen:GetAttribute('StandaloneWindows')then scale.Scale=math.max(.25,math.min(1.05,(v.X-30)/1160,(v.Y-94)/740))end
-  local hs=math.clamp(math.min(v.X/1100,(v.Y-158)/420),.34,1)
-  if UserInput.TouchEnabled then hs=math.max(.5,hs)end
-  -- Lay out tile text in native pixels. A parent UIScale combined with a
-  -- minimum text constraint made captions overflow their half-size buttons.
-  local tileW=math.max(60,88*hs);local tileH=math.max(48,92*hs)
-  local gap=math.max(6,12*hs);local rows=math.ceil(#tiles/2);local totalH=rows*tileH+(rows-1)*gap
-  local top=math.max(18,math.min((v.Y-totalH)/2,v.Y-110-totalH))
-  for i,t in ipairs(tiles)do
-   t.scale.Scale=1;t.root.Size=UDim2.fromOffset(tileW,tileH)
-   t.root.Position=UDim2.fromOffset(12+((i-1)%2)*(tileW+gap),top+math.floor((i-1)/2)*(tileH+gap))
-   local caption=t.button:FindFirstChild('CandyCaption')
-   if caption then
-    local captionH=hs<.75 and 17 or 25
-    caption.Position=UDim2.fromOffset(2,tileH-captionH);caption.Size=UDim2.fromOffset(tileW-4,captionH)
-    caption.TextWrapped=false;caption.TextScaled=true
-    local limit=caption:FindFirstChildWhichIsA('UITextSizeConstraint')or U.New('UITextSizeConstraint',{},caption)
-    limit.MinTextSize=1;limit.MaxTextSize=hs<.75 and 12 or 17;limit.MinTextSize=11
-   end
-   local icon=t.button:FindFirstChild('CandyIcon');if icon then local size=hs<.75 and 66*hs or 82*hs;icon.Position=UDim2.fromOffset((tileW-size)/2,-2);icon.Size=UDim2.fromOffset(size,size)end
-   local capacity=t.button:FindFirstChild('Capacity')
-   if capacity and capacity:IsA('TextLabel')then
-    capacity.Position=UDim2.fromOffset(0,-7);capacity.Size=UDim2.fromOffset(tileW,16)
-    capacity.TextWrapped=false;capacity.TextScaled=true
-    local limit=capacity:FindFirstChildWhichIsA('UITextSizeConstraint')or U.New('UITextSizeConstraint',{},capacity)
-    limit.MinTextSize=1;limit.MaxTextSize=hs<.75 and 11 or 12;limit.MinTextSize=10
-   end
-  end
-  for _,sc in pairs(statScales)do sc.Scale=hs end
-  money.Position=UDim2.new(0,18,1,-16);xp.Position=UDim2.new(0,18,1,-16-50*hs);dig.Position=UDim2.new(0,18,1,-16-86*hs)
-  U.LayoutTouchHUD(screen)
+  U.LayoutHUD(screen)
  end
- resize();screen:GetPropertyChangedSignal('AbsoluteSize'):Connect(resize)
- local touchLayout=UserInput:GetPropertyChangedSignal('TouchEnabled'):Connect(resize)
- screen.Destroying:Connect(function()touchLayout:Disconnect()end)
- U.QuickTiles=tiles
+ resize();U.WatchHUD(screen,resize)
  -- Helpful empty states sit outside automatic item grids.
  local dog=pages.DogsPage
  local empty=U.Frame(dog,'CandyEmpty',0,0,0,0);empty.BackgroundTransparency=1;empty.Position=UDim2.fromScale(.02,.26);empty.Size=UDim2.fromScale(.61,.67);empty.ZIndex=12
@@ -541,9 +602,10 @@ U.WindowSpecs={
  DogDex={Title='DOG INDEX',Subtitle='100 discoveries + exclusive prizes',Color=C(92,142,250),Icon='DogDex'},
  Trade={Title='TRADE',Subtitle='Swap with players in this server',Color=C(41,204,168),Icon='Trade'},
  Shop={Title='PAW MARKET',Subtitle='Everything for a happier pack',Color=C(248,79,170),Icon='Shop'},
- Supplies={Title='SUPPLIES',Subtitle='Small boosts. Big adventures.',Color=C(123,219,51),Icon='Supplies'},
+ Supplies={Title='SUPPLIES',Subtitle='Boosts priced for your pack',Color=C(123,219,51),Icon='Supplies'},
+ Luck={Title='LUCK',Subtitle='Rarer dogs for the whole server',Color=C(46,204,113),Icon='Luck'},
  RewardMachine={Title='DOG-O-MATIC',Subtitle='One free DOG TOKEN. One random reward.',Color=C(171,105,247),Icon='RewardMachine'},
- Events={Title='GLOBAL EVENT',Subtitle='A new adventure is on the way',Color=C(255,192,32),Icon='Events'},
+ Events={Title='WORLD EVENTS',Subtitle='What is coming, what it gives you',Color=C(255,192,32),Icon='Events'},
  Lab={Title='GENETICS LAB',Subtitle='Discover new possibilities',Color=C(162,105,246),Icon='Lab'},
  Cosmetics={Title='YARD STYLES',Subtitle='Make your home your own',Color=C(248,79,170),Icon='Yard'},
  Discoveries={Title='DISCOVERIES',Subtitle='Every find tells a story',Color=C(26,192,239),Icon='Inventory'},
@@ -551,7 +613,7 @@ U.WindowSpecs={
  LuckyPad={Title='LUCKY PAD',Subtitle='Place a block, wait, then open it',Color=C(255,169,38),Icon='Inventory'},
  OfflineEarnings={Title='WELCOME BACK',Subtitle='Your pack kept working',Color=C(125,219,48),Icon='Dogs'},
  Shelter={Title='DOG SHELTER',Subtitle='Find your extra dogs a new home',Color=C(255,169,38),Icon='Dogs'},
- TicketShop={Title='FREE DOG TOKEN',Subtitle='Free DOG TOKEN every 5 hours',Color=C(171,105,247),Icon='Ticket'},
+ TicketShop={Title='DOG TOKENS',Subtitle='A free token every 5 hours · Lucky Spin packs',Color=C(171,105,247),Icon='Ticket'},
  Settings={Title='SETTINGS',Subtitle='Play your way',Color=C(92,142,250),Icon='Settings'},
 }
 function U.WindowChrome(page,key,width,close)
@@ -604,7 +666,7 @@ function U.ApplyStandalone(screen)
  local row=screen.HUD:FindFirstChild('SimpleSettings');if row then row:Destroy()end
  row=U.Frame(screen.HUD,'SimpleSettings',0,0,118,39);row.BackgroundTransparency=1;row.AnchorPoint=Vector2.new(1,1);row.Position=UDim2.new(1,-18,1,-18)
  U.Button(row,'Open','SETTINGS',0,0,118,39,nil,U.Colors.blue).Active=true
- U.LayoutTouchHUD(screen)
+ U.LayoutHUD(screen)
  local function font(o)
   if o:IsA('TextLabel')or o:IsA('TextButton')or o:IsA('TextBox')then o.FontFace=U.FontFace end
   if o:IsA('GuiButton')then task.defer(function()if o.Parent then U.EnhanceButton(o)end end)end

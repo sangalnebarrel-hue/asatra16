@@ -46,13 +46,15 @@ function Screens.Build(c)
   local phase=world:GetAttribute('State')or 'NORMAL'
   local remaining=math.max(0,math.ceil((world:GetAttribute('EndTimestamp')or workspace:GetServerTimeNow())-workspace:GetServerTimeNow()))
   U.Text(sc,tostring(current)..' · '..tostring(phase)..' · '..remaining..'s',12,4,c.W-24,48,21,P.gold,true)
-  local entries={{'DOG-O-MATIC','RewardMachine'},{'DOG DETAILS / LOCK','Dogs'},{'COLLECTOR / BULK SALE / ORDINARY LOOT','Collector'},{'LAYERS / PRESTIGE','Layers'},{'MARKETPLACE','Marketplace'},{'RECORDS','Records'},{'EVENT COSMETIC SHOP','Events'},{'SUPPLIES','Supplies'},{'COSMETICS','Cosmetics'},{'SETTINGS / WORLD EVENT FX','Settings'},{'HELP / DISTRICT MAP','Help'}}
+  local entries={{'DOG-O-MATIC','RewardMachine'},{'DOG DETAILS / LOCK','Dogs'},{'COLLECTOR / BULK SALE / ORDINARY LOOT','Collector'},{'LAYERS / PRESTIGE','Layers'},{'MARKETPLACE','Marketplace'},{'RECORDS','Records'},{'WORLD EVENTS · PERKS & SCHEDULE','Events'},{'LUCK','Luck'},{'SUPPLIES','Supplies'},{'COSMETICS','Cosmetics'},{'SETTINGS / WORLD EVENT FX','Settings'},{'HELP / DISTRICT MAP','Help'}}
   for i,entry in ipairs(entries)do
    U.Button(sc,'Extra'..entry[2],entry[1],12,62+(i-1)*58,c.W-24,48,function()require(c.Gui.Modules.GUIIntegration).OpenScreen(entry[2])end,P.blue)
   end
   return
  end
  if c.Page=='DexEntry'then return require(script.Parent.DexEntryScreen).Build(c)end
+ if c.Page=='Luck'then return require(script.Parent.LuckScreen).Build(c)end
+ if c.Page=='Events'then return require(script.Parent.EventsScreen).Build(c)end
  if c.Page=='Lab'then return require(script.Parent.LabScreen).Build(c)end
  if c.Page=='Storage'then return require(script.Parent.StorageScreen).Build(c)end
  if c.Page=='Collector'then return require(script.Parent.CollectorScreen).Build(c)end
@@ -182,13 +184,6 @@ function Screens.Build(c)
   U.Button(root,'OpenUpgradeService',c.Page=='DogTraining'and 'OPEN DOG TRAINING'or 'VIEW ESTATE UPGRADES',12,116,W-24,50,function()require(c.Gui.Modules.GUIIntegration).OpenService(c.Page)end,P.green)
   U.Button(root,'FindUpgradeShop','FIND UPGRADES AT PAW MARKET',12,178,W-24,46,function()require(c.Gui.Modules.GUIIntegration).Navigate('Shops')end,P.blue)
 
- elseif c.Page=='Events'then
-  local events=U.Scroll(root,'ComingSoonContent',0,0,W,H);local card=U.Panel(events,'ComingSoon',12,12,W-24,414)
-  U.Gradient(card,Color3.fromRGB(255,247,198),Color3.fromRGB(255,226,243))
-  U.Icon(card,'Events',W/2-62,35,100,P.gold)
-  local coming=U.Center(card,'COMING SOON',20,155,W-64,66,40,P.text,true);coming.TextWrapped=false;coming.TextScaled=true;U.New('UITextSizeConstraint',{MinTextSize=22,MaxTextSize=40},coming)
-  U.Center(card,'A new global adventure is being built.',30,235,W-84,52,23,P.text)
-  U.Center(card,'More surprises for the whole server.\nKeep growing your pack while we get it ready!',40,297,W-104,82,19,P.muted)
  elseif c.Page=='Feedback'then require(script.Parent.FeedbackScreen).Build(c)
  elseif c.Page=='Shop'then return require(script.Parent.CommerceShopScreen).Build(c)
  elseif c.Page=='Layers'then

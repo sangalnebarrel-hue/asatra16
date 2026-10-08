@@ -46,7 +46,7 @@ function P.new(hub,anchor)
  local self=setmetatable({Hub=hub,Anchor=anchor,Version=0,Id=nil,Model=nil},P)
  self.Screen=hub.CommunityCourt.ServerKingMonument.KingInfo
  local gui=self.Screen:FindFirstChild('KingPresentation');if gui then gui:Destroy()end
- gui=Instance.new('SurfaceGui');gui.Name='KingPresentation';gui.Face=Enum.NormalId.Front;gui.CanvasSize=Vector2.new(1100,420);gui.LightInfluence=0;gui.Parent=self.Screen
+ gui=Instance.new('SurfaceGui');gui.Name='KingPresentation';gui.Face=Enum.NormalId.Front;gui.SizingMode=Enum.SurfaceGuiSizingMode.FixedSize;gui.CanvasSize=Vector2.new(1100,420);gui.LightInfluence=0;gui.Parent=self.Screen
  local function label(name,value,y,h,size,color)
   local t=Instance.new('TextLabel');t.Name=name;t.BackgroundTransparency=1;t.Size=UDim2.new(1,-60,0,h);t.Position=UDim2.fromOffset(30,y)
   t.Font=Enum.Font.FredokaOne;t.Text=value;t.TextSize=size;t.TextTruncate=Enum.TextTruncate.AtEnd;t.ClipsDescendants=true;t.TextColor3=color;t.Parent=gui;return t
@@ -83,6 +83,11 @@ function P:Set(player,level)
   if direction.Magnitude<.1 then direction=Vector3.new(0,0,1)end
   local head=P.Prepare(model,CFrame.lookAt(pos,pos+direction.Unit,Vector3.yAxis))
   if not head then model:Destroy();self.Loading=false;return end
+  -- Rest the avatar a fixed gap above the monument instead of at the sky anchor height.
+  local monumentCFrame,monumentSize=self.Hub.CommunityCourt.ServerKingMonument:GetBoundingBox()
+  local boxCFrame,boxSize=model:GetBoundingBox()
+  local drop=boxCFrame.Position.Y-boxSize.Y/2-(monumentCFrame.Position.Y+monumentSize.Y/2+C.HeadGap)
+  model:PivotTo(model:GetPivot()-Vector3.new(0,drop,0))
   local old=self.Model
   if old then tweenAlpha(old,1,C.FadeSeconds);task.wait(C.FadeSeconds)end
   if version~=self.Version then model:Destroy();return end

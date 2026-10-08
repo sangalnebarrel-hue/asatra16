@@ -11,6 +11,8 @@ local LabState=require(script.Parent.LabState)
 local Signatures=require(script.Parent.SignatureRules)
 local Tickets=require(script.Parent.RouletteTickets)
 local SupplyRules=require(script.Parent.SupplyRules)
+local LuckRules=require(script.Parent.LuckRules)
+local Pricing=require(game.ReplicatedStorage.DogEconomy.BoostPricing)
 local Onboarding=require(script.Parent.OnboardingRules)
 local R={Items=I}
 function R.Copy(v) if type(v)~="table" then return v end local r={};for k,x in pairs(v) do r[k]=R.Copy(x) end;return r end
@@ -50,6 +52,7 @@ function R.Normalize(p,uid,now)
   d.NextWorkAt=d.NextWorkAt or now+C.Work.BaseCooldown+C.Work.Duration;d.WorkSequence=d.WorkSequence or 0
  end
  SupplyRules.Normalize(p,now)
+ LuckRules.Normalize(p,now)
  Display.Normalize(p)
  LabState.Normalize(p)
  return p
@@ -134,6 +137,8 @@ end
 function R.Dig(p,now,random)
  I.Normalize(p);p.LastDig=now;p.SpecialDiscoveries=p.SpecialDiscoveries or {}
  local e=R.Team(p,now);local units=0
+ -- Bought boosts: the active luck tier and the Golden Biscuit.
+ local boostLuck=LuckRules.Bonus(p,now);local biscuit=(p.Supplies.GoldenBiscuit or 0)>now
  for _,s in pairs(p.Loot)do units+=s.Count end
  local capacity=50+25*(p.Upgrades.Storage or 0)+math.floor(100*(e.Storage or 0))
  if (p.Supplies.StorageCrate or 0)>now then capacity+=C.Supplies.StorageCrate.Magnitude end
@@ -158,6 +163,7 @@ function R.Dig(p,now,random)
     if units>=capacity and not ctx.Orbit and not ctx.AutoDeposit then break end
     local luck=1+(e.Luck or 0)+(e.Artifact or 0)+(e.TreasureMap or 0)+e.SetBonus
     if (p.Supplies.LuckyTreat or 0)>now then luck+=C.Supplies.LuckyTreat.Magnitude end
+    luck+=boostLuck
     if ctx.BadLuckGuard and (d.DryStreak or 0)>=12 then luck+=3 end
     local candidates,total={},0
     for index,item in ipairs(layer.Loot)do
@@ -171,6 +177,7 @@ function R.Dig(p,now,random)
     local item=chosen.Item;local name,category,signatureMult,mutation=Signatures.Modify(ctx,item,d,random,e)
     local mult=R.Bonus(d)*power*signatureMult*(1+e.SetBonus+.025*(p.Upgrades.Plot or 0)+.015*(p.Upgrades.Kennel or 0)+math.min(.5,e.SellValue or 0))
     if category=='Corrupted'then mult*=1-math.max(0,.15-(e.Cleanse or 0)-(ctx.Protection or 0))end
+    if biscuit then mult*=1+C.Supplies.GoldenBiscuit.Magnitude end
     local value=math.max(1,math.floor(item[4]*mult))
     local key=ctx.Depth..':'..chosen.Index..':'..name
     local stack=p.Loot[key]or {Name=name,Category=category,Count=0,Value=0,Layer=ctx.Depth,Mutation=mutation}
@@ -197,6 +204,7 @@ function R.Dig(p,now,random)
     effects.SellValue=math.min(.5,(effects.SellValue or 0)+.025*(p.Upgrades.Plot or 0)+.015*(p.Upgrades.Kennel or 0)+math.max(0,ctx.Value-1)*.20)
     effects.Artifact=(effects.Artifact or 0)+math.max(0,(ctx.CategoryLuck.Artifact or 1)-1)*.10
     effects.DigitalLuck=(effects.DigitalLuck or 0)+math.max(0,(ctx.CategoryLuck.Digital or 1)-1)*.10
+    effects.BoostLuck=boostLuck
     local found,chance=I.Pick(ctx.Depth,random,effects)
     if found then I.Mint(p,found,chance,d.DogUid..':'..d.WorkSequence..':'..attempt,now,random,effects)end
    end
@@ -218,6 +226,14 @@ function R.Assign(p,uid,slot,now)
  for _,other in pairs(p.Dogs) do R.Check(other.DogUid==uid or other.AssignedSlot~=slot,"Kennel occupied") end
  d.NextWorkAt=math.max(d.NextWorkAt or 0,(now or p.LastDig)+C.Work.Duration)
  d.AssignedSlot=slot;d.State="Digging";return "Dog assigned to dig"
+end
+-- The client quotes the price it showed (BoostPricing on its snapshot). The server's price can
+-- drift a hair (the income peak decays continuously): within 5% the shown price is charged;
+-- a real change (a new dog at work) asks the player to look again.
+local function quoted(price,quote)
+ if type(quote)~="number" or price<=quote then return price end
+ R.Check(R.Int(quote,0,C.MaxCash) and price<=quote*1.05,"The price changed with your income: "..price.." Coins now. Check and buy again")
+ return quote
 end
 function R.Action(p,action,a,now,random)
  local plotMessage=PlotRules.Action(p,action,a);if plotMessage then return plotMessage end
@@ -258,11 +274,18 @@ function R.Action(p,action,a,now,random)
  elseif action=="Retire"or action=="Mutation"or action=="Ascend"or action=="Fusion"then
   error("Use the genetics terminal and review the lab preview first",0)
  elseif action=="Supply" then
-  local def=C.Supplies[a.Kind];R.Check(def,"Unknown supply")
+  local def=C.Supplies[a.Kind];R.Check(def and not def.Hidden,"Unknown supply")
   local expires=math.max(now,p.Supplies[a.Kind] or 0)+def.Seconds
   -- A purchase always grants its full advertised duration, or charges nothing.
   R.Check(SupplyRules.CanAdd(p,a.Kind,now),"Maximum 60 minutes active; wait before adding another 10 minutes")
-  R.Pay(p,def.Cash);p.Supplies[a.Kind]=expires;return def.Name.." active for 10 more minutes"
+  -- The price follows the player's income; never charge more than the shop showed.
+  local price=quoted(Pricing.Supply(a.Kind,p,now),a.Quote)
+  R.Pay(p,price);p.Supplies[a.Kind]=expires;return def.Name.." active for 10 more minutes"
+ elseif action=="Luck" then
+  local tier=tonumber(a.Tier);local def=tier and C.LuckTiers[tier];R.Check(def,"Unknown luck")
+  R.Check(LuckRules.CanAdd(p,tier,now),"Maximum 60 minutes stored for "..def.Name.."; wait before adding more")
+  local price=quoted(Pricing.Luck(tier,p,now),a.Quote)
+  R.Pay(p,price);LuckRules.Add(p,tier,def.Seconds,now);return def.Name.." active for 10 more minutes"
  elseif action=="Cosmetic" then
   local def=C.Cosmetics[a.Kind]
   if not def and p.Cosmetics[a.Kind] then p.EquippedCosmetic=a.Kind;return "Collection title equipped" end

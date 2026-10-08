@@ -19,9 +19,15 @@ function S.EndAt(p,key)return(p.Supplies[key]or 0)+((p.SupplyReserve or{})[key]o
 function S.CanAdd(p,key,now)
  local def=C.Supplies[key];return def~=nil and math.max(now,S.EndAt(p,key))+def.Seconds<=now+def.MaxSeconds
 end
-function S.AddPaid(p,key,now)
+-- Robux time is never lost: whatever passes the one-hour active cap waits in reserve
+-- (up to PaidCap of stored time in total).
+S.PaidCap=6*3600
+function S.CanAddPaid(p,key,now,seconds)
+ local def=C.Supplies[key];return def~=nil and math.max(now,S.EndAt(p,key))+(seconds or def.Seconds)<=now+S.PaidCap
+end
+function S.AddPaid(p,key,now,seconds)
  S.Normalize(p,now);local def=assert(C.Supplies[key],'Unknown supply')
- local finish=math.max(now,S.EndAt(p,key))+def.Seconds
+ local finish=math.max(now,S.EndAt(p,key))+(seconds or def.Seconds)
  p.Supplies[key]=math.min(finish,now+def.MaxSeconds)
  p.SupplyReserve[key]=math.max(0,finish-p.Supplies[key])
  return finish

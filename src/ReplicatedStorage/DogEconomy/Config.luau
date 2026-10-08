@@ -15,12 +15,12 @@ C.Prices={150,900,7500,45000,300000,2500000}
 C.Weights={60.5,27,9,2.6,.75,.15}
 -- How the Secret budget is shared on the tongue (per mille). THE DOG is the legend:
 -- ~1 in 95,000 line dogs, roughly once per 280 hours of one server.
-C.SecretLineWeights={Cubedog=290,Dogdogdogdog=210,Spiderdog=160,WrongDog=120,NuclearPug=85,
- ['404Dog']=60,UnfinishedDog=38,DivineDog=30,TheDog=7}
+C.SecretLineWeights={Cubedog=240,Dogdogdogdog=210,Spiderdog=160,WrongDog=120,NuclearPug=85,
+ LongDog=50,['404Dog']=60,UnfinishedDog=38,DivineDog=30,TheDog=7}
 -- What a Secret costs on the tongue (BasePrice stays C.Prices[6] for every other use).
 -- Like Steal a Brainrot, the rarer it walks, the more it costs.
 C.SecretLinePrices={Cubedog=2500000,Dogdogdogdog=3000000,Spiderdog=3500000,WrongDog=4000000,NuclearPug=4500000,
- ['404Dog']=5500000,UnfinishedDog=7000000,DivineDog=8000000,TheDog=16000000}
+ LongDog=5000000,['404Dog']=5500000,UnfinishedDog=7000000,DivineDog=8000000,TheDog=16000000}
 -- Rarity is not tied to depth: the conveyor is shared by players at every depth.
 C.DogMinLayer={1,1,1,1,1,1}
 -- rank=seconds: a soft safety net (~3x the natural interval) for a quiet server, not a
@@ -29,7 +29,9 @@ C.LineGuarantee={[4]=1200,[5]=4500}
 C.SpecialAcquisition={LongDog={MinLayer=4,Chance=1/20000},TheDog={MinLayer=5,MinPrestige=1,Interval=900,Chance=1/1000,ClaimCooldown=86400}}
 -- THE DOG now arrives on the tongue (SecretLineWeights) with its cinematic; the old
 -- silent straight-to-inventory server arrival is off (ArrivalChance=0, code kept).
-C.SpecialDiscovery={LongDogChance=1/20000,LongDogMinLayer=4,ArrivalInterval=900,ArrivalChance=0}
+-- LONG DOG walks the tongue too (SecretLineWeights); digging it up is off (LongDogChance=0;
+-- a discovery already pending still resolves).
+C.SpecialDiscovery={LongDogChance=0,LongDogMinLayer=4,ArrivalInterval=900,ArrivalChance=0}
 C.Retire={1,5,20,80,300,1200}
 C.Variants={
  {Name="Normal",Weight=9150,Bonus=0},{Name="Shiny",Weight=550,Bonus=.03},
@@ -56,18 +58,40 @@ C.Upgrades={
  Kennel={Base=500,Factor=1.8,Max=10},Plot={Base=300,Factor=2.2,Max=8},
  DogStorage={Base=450,Factor=1.8,Max=10},Ability={Base=1000,Factor=2,Max=6},
 }
-C.SupplyOrder={"LuckyTreat","EnergySnack","StorageCrate"}
+-- Coin prices of boosts follow the economy (ReplicatedStorage.DogEconomy.BoostPricing): a share
+-- of what the team earns during the boost (IncomeShare × Seconds × income per second), never
+-- below Cash × LayerScale[deepest unlocked layer]. Robux bundles scale their coins the same way.
+C.BoostPricing={LayerScale={1,3,8,20,50},PeakHalfLife=6*3600}
+-- Luck lives in its own tab (LUCK). The Supplies shop sells the other three.
+C.SupplyOrder={"GoldenBiscuit","EnergySnack","StorageCrate"}
 C.Supplies={
- LuckyTreat={Name="Lucky Treat",Order=1,Cash=75,Seconds=600,MaxSeconds=3600,Effect="Luck",Magnitude=.12,
+ -- No longer sold: kept so saved timers and Donut Corgi's treats keep working.
+ LuckyTreat={Name="Lucky Treat",Order=9,Cash=400,Seconds=600,MaxSeconds=3600,Effect="Luck",Magnitude=.12,Hidden=true,IncomeShare=.05,
   EffectText="+12% base rare-find weight",
-  Description="Boosts Artifact, Treasure, Rare and Space weights in ordinary digging. Does not change lucky-block or reward chances."},
- EnergySnack={Name="Energy Snack",Order=2,Cash=60,Seconds=600,MaxSeconds=3600,Effect="Speed",Magnitude=.12,
-  EffectText="+12% base digging speed",
-  Description="Reduces the team's rest between digs. Stacks with other speed bonuses up to the team speed cap."},
- StorageCrate={Name="Storage Crate",Order=3,Cash=45,Seconds=600,MaxSeconds=3600,Effect="Storage",Magnitude=50,
-  EffectText="+50 ordinary-loot spaces",
+  Description="Boosts Artifact, Treasure, Rare and Space weights in ordinary digging."},
+ GoldenBiscuit={Name="Golden Biscuit",Order=1,Cash=400,Seconds=600,MaxSeconds=3600,Effect="Value",Magnitude=.20,IncomeShare=.09,
+  EffectText="+20% Coins from ordinary loot",
+  Description="Ordinary loot your dogs dig is worth 20% more Coins. Stacks on top of every other value bonus."},
+ EnergySnack={Name="Energy Snack",Order=2,Cash=300,Seconds=600,MaxSeconds=3600,Effect="Speed",Magnitude=.25,IncomeShare=.09,
+  EffectText="+25% digging speed",
+  Description="Shorter rests between digs for the whole team. Stacks with other speed bonuses up to the team speed cap."},
+ StorageCrate={Name="Storage Crate",Order=3,Cash=200,Seconds=600,MaxSeconds=3600,Effect="Storage",Magnitude=100,IncomeShare=.04,
+  EffectText="+100 ordinary-loot spaces",
   Description="Holds more ordinary finds until you sell. Does not add dog or item slots. Existing loot stays safe when it expires."},
 }
+-- Personal luck (LUCK tab): Nx LUCK = +N×100% weight on rare loot in ordinary digging and a
+-- bigger chance of rare discoveries. Every tier has its own timer; the highest active one counts.
+C.LuckTiers={
+ {Tier=1,Name="1x LUCK",Bonus=1,Cash=500,IncomeShare=.04,Seconds=600,MaxSeconds=3600},
+ {Tier=2,Name="2x LUCK",Bonus=2,Cash=1500,IncomeShare=.10,Seconds=600,MaxSeconds=3600},
+ {Tier=3,Name="3x LUCK",Bonus=3,Cash=4000,IncomeShare=.20,Seconds=600,MaxSeconds=3600},
+ {Tier=4,Name="4x LUCK",Bonus=4,Cash=10000,IncomeShare=.35,Seconds=600,MaxSeconds=3600},
+ {Tier=5,Name="5x LUCK",Bonus=5,Cash=25000,IncomeShare=.55,Seconds=600,MaxSeconds=3600},
+}
+-- Rare discoveries (items under 1% base chance) gain this much chance per luck tier.
+C.LuckItemBoost=.4
+-- Server luck (Robux): multiplies the tongue's Legendary/Mythic/Secret odds for everyone here.
+C.ServerLuck={Ranks={4,5,6},MaxSeconds=7200}
 C.Cosmetics={GoldenKennel={Cash=5000},CyberKennel={Cash=25000},VoidAura={Cash=100000,Bones=100},FounderPlaque={Cash=10000}}
 C.EventGoal=100000
 C.EventMilestones={1000,5000,20000,50000,100000}

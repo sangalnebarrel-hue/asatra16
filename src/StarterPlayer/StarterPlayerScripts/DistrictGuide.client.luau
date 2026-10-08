@@ -75,10 +75,11 @@ local playerDot=make("Frame",{Name="YouAreHere",AnchorPoint=Vector2.new(0.5,0.5)
 make("UICorner",{CornerRadius=UDim.new(1,0)},playerDot)
 make("UIStroke",{Color=colors.bg,Thickness=2},playerDot)
 local function resize()
- local cam=workspace.CurrentCamera;if not cam then return end
- local v=cam.ViewportSize;local compact=v.X<730
- local w=compact and math.min(430,v.X-24) or 700
- local h=math.min(490,v.Y-54)
+ -- Fit and centre the map inside the Core UI safe area (below the top bar, clear of the notch).
+ local left,top,width,height=U.SafeArea(root);local compact=width<730
+ local w=compact and math.min(430,width-24) or 700
+ local h=math.max(220,math.min(490,height-24))
+ panel.Position=UDim2.fromOffset(left+width/2,top+height/2)
  panel.Size=UDim2.fromOffset(w,h);mapHeader.Size=UDim2.fromOffset(w-16,72)
  schematic.Visible=not compact
  list.Position=UDim2.fromOffset(compact and 22 or 342,91)
@@ -86,7 +87,8 @@ local function resize()
  schematic.Size=UDim2.fromOffset(300,h-151)
  hint.Position=UDim2.fromOffset(24,h-35)
 end
-resize()
+resize();root:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
+game:GetService("GuiService"):GetPropertyChangedSignal("TopbarInset"):Connect(resize)
 UIS.InputBegan:Connect(function(input,processed)
  if processed or UIS:GetFocusedTextBox() then return end
  if input.KeyCode==Enum.KeyCode.M then toggle() end
@@ -130,7 +132,7 @@ player:GetAttributeChangedSignal("YardSpawnPosition"):Connect(updateYard)
 local function connectNavigation(hud)
  if hud.Name ~= "ScreenGui" then return end
  gui.ZIndex=60
- clear.Position=UDim2.new(1,-18,0,300)
+ U.LayoutHUD(hud) -- places ClearMarker in the HUD free zone (not over the right button column)
 local signal=hud:WaitForChild("ToggleDistrictMap",10)
  if signal and signal:IsA("BindableEvent") then
   signal.Event:Connect(function() veil.Visible=not veil.Visible end)

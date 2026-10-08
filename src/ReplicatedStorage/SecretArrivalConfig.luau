@@ -9,6 +9,8 @@
 --   Whispers    the mysterious lines typed at the top of every screen, {seconds, text}.
 --   Title       the reveal card once the arrival lands.
 --   Color       the dog's signature colour for UI and FX.
+--   MegaSeconds how long its island-wide layer (SecretArrivals/Mega/<DogId>) lasts from the
+--               arrival: the sky, the colossal set piece, the shockwave every player feels.
 local C = {}
 C.Version = 1
 -- Secrets arrive this many studs down the tongue from DogSpawn: right in the giant
@@ -18,33 +20,6 @@ C.Stage = 18
 C.Sounds = { Drone = 0, Heartbeat = 0, Impact = 0, Glitch = 0, Choir = 0, Chime = 0, Whoosh = 0, Sting = 0 }
 -- A client that sees an arrival later than this (joined late, streamed in) skips it.
 C.LateGrace = 3
--- Every player's camera is pulled to the arrival for its big moment (Studio and live).
--- Players with ReducedMotion, a busy camera or an open menu are never pulled.
-C.Cutaway = true
--- The island at map scale, for the map-wide part of every arrival (studs, world space).
-C.Map = {
-	-- The yards and the tongue, where most players are.
-	Center = Vector3.new(0, 1, 0),
-	-- From Center to the yards' outer fences.
-	Radius = 190,
-	-- Altitude above Center for colossal things hung over the yards.
-	Sky = 170,
-	-- The tongue's stage, in the giant head's mouth.
-	Mouth = Vector3.new(0, 2, -150),
-	-- The giant head building (THE_DOG) the tongue comes out of, and a spot behind it where
-	-- something colossal can rise and loom over it, seen from every yard.
-	Head = Vector3.new(0, 60, -195),
-	Backdrop = Vector3.new(0, 1, -420),
-	-- The whole district (the far north holds the museum, lab and DOG-O-MATIC).
-	Min = Vector3.new(-200, 0, -260),
-	Max = Vector3.new(200, 0, 720),
-	Landmarks = {
-		Plaza = Vector3.new(-40, 1, 300),
-		Museum = Vector3.new(-130, 1, 480),
-		Lab = Vector3.new(105, 1, 480),
-		Machine = Vector3.new(-178, 1, 630),
-	},
-}
 
 C.Dogs = {
 	Cubedog = {
@@ -52,6 +27,7 @@ C.Dogs = {
 		Clips = { { 0, "Idle", true }, { 2.3, "Impact" }, { 3.2, "Flip" }, { 4.2, "Happy" } },
 		Whispers = { { 0.3, "something with six flat sides is coming." }, { 2.4, "every side of it is the front." } },
 		Title = "CUBEDOG",
+		MegaSeconds = 24,
 		Color = Color3.fromRGB(86, 214, 255),
 	},
 	Dogdogdogdog = {
@@ -62,6 +38,7 @@ C.Dogs = {
 			{ 4.6, "there were eight. now there is one. now there are eight." },
 		},
 		Title = "DOGDOGDOGDOG",
+		MegaSeconds = 26,
 		Color = Color3.fromRGB(255, 196, 64),
 	},
 	Spiderdog = {
@@ -72,6 +49,7 @@ C.Dogs = {
 			{ 3.0, "eight legs. zero questions." },
 		},
 		Title = "SPIDERDOG",
+		MegaSeconds = 26,
 		Color = Color3.fromRGB(255, 120, 40),
 	},
 	WrongDog = {
@@ -79,6 +57,7 @@ C.Dogs = {
 		Clips = { { 0, "EXP_Stare", true }, { 2.4, "UnstableEvent" }, { 5.6, "EXP_Unsettling", true } },
 		Whispers = { { 0.4, "that is not how a dog is supposed to stand." }, { 2.6, "it is looking at you. only you." } },
 		Title = "THE WRONG DOG",
+		MegaSeconds = 26,
 		Color = Color3.fromRGB(255, 40, 40),
 	},
 	NuclearPug = {
@@ -86,6 +65,7 @@ C.Dogs = {
 		Clips = { { 0, "Idle", true }, { 1.2, "Radiation_Cloud" }, { 4.2, "Result_Success" } },
 		Whispers = { { 0.3, "geiger counter: barking." }, { 4.4, "half-life: forever. good boy: also forever." } },
 		Title = "NUCLEAR PUG",
+		MegaSeconds = 28,
 		Color = Color3.fromRGB(150, 255, 60),
 	},
 	["404Dog"] = {
@@ -94,6 +74,7 @@ C.Dogs = {
 		Clips = { { 0, "Depth_Error" }, { 4, "Reassemble" } },
 		Whispers = { { 0.5, "ERROR 404: DOG NOT FOUND" }, { 4.2, "dog found. it was behind you." } },
 		Title = "404 DOG NOT FOUND",
+		MegaSeconds = 26,
 		Color = Color3.fromRGB(80, 160, 255),
 	},
 	UnfinishedDog = {
@@ -101,6 +82,7 @@ C.Dogs = {
 		Clips = { { 0, "Idle", true }, { 0.4, "Unfinished_Logic_Duplicate" }, { 5.6, "Idle", true } },
 		Whispers = { { 0.3, "-- TODO: finish the dog" }, { 5.0, "it shipped anyway." } },
 		Title = "THE UNFINISHED DOG",
+		MegaSeconds = 26,
 		Color = Color3.fromRGB(255, 0, 255),
 	},
 	DivineDog = {
@@ -111,24 +93,18 @@ C.Dogs = {
 			{ 3.0, "it has counted every dog that ever lived. it counted you twice." },
 		},
 		Title = "BIBLICALLY ACCURATE DOG",
+		MegaSeconds = 28,
 		Color = Color3.fromRGB(255, 236, 170),
 	},
-	-- Never on the tongue: these arrive where they are obtained (SecretReveal).
 	LongDog = {
-		-- Its body runs a lap of the whole island (Dogs/LongDog): the head is back at the hole
-		-- at 11, the tail pops out at 11.6 and the real dog appears at 13.6.
-		Hold = 17.5,
-		Clips = { { 0, "EXP_Confused", true }, { 13.6, "Happy" } },
-		Whispers = {
-			{ 0.5, "something is digging." },
-			{ 4.2, "it is still coming out." },
-			{ 8.4, "how long is a dog?" },
-			{ 11.7, "oh. there's the tail." },
-			{ 14.8, "perfectly normal dog." },
-		},
+		Hold = 7,
+		Clips = { { 0, "EXP_Confused", true }, { 1.4, "Stretch" }, { 3.4, "DepthCharge" }, { 4.6, "Happy" } },
+		Whispers = { { 0.3, "the hole kept going." }, { 3.6, "it is still coming out." } },
 		Title = "LONG DOG",
+		MegaSeconds = 26,
 		Color = Color3.fromRGB(240, 196, 120),
 	},
+	-- Never on the tongue: arrives where it is won (SecretReveal).
 	Aurion = {
 		Hold = 6.5,
 		Clips = { { 0, "Sniff" }, { 2.3, "PrismEcho" }, { 4.4, "Happy" } },
@@ -137,6 +113,7 @@ C.Dogs = {
 			{ 3.0, "every tenth dig, it echoes." },
 		},
 		Title = "AURION",
+		MegaSeconds = 28,
 		Color = Color3.fromRGB(150, 220, 255),
 	},
 	TheDog = {
@@ -154,6 +131,7 @@ C.Dogs = {
 			{ 13.0, "good boy." },
 		},
 		Title = "THE DOG",
+		MegaSeconds = 44,
 		Color = Color3.fromRGB(255, 255, 255),
 		-- Every dog on the map stares at THE DOG while it is around, for this long at most.
 		StareSeconds = 120,

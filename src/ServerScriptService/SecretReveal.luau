@@ -12,6 +12,16 @@ local folder=workspace:FindFirstChild('DOGROTS_SecretReveals')
 if not folder then folder=Instance.new('Folder');folder.Name='DOGROTS_SecretReveals';folder.Parent=workspace end
 M.Folder=folder
 
+-- Every Secret arrival (tongue or off it) is also announced on an always-replicated folder,
+-- so the island-wide layer reaches players whose stream never holds the dog itself.
+local broadcast=RS:FindFirstChild('SecretArrivalBroadcast')
+if not broadcast then broadcast=Instance.new('Folder');broadcast.Name='SecretArrivalBroadcast';broadcast.Parent=RS end
+function M.Broadcast(dogId,uid,start,origin,venue,by)
+ broadcast:SetAttribute('DogId',dogId);broadcast:SetAttribute('Uid',uid);broadcast:SetAttribute('Start',start)
+ broadcast:SetAttribute('Origin',origin);broadcast:SetAttribute('Venue',venue or 'Tongue');broadcast:SetAttribute('By',by or '')
+ -- Seq last: clients read the rest when it changes.
+ broadcast:SetAttribute('Seq',(broadcast:GetAttribute('Seq')or 0)+1)
+end
 function M.Has(dogId)return Arrivals.Dogs[dogId]~=nil and Definitions[dogId]~=nil end
 -- Seconds the arrival lasts (the caller may wait this long before its own reveal UI).
 function M.Hold(dogId)local a=Arrivals.Dogs[dogId];return a and a.Hold or 0 end
@@ -51,8 +61,6 @@ function M.Show(dogId,ground,facing,options)
  model:SetAttribute('RevealVenue',options.Venue or 'Yard');model:SetAttribute('RevealBy',options.By or '')
  model:SetAttribute('SecretArrivalAt',now);model:SetAttribute('ArrivalHoldUntil',now+arrival.Hold)
  model:SetAttribute('ArrivalOrigin',ground);model:SetAttribute('LocomotionSpeed',0)
- -- Every player's camera visits the arrival: the whole dog reaches every client.
- pcall(function()model.ModelStreamingMode=Enum.ModelStreamingMode.Persistent end)
  local function clip(name,looped,at)
   model:SetAttribute('AnimationName',name);model:SetAttribute('AnimationLooped',looped==true);model:SetAttribute('AnimationStartedAt',at)
  end
@@ -65,6 +73,7 @@ function M.Show(dogId,ground,facing,options)
  -- After the arrival it stands there, happy, until it fades.
  task.delay(arrival.Hold,function()if model.Parent then clip('Idle',true,now+arrival.Hold)end end)
  model.Parent=folder
+ M.Broadcast(dogId,model:GetAttribute('DogUid'),now,ground,options.Venue or 'Yard',options.By)
  if options.Parent then
   options.Parent.Destroying:Connect(function()if model.Parent then model:Destroy()end end)
  end

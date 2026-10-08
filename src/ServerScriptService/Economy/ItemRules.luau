@@ -7,6 +7,7 @@ local Mutations=require(script.Parent.MutationDefinitions)
 local Sets=require(script.Parent.SetDefinitions)
 local Stats=require(script.Parent.RecordStats)
 local I={Definitions=D,Depths=Depth,Profiles=Profiles,Mutations=Mutations,Sets=Sets}
+local LuckItemBoost=require(game.ReplicatedStorage.DogEconomy.Config).LuckItemBoost or .4
 local function check(v,s)if not v then error(s,0)end end
 local function copy(v)if type(v)~='table'then return v end;local t={};for k,x in pairs(v)do t[k]=copy(x)end;return t end
 local function count(t)local n=0;for _ in pairs(t or {})do n+=1 end;return n end
@@ -80,11 +81,27 @@ function I.ItemChance(def,e)
  end
  if def.Depth==e.EventDepth then boost*=1+math.min(.15,e.EventDepthLuck or 0)end
  if def.Class=='Secret'then boost=1+math.min(.08,e.SecretLuck or 0)end
- return def.BaseDropChance*math.min(1.75,boost)*math.clamp(e.DiscoveryScale or 1,0,1)
+ -- Bought luck (LUCK tab) works on top of every capped bonus, on the rare tail only.
+ local bought=math.clamp(e.BoostLuck or 0,0,5)
+ local extra=def.BaseDropChance<.01 and 1+bought*(def.Class=='Secret'and .1 or LuckItemBoost)or 1
+ return def.BaseDropChance*math.min(1.75,boost)*extra*math.clamp(e.DiscoveryScale or 1,0,1)
 end
 function I.Pick(depth,random,e)
+ e=e or {}
+ local rows={};local total,common=0,0
+ for _,id in ipairs(Depth[tostring(depth)].Items)do
+  local def=D[id];local p=I.ItemChance(def,e);table.insert(rows,{def,p});total+=p
+  if def.BaseDropChance>=.01 then common+=p end
+ end
+ -- Luck can lift the rare tail far enough that a whole roll would be spent before reaching it:
+ -- the common items give way, so every item stays reachable. Unboosted rolls never get here.
+ local over=total-.98
+ local scale=over>0 and common>0 and math.max(0,(common-over)/common)or 1
  local r=random();local sum=0
- for _,id in ipairs(Depth[tostring(depth)].Items)do local def=D[id];local p=I.ItemChance(def,e or {});sum+=p;if r<sum then return def,p end end
+ for _,row in ipairs(rows)do
+  local p=row[2]*(row[1].BaseDropChance>=.01 and scale or 1)
+  sum+=p;if r<sum then return row[1],p end
+ end
  return nil
 end
 function I.Mutation(random,e)

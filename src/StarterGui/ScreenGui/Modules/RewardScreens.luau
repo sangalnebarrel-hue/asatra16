@@ -120,6 +120,11 @@ function S.Present(c,result)
  return{Reveal=reveal,Close=function()overlay:Destroy()end}
 end
 local ticketPrices={};local ticketLoading={};local ticketRetry={}
+-- Bought DOG TOKENS count once the machine sells them and Roblox allows this account to use them.
+local function usablePaid(info)
+ if info.FreeOnly~=false or info.PaidRandomAllowed~=true then return 0 end
+ return tonumber(info.PaidTickets)or 0
+end
 local function clockText(seconds)
  seconds=math.max(0,math.ceil(seconds));return string.format('%02d:%02d:%02d',math.floor(seconds/3600),math.floor(seconds/60)%60,seconds%60)
 end
@@ -134,7 +139,7 @@ end
 local function wallet(c,parent,info)
  local U,W,P=c.U,c.W,c.U.Colors
  local free=tonumber(info.FreeTickets)or math.min(1,tonumber(info.Tickets)or 0)
- local paid=tonumber(info.PaidTickets)or 0;local total=free
+ local paid=tonumber(info.PaidTickets)or 0;local total=free+usablePaid(info)
  local at=tonumber(info.NextFreeTicketAt or info.NextTicketAt)or 0
  local narrow=W<480;local height=narrow and 244 or c.Mobile and 210 or 172
  local panel=U.Panel(parent,'TicketWallet',8,4,W-24,height)
@@ -147,8 +152,8 @@ local function wallet(c,parent,info)
  U.Text(panel,heading,146,12,W-184,narrow and 62 or 40,narrow and 24 or 26,P.text,true)
  local clock=U.Text(panel,free>0 and'Next refill starts after use.'or clockText(at-c.Now()),147,narrow and 78 or 56,W-188,narrow and 64 or c.Mobile and 53 or 36,free>0 and 17 or 27,P.text,true)
  if free==0 and at>0 then clock:SetAttribute('Deadline',at);clock:SetAttribute('CountdownStyle','Clock')end
- U.Text(panel,'FREE '..free..' / 1',narrow and 14 or 147,narrow and 152 or c.Mobile and 116 or 98,W-(narrow and 52 or 188),28,18,P.purple,true)
- U.Text(panel,'Free every 5 hours after use. Stores one DOG TOKEN.',14,narrow and 190 or c.Mobile and 162 or 139,W-52,narrow and 44 or c.Mobile and 40 or 27,16,P.text)
+ U.Text(panel,'FREE '..free..' / 1'..(paid>0 and('  ·  BOUGHT '..paid)or''),narrow and 14 or 147,narrow and 152 or c.Mobile and 116 or 98,W-(narrow and 52 or 188),28,18,P.purple,true)
+ U.Text(panel,'Free every 5 hours after use. Stores one free DOG TOKEN; bought tokens never expire.',14,narrow and 190 or c.Mobile and 162 or 139,W-52,narrow and 44 or c.Mobile and 40 or 27,16,P.text)
  return height+19,total,free,paid
 end
 local function prizeRarity(row)
@@ -166,7 +171,7 @@ function S.WorldRewardMachine(c)
   if not s.RewardBusy and not s.MachineLoadFailed then s.MachineLoadFailed=true;request(c,'RewardMachineInfo',{},function(v)s.RewardMachineInfo=v;s.MachineLoadFailed=nil end)end
   return
  end
- local free=tonumber(info.FreeTickets)or math.min(1,tonumber(info.Tickets)or 0);local paid=tonumber(info.PaidTickets)or 0;local total=free
+ local free=tonumber(info.FreeTickets)or math.min(1,tonumber(info.Tickets)or 0);local total=free+usablePaid(info)
  local spinning=(s.WorldSpinUntil or 0)>workspace:GetServerTimeNow();local cooling=(tonumber(info.NextSpinAt)or 0)>c.Now()
  local ready=total>0 and info.CanSpin~=false and info.InRange~=false and not cooling and not spinning and not s.RewardBusy
  U.Text(panel,U.Fmt(total)..' DOG TOKEN',12,wide and 9 or 24,wide and 190 or 131,28,wide and 23 or 18,P.text,true)
@@ -227,7 +232,7 @@ function S.RewardMachine(c)
    S.Present(c,v);clearWorldPrediction(c,false)
   end)
  end or nil,ready and P.green or P.purple);y+=66
- U.Button(sc,'TicketShop','FREE DOG TOKEN INFO',8,y,W-24,42,function()c.Show('TicketShop')end,P.gold);y+=49
+ U.Button(sc,'TicketShop',info.FreeOnly==false and'DOG TOKENS · LUCKY SPINS'or'FREE DOG TOKEN INFO',8,y,W-24,42,function()c.Show('TicketShop')end,P.gold);y+=49
  if info.InRange==false then U.Button(sc,'FindRewardMachine','FIND DOG-O-MATIC',8,y,W-24,42,function()require(script.Parent.GUIIntegration).Navigate('RewardMachine')end,P.blue);y+=51 end
  local message=s.RewardMessage or info.CanSpin==false and info.UnavailableReason
  if message and message~=''then U.Text(sc,tostring(message),12,y,W-32,48,17,not s.RewardMessage and(total==0 or cooling)and P.muted or P.red);y+=54 end
@@ -250,10 +255,30 @@ function S.TicketShop(c)
  local U,W=c.U,c.W;local P=U.Colors
  local sc=U.Scroll(c.Parent,'DogTokenInfo',0,0,W,c.H)
  local y=wallet(c,sc,info)
- U.Text(sc,'DOG TOKENS ARE ALWAYS FREE',12,y,W-32,48,23,P.purple,true);y+=57
- U.Text(sc,'Use one DOG TOKEN to activate the world machine and receive one random reward. View REWARD CHANCES before activating.',12,y,W-32,88,18,P.text);y+=97
- U.Text(sc,'Your next free DOG TOKEN arrives 5 hours after use, including time away. You can store one free token. Rejoining keeps the same timer.',12,y,W-32,105,17,P.muted);y+=115
- U.Text(sc,'No Coins, Bones, Robux or items are needed. Extra activations cannot be purchased.',12,y,W-32,68,17,P.text);y+=77
+ U.Text(sc,'Use one DOG TOKEN to activate the world machine and receive one random reward. View REWARD CHANCES before activating.',12,y,W-32,60,18,P.text);y+=66
+ U.Text(sc,'Your next free DOG TOKEN arrives 5 hours after use, including time away. Free tokens are always used before bought ones.',12,y,W-32,60,17,P.muted);y+=68
+ if info.FreeOnly==false then
+  U.Text(sc,'LUCKY SPIN PACKS',12,y,W-32,40,23,P.purple,true);y+=46
+  -- ProductPricing reports a refused or failed prompt here.
+  if c.State.CommerceMessage then U.Text(sc,c.State.CommerceMessage,12,y,W-32,40,16,P.red);y+=44 end
+  local Pricing=require(script.Parent.ProductPricing)
+  local cols=math.max(1,math.min(3,math.floor((W-10)/230)));local cw=(W-24-(cols-1)*12)/cols
+  local products=info.TicketProducts or {}
+  for i,row in ipairs(products)do
+   local card=U.Panel(sc,'Spins_'..row.Key,8+(i-1)%cols*(cw+12),y+math.floor((i-1)/cols)*172,cw,160,true)
+   U.Icon(card,row.Key,10,10,64,P.gold)
+   U.Text(card,row.Name or row.Key,82,12,cw-92,30,21,P.text,true)
+   U.Text(card,U.Fmt(row.Count)..(row.Count==1 and' DOG TOKEN'or' DOG TOKENS'),82,44,cw-92,26,17,P.purple,true)
+   local label,action='UNAVAILABLE',nil
+   if row.CanPurchase then label,action=Pricing.Quote(c,sc,{Key=row.Key,Id=row.ProductId,Enabled=true,Route='RewardMachineProduct'})end
+   U.Button(card,'Buy',label,10,104,cw-20,44,action,P.purple).Caption.TextSize=16
+   if not row.CanPurchase and row.UnavailableReason then U.Text(card,row.UnavailableReason,10,76,cw-20,26,13,P.muted)end
+  end
+  y+=math.ceil(#products/cols)*172+4
+  U.Text(sc,'Aurion owns exactly 1 of 10,000 slots on every spin. Paid tokens are delivered after Roblox confirms payment and only work where Roblox allows paid random items.',12,y,W-32,64,15,P.muted);y+=70
+ else
+  U.Text(sc,'No Coins, Bones, Robux or items are needed. Extra activations cannot be purchased.',12,y,W-32,68,17,P.text);y+=77
+ end
  U.Button(sc,'BackToRewardMachine','BACK TO DOG-O-MATIC',8,y,W-24,45,function()c.Show('RewardMachine')end,P.purple)
 end
 return S

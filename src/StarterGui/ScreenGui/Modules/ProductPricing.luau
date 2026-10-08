@@ -13,22 +13,26 @@ function P.Quote(c,parent,product)
   task.spawn(function()
    local ok,info=pcall(function()return Marketplace:GetProductInfoAsync(id,Enum.InfoType.Product)end)
    P.Loading[id]=nil
-   if ok and type(info.PriceInRobux)=='number'and info.IsForSale~=false then P.Cache[id]={Price=info.PriceInRobux,At=os.clock()}
+   if ok and type(info)=='table'and type(info.PriceInRobux)=='number'then P.Cache[id]={Price=info.PriceInRobux,At=os.clock()}
    else P.Retry[id]=os.clock()+15 end
    if parent.Parent then c.Draw()end
   end)
  end
- if not entry then return P.Retry[id]and'ROBUX · PRICE UNAVAILABLE'or'ROBUX · LOADING PRICE',nil end
  local function purchase()
   if P.Busy then return end;P.Busy=true
   task.spawn(function()
    local transport,ok,result=pcall(function()return RS.RewardRequest:InvokeServer(product.Route or'CommerceProduct',{Key=product.Key})end)
-   if transport and ok and result.ProductId==id then
+   if transport and ok and type(result)=='table'and result.ProductId==id then
     local shown=pcall(function()Marketplace:PromptProductPurchase(Player,id)end)
-    if not shown then c.State.CommerceMessage='Purchase unavailable. Please try again.'end
+    c.State.CommerceMessage=not shown and'Purchase unavailable. Please try again.'or nil
    else c.State.CommerceMessage=transport and tostring(result)or'Connection interrupted. Please try again.'end
    P.Busy=false;if parent.Parent then c.Draw()end
   end)
+ end
+ -- A failed price lookup never blocks a purchase: the Roblox dialog always shows the exact price.
+ if not entry then
+  if P.Loading[id]and not P.Retry[id]then return 'ROBUX · LOADING PRICE',nil end
+  return type(product.Robux)=='number'and'BUY · '..Price.Robux(product.Robux)or'BUY WITH ROBUX',purchase
  end
  return 'BUY · '..Price.Robux(entry.Price),purchase
 end

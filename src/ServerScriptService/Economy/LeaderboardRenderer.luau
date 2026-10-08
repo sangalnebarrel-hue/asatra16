@@ -20,7 +20,9 @@ function R.Create(root)
   local gui=screen:FindFirstChild(category.Key)
   if gui then gui:Destroy()end
   gui=Instance.new('SurfaceGui');gui.Name=category.Key;gui.Face=Enum.NormalId[category.Face]
-  gui.CanvasSize=Vector2.new(900,1100);gui.LightInfluence=0;gui.Brightness=1;gui.MaxDistance=200;gui.Parent=screen
+  -- New SurfaceGuis default to PixelsPerStud (18x19 studs = 900x950 px), which ignores CanvasSize and
+  -- pushes row 10 and the status line off the board. Keep the designed 900x1100 canvas.
+  gui.SizingMode=Enum.SurfaceGuiSizingMode.FixedSize;gui.CanvasSize=Vector2.new(900,1100);gui.LightInfluence=0;gui.Brightness=1;gui.MaxDistance=200;gui.Parent=screen
   local bg=Instance.new('Frame');bg.Name='Panel';bg.Size=UDim2.fromScale(1,1);bg.BackgroundColor3=Color3.fromRGB(19,34,39);bg.BorderSizePixel=0;bg.ClipsDescendants=true;bg.Parent=gui
   text(bg,'Icon',category.Icon,32,20,60,60,45,category.Accent)
   text(bg,'Title',category.Title,104,24,770,60,54,category.Accent)
@@ -38,7 +40,7 @@ function R.Create(root)
    local value=text(frame,'Value','',156,41,670,29,25,accent)
    rows[i]={Frame=frame,Avatar=avatar,Username=user,Value=value}
   end
-  local status=text(bg,'Status','Connecting to the records\226\128\166',36,1010,828,49,23,muted)
+  local status=text(bg,'Status','Connecting to the records\226\128\166',36,986,828,46,23,muted)
   R.Panels[category.Key]={Gui=gui,Rows=rows,Status=status}
  end
 end

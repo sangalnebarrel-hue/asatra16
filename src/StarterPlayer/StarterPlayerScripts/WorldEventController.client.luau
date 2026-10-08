@@ -19,13 +19,15 @@ U.New('UITextSizeConstraint',{MinTextSize=18,MaxTextSize=28},noticeTitle)
 U.New('UITextSizeConstraint',{MinTextSize=16,MaxTextSize=20},noticeSub)
 local noticeAccent=U.Frame(notice,'EventAccent',16,97,608,5,colors.gold);noticeAccent.ZIndex=86;U.Round(noticeAccent,3)
 local function layoutNotice()
- local left,top,width=U.SafeArea(gui);local mobile=width<700;local w=math.max(240,math.min(640,width-24));local h=mobile and 120 or 106
- notice.Size=UDim2.fromOffset(w,h);notice.Position=UDim2.fromOffset(left+width/2,math.max(top+12,mobile and 120 or 90))
+ -- Stay between the HUD's left and right button columns (published by UITheme.LayoutHUD).
+ local left,top,width=U.SafeArea(gui);local x0=gui:GetAttribute('HUDInnerLeft')or left+12;local x1=gui:GetAttribute('HUDInnerRight')or left+width-12
+ local mobile=width<700;local w=math.max(240,math.min(640,x1-x0-8));local h=mobile and 120 or 106
+ notice.Size=UDim2.fromOffset(w,h);notice.Position=UDim2.fromOffset((x0+x1)/2,math.max(top+12,mobile and 120 or 90))
  noticeTitle.Size=UDim2.fromOffset(w-32,mobile and 56 or 44)
  noticeSub.Position=UDim2.fromOffset(16,mobile and 65 or 52);noticeSub.Size=UDim2.fromOffset(w-32,38)
  noticeAccent.Position=UDim2.fromOffset(16,h-9);noticeAccent.Size=UDim2.fromOffset(w-32,5)
 end
-gui:GetPropertyChangedSignal('AbsoluteSize'):Connect(layoutNotice);layoutNotice()
+gui:GetPropertyChangedSignal('AbsoluteSize'):Connect(layoutNotice);gui:GetAttributeChangedSignal('HUDInnerLeft'):Connect(layoutNotice);gui:GetAttributeChangedSignal('HUDInnerRight'):Connect(layoutNotice);layoutNotice()
 local current,activeDef,endingAt,endingLength;local noticeUntil=0;local enteredAt=0;local lastRevision=-1;local lastTick=-1;local generation
 -- Phones and tablets start on Medium (Low hid most of every event); the PAWPAD setting
 -- still cycles High / Medium / Low and now shows the level actually in use.
@@ -48,9 +50,21 @@ local function apply(state)
   cleanup();activeDef=def;enteredAt=os.clock();generation=state.Generation;Lighting.Begin()
   local late=workspace:GetServerTimeNow()-state.StartTimestamp>Config.IntroDuration+2
   Audio.Begin(def.Id,late,state.StartTimestamp);FX.Begin(def,state,quality())
-  -- The cinematic title is owned by WorldEventCataclysm.
+  -- The cinematic title is owned by WorldEventCataclysm; what the event gives follows it.
+  local perks=Definitions.PerkLines(def)
+  if #perks>0 then
+   local mine=state.Generation
+   task.delay(late and 1 or 7,function()
+    if current and current.Generation==mine and current.State=='ACTIVE'then
+     notify(def.Id=='NULL_HOUR'and'[ PERKS UNSTABLE ]'or def.DisplayName:upper()..' PERKS',table.concat({perks[1],perks[2],perks[3]},'  ·  '),def.ColorTheme,6)
+    end
+   end)
+  end
  elseif state.State=='ENDING'and activeDef then endingAt=os.clock();endingLength=math.max(1,state.EndTimestamp-workspace:GetServerTimeNow());FX.End();Audio.Stop(false);notify('THE WORLD SETTLES',def.DisplayName..' has ended.',def.ColorTheme,3)
- elseif state.State=='WARNING'then cleanup();notify(def.Id=='NULL_HOUR'and '[ WORLD STATE ERROR ]'or 'WORLD EVENT APPROACHING',def.Id=='NULL_HOUR'and 'ERROR' or def.DisplayName:upper(),def.ColorTheme,4)
+ elseif state.State=='WARNING'then
+  cleanup()
+  local perks=Definitions.PerkLines(def)
+  notify(def.Id=='NULL_HOUR'and '[ WORLD STATE ERROR ]'or 'WORLD EVENT APPROACHING',def.Id=='NULL_HOUR'and 'ERROR' or def.DisplayName:upper()..(perks[1]and('  ·  '..perks[1])or''),def.ColorTheme,5)
  else cleanup()end
 end
 local predictedPickups={};local pickupCooldownUntil=0
@@ -88,7 +102,15 @@ package.Signal.OnClientEvent:Connect(function(data)
  if data.Kind=='Signature'and activeDef and data.EventId==activeDef.Id then FX.Signature(data.Duration or 10)
  elseif data.Kind=='Discovered'then local d=Definitions.ById[data.EventId];if d and os.clock()-enteredAt>7 then notify('NEW WORLD EVENT DISCOVERED',d.Id=='NULL_HOUR'and '[REDACTED]'or d.DisplayName,d.ColorTheme,4)end
  elseif data.Kind=='Reward'then if data.ObjectId then predictedPickups[data.ObjectId]=nil end;pickupCooldownUntil=os.clock()+(Config.Interactions.Cooldown or 0);Audio.Cue('interaction',data.Position);Audio.Cue('reward',data.Position);notify('GOOD FIND!','+'..data.Reward.Cash..' Coins · +'..data.Reward.Bones..' Bones',colors.gold,2)
- elseif data.Kind=='Hint'then if data.ObjectId then restorePickup(data.ObjectId)end;notify(data.Message,'',colors.gold,2)end
+ elseif data.Kind=='Hint'then if data.ObjectId then restorePickup(data.ObjectId)end;notify(data.Message,'',colors.gold,2)
+ elseif data.Kind=='EventReward'and type(data.Reward)=='table'then
+  -- Paid to everyone who stayed for the event (WorldEventGameplay.Reward).
+  local r=data.Reward;local d=Definitions.ById[data.EventId]
+  local parts={'+'..U.Fmt(r.Coins or 0)..' Coins'}
+  if (r.Bones or 0)>0 then table.insert(parts,'+'..U.Fmt(r.Bones)..' Bones')end
+  if (r.LuckTier or 0)>0 then table.insert(parts,r.LuckTier..'x LUCK · '..math.floor((r.LuckSeconds or 0)/60)..' min')end
+  pcall(function()require(RS.WorldSound).Cue('Reward')end);notify('EVENT REWARD · THANKS FOR STAYING!',table.concat(parts,'  ·  '),d and d.ColorTheme or colors.gold,6)
+ end
 end)
 local stateFolder=package:WaitForChild('State')
 local function sync()local attributes=stateFolder:GetAttributes();if attributes.Revision and attributes.Revision~=lastRevision then lastRevision=attributes.Revision;apply(attributes)end end

@@ -20,8 +20,15 @@ local Blocks=require(script.Parent.Economy.RewardService)
 local BlockConfig=require(Replicated.LuckyBlockConfig)
 local BlockVisuals=require(Replicated.LuckyBlockVisuals)
 local Arrivals=require(Replicated.SecretArrivalConfig)
+local Reveal=require(script.Parent.SecretReveal)
 local Format=require(Replicated.PriceFormat)
 local WALK_SPEED=Stream.Speed
+-- World events speed the tongue up (DOG RUSH) or slow it down (TIME WARP), and change how
+-- many Lucky Blocks ride it (WorldEventGameplay sets these line attributes); server luck
+-- and the event's tongue luck lift the rare block tiers (ServerLuck.Ranks).
+local ServerLuck=require(script.Parent.Economy.ServerLuck)
+local function eventSpeed()return Stream.Speed*math.clamp(line:GetAttribute('EventLineScale')or 1,.4,2)end
+local function blockChance()return math.min(.6,Stream.BlockChance*math.clamp(line:GetAttribute('EventBlockScale')or 1,0,3))end
 local travel,lastSpawn=0,0
 -- A Secret with a SpeedScale (THE DOG) slows the whole tongue while it is on it, and
 -- one with FreezeLine stops it dead (everything idles) while it arrives.
@@ -307,7 +314,7 @@ local function spawnDog(forced)
 	dog:SetAttribute("CurrentPrice",data.LinePrice or data.Price); 
 	dog:SetAttribute("OwnerUserId",0); 
 	dog:SetAttribute("OwnerName",""); 
-	dog:SetAttribute("LocomotionSpeed",math.clamp(line:GetAttribute('EventLineSpeed')or Stream.Speed,2,Stream.Speed))
+	dog:SetAttribute("LocomotionSpeed",eventSpeed())
 	dog:SetAttribute("State","OnLine");dog:SetAttribute("AnimationName","Walk");dog:SetAttribute("AnimationLooped",true);dog:SetAttribute("AnimationStartedAt",workspace:GetServerTimeNow()); 
 	-- A Secret's arrival cinematic is its announcement on every client. It arrives on a
 	-- stage Arrivals.Stage studs down the tongue, in the mouth opening where it is seen.
@@ -316,12 +323,9 @@ local function spawnDog(forced)
 	local along=linePosition(endPoint)-mouth
 	local stage=arrival and along.Magnitude>Arrivals.Stage and Arrivals.Stage or 0
 	local at=mouth+(stage>0 and along.Unit*stage or Vector3.zero)
-	if arrival then
-		beginArrival(dog,arrival,at)
-		-- Every player's camera visits the arrival: the whole dog reaches every client.
-		pcall(function()dog.ModelStreamingMode=Enum.ModelStreamingMode.Persistent end)
-	end
-	dog.Parent=active; 
+	if arrival then beginArrival(dog,arrival,at) end
+	dog.Parent=active;
+	if arrival then Reveal.Broadcast(id,dog:GetAttribute("DogUid"),dog:GetAttribute("SecretArrivalAt"),at,"Tongue",nil) end
 	movePivot(dog,pivotAt(dog, at, facing(endPoint.Position-spawnPoint.Position, Vector3.new(0,0,-1)))); 
 	billboard(dog,data); 
 	buyPrompt(dog,data); 
@@ -335,10 +339,11 @@ end
 local function spawnBlock(forced)
  local tier=forced
  if not tier then
-  local total=0
-  for _,w in ipairs(BlockConfig.SpawnWeights)do total+=w end
+  local total=0;local luck=ServerLuck.Ranks()
+  local weights={}
+  for i,w in ipairs(BlockConfig.SpawnWeights)do weights[i]=w*(luck[i]or 1);total+=weights[i]end
   local n=rng:NextNumber()*total
-  for i,w in ipairs(BlockConfig.SpawnWeights)do n-=w;if n<0 then tier=BlockConfig.Rarities[i];break end end
+  for i,w in ipairs(weights)do n-=w;if n<0 then tier=BlockConfig.Rarities[i];break end end
  end
  local model=BlockVisuals.Build(tier or 'Common');weldToRoot(model);model.Parent=active
  movePivot(model,pivotAt(model,linePosition(spawnPoint),facing(endPoint.Position-spawnPoint.Position,Vector3.zAxis)))
@@ -354,7 +359,7 @@ game:GetService('RunService').Heartbeat:Connect(function(dt)
  for entity in pairs(entries)do
   if entity.Parent and entity:GetAttribute('FreezeLine')and (entity:GetAttribute('ArrivalHoldUntil')or 0)>now then lineFrozen=true;break end
  end
- local speed=lineFrozen and 0 or math.clamp(line:GetAttribute('EventLineSpeed')or Stream.Speed,2,Stream.Speed)*lineScale
+ local speed=lineFrozen and 0 or eventSpeed()*lineScale
  travel+=dt*speed
  -- Nothing reads this every frame; publishing it 60x/s only cost bandwidth.
  travelPublishedAt+=dt;if travelPublishedAt>=.5 then travelPublishedAt=0;line:SetAttribute('StreamTravel',travel)end
@@ -395,7 +400,7 @@ game:GetService('RunService').Heartbeat:Connect(function(dt)
  lineScale=math.clamp(slowest,.2,1)
  if travel-lastSpawn>=spacing and count<Stream.MaxActive then
   lastSpawn+=spacing
-  if rng:NextNumber()<Stream.BlockChance then spawnBlock()else spawnDog()end
+  if rng:NextNumber()<blockChance()then spawnBlock()else spawnDog()end
  end
 end)
 -- Server-only development harness, never a public admin remote.
@@ -407,29 +412,19 @@ if game:GetService('RunService'):IsStudio() and game.GameId==0 then
 end
 -- Studio-only preview of every Secret arrival (F7 panel); live servers never create it.
 if game:GetService('RunService'):IsStudio() then
- local preview=Instance.new('RemoteFunction');preview.Name='StudioSecretArrival'
- local function arrive(player,id,here)
+ local preview=Instance.new('RemoteFunction');preview.Name='StudioSecretArrival';preview.Parent=Replicated
+ preview.OnServerInvoke=function(player,id,here)
   if type(id)~='string' or not Arrivals.Dogs[id] or not definitions[id] then return false,'Unknown secret' end
   -- Off-tongue Secrets (or "here") arrive in front of the player, as from a Lucky Block.
   if here==true or not definitions[id].CanSpawnOnLine then
    local root=player.Character and player.Character:FindFirstChild('HumanoidRootPart')
    if not root then return false,'No character' end
    local look=root.CFrame.LookVector;local ahead=root.Position+Vector3.new(look.X,0,look.Z).Unit*12
-   local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
-   -- The floor, not an invisible roof, post or trigger above it.
-   local ignore:{Instance}={player.Character}
-   local hit
-   for _=1,6 do
-    params.FilterDescendantsInstances=ignore
-    hit=workspace:Raycast(ahead+Vector3.new(0,6,0),Vector3.new(0,-40,0),params)
-    if not hit or(hit.Instance.Transparency<.95 and hit.Instance.CanCollide)then break end
-    table.insert(ignore,hit.Instance);hit=nil
-   end
+   local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={player.Character}
+   local hit=workspace:Raycast(ahead+Vector3.new(0,6,0),Vector3.new(0,-40,0),params)
    local ground=hit and hit.Position or ahead-Vector3.new(0,3,0)
    local ok,model=pcall(require(script.Parent.SecretReveal).Show,id,ground,-look,{Venue='Yard',By=player.DisplayName})
-   if not ok then return false,'Reveal failed: '..tostring(model)end
-   if not model then return false,'Reveal failed: no usable template for '..id end
-   return true,'Revealed '..definitions[id].DisplayName
+   return ok and model~=nil,ok and model and ('Revealed '..definitions[id].DisplayName) or 'Reveal failed'
   end
   local dog=spawnDog(id)
   if not dog then return false,'Template unavailable' end
@@ -439,14 +434,6 @@ if game:GetService('RunService'):IsStudio() then
   if game.GameId~=0 then dog:SetAttribute('StudioPreview',true) end
   return true,'Spawned '..definitions[id].DisplayName..(game.GameId~=0 and ' (preview, not for sale)' or '')
  end
- -- An error comes back to the panel as text instead of a silent failure.
- preview.OnServerInvoke=function(player,id,here)
-  local ok,success,message=xpcall(arrive,debug.traceback,player,id,here)
-  if not ok then warn('[SecretArrivals] Studio preview of',id,'failed:',success);return false,'Server error: '..(string.match(tostring(success),'^[^\n]*')or'') end
-  print('[SecretArrivals] Studio preview:',id,success,message)
-  return success,message
- end
- preview.Parent=Replicated
 end
 print('DOGROTS_SHARED_STREAM_READY',spacing)
 

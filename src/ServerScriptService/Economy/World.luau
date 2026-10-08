@@ -17,7 +17,6 @@ function World.Start()
  local targets={
  {'DOGDEX','DogDex',map['06_DogDexMuseum'].NavigationAndReception.InteractionAnchor},
  {'GLOBAL DIG','Events',Routing.Anchor('GlobalDigSite')}, {'COLLECTION','Collection',map['06_DogDexMuseum'].NavigationAndReception.CollectionAnchor},
- {'DIGGING LAYERS','Layers',Routing.Anchor('PortalRuins')},
  }
  local shops=map:WaitForChild('11_Shops');local points=shops:WaitForChild('InteractionAnchors')
  table.insert(targets,{'MARKETPLACE','Marketplace',points.Marketplace})

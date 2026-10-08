@@ -110,7 +110,11 @@ function S.Start()
    task.wait(.1)
   end
  end)
- require(script.Parent.LeaderboardService).Start()
+ -- Own thread: a board failure must not stop the community services, and vice versa.
+ task.spawn(function()
+  local ok,err=pcall(require(script.Parent.LeaderboardService).Start)
+  if not ok then warn('DOGROTS leaderboards failed to start:',err)end
+ end)
  print('DOGROTS_COMMUNITY_READY')
 end
 return S

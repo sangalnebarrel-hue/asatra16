@@ -1,4 +1,4 @@
--- Paid-ticket catalog and fulfillment. Only PurchaseService.ProcessReceipt grants.
+-- Paid-ticket catalog and fulfillment (Lucky Spin packs). Only PurchaseService.ProcessReceipt grants.
 local RS=game:GetService('ReplicatedStorage')
 local Players=game:GetService('Players')
 local Policy=game:GetService('PolicyService')
@@ -51,7 +51,7 @@ function P.Receipt(runtime,player,product,receipt)
   end
   local p=values['p:'..player.UserId];runtime.Engine:Authorize(p,player.UserId)
   Tickets.GrantPaid(p,product.Count,os.time());R.Validate(p)
-  local result={Message=product.Count..' legacy DOG TOKENS preserved',Count=product.Count,PaidTickets=p.PaidRouletteTickets}
+  local result={Message=product.Count..(product.Count==1 and ' DOG TOKEN added'or ' DOG TOKENS added')..' · spin at the DOG-O-MATIC',Count=product.Count,PaidTickets=p.PaidRouletteTickets}
   values[key]={Kind='RouletteTickets',User=player.UserId,Product=product.Id,Count=product.Count,At=os.time(),Result=result}
   return result
  end)

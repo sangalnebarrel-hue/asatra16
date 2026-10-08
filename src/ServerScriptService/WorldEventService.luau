@@ -2,6 +2,8 @@ local RS=game:GetService('ReplicatedStorage');local Players=game:GetService('Pla
 local package=RS:WaitForChild('WorldEvents');local C=require(package.WorldEventConfig);local D=require(package.WorldEventDefinitions);local Schedule=require(package.WorldEventSchedule);local Modifiers=require(package.WorldEventModifiers);local Visuals=require(package.WorldEventObjects)
 local Runtime=require(script.Parent.Economy.Runtime);local R=require(script.Parent.Economy.Rules);local I=require(script.Parent.Economy.ItemRules)
 local stateFolder=package:WaitForChild('State');local fx=workspace:WaitForChild('WorldEventFX');local map=workspace:WaitForChild('DOGROTS_District');local rng=Random.new()
+-- What the event does to the island (gravity, movement, the tongue, bones, the end reward).
+local Gameplay=require(script.Parent.WorldEventGameplay)
 local S={Current=nil,Objects={},DebugState=nil};local serial=0
 local DigConfig=require(RS:WaitForChild('GlobalDigConfig'))
 -- The Global Dig quarry sits behind the closed COMING SOON cover while GlobalDigConfig is
@@ -112,6 +114,7 @@ function S.Apply(nextState)
  nextState.Generation=generation;S.Current=nextState
  if nextState.State=='ACTIVE'then Modifiers.Set(nextState.EventId,nextState.ActiveEndTimestamp)
  else Modifiers.Set(nil);for model in pairs(S.Objects)do model:Destroy()end;fx:ClearAllChildren();S.Objects={}end
+ local applied,err=pcall(Gameplay.Apply,nextState);if not applied then warn('WORLD EVENT gameplay apply:',err)end
  for k,v in pairs(nextState)do if type(v)=='string'or type(v)=='number'then stateFolder:SetAttribute(k,v)end end
  serial+=1;stateFolder:SetAttribute('Revision',serial)
  if nextState.State=='ACTIVE'then
@@ -162,6 +165,7 @@ function S.Start()
  if Run:IsStudio() then
   local control=Instance.new('BindableFunction');control.Name='WorldEventDebug';control.Parent=script;control.OnInvoke=S.Force
  end
+ Gameplay.Start()
  S.Tick();task.spawn(function()while true do task.wait(1);local ok,err=pcall(S.Tick);if not ok then warn('WORLD EVENT scheduler retry:',err)end end end)
  game:BindToClose(function()Modifiers.Set(nil);fx:ClearAllChildren()end)
  print('DOGROTS_WORLD_EVENTS_READY')

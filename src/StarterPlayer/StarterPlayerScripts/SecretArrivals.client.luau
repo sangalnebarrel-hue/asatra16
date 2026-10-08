@@ -3,20 +3,26 @@
 -- players see the same moment. On the tongue the server holds the dog on its stage for
 -- SecretArrivalConfig.Dogs[id].Hold seconds while it plays; Secrets obtained elsewhere
 -- arrive as display dogs in DOGROTS_SecretReveals (ServerScriptService/SecretReveal).
+-- The F7 Studio panel starts first and on its own, so a slow or failed arrival setup below
+-- (WaitForChild on the streamed map, a broken module) can no longer take the menu down with it.
+do
+ local panelModule=script:FindFirstChild('StudioPanel')
+ if panelModule and game:GetService('RunService'):IsStudio()then
+  task.spawn(function()
+   local ok,err=pcall(require,panelModule)
+   if not ok then warn('SecretArrivals StudioPanel:',err)end
+  end)
+ end
+end
 local RS=game:GetService('ReplicatedStorage')
 local Run=game:GetService('RunService')
--- Studio's preview panel (★ SECRETS / F7) starts first, so nothing below can hold it up.
-if Run:IsStudio()then
- local panel=script:FindFirstChild('StudioPanel')
- if panel then task.spawn(require,panel)else warn('[SecretArrivals] StudioPanel module is missing')end
-end
 local Config=require(RS:WaitForChild('SecretArrivalConfig'))
 local Kit=require(script:WaitForChild('Kit'))
--- The map-wide layer (sky, colossus, cutaway, banner...) installs itself into Kit.
-require(script:WaitForChild('Takeover'))
 local Whisper=require(script:WaitForChild('Whisper'))
 local Stare=require(script:WaitForChild('Stare'))
 local Dogs=require(script:WaitForChild('Dogs'))
+-- The island-wide layer (Mega/<DogId>) every player sees, wherever they stand.
+local Mega=require(script:WaitForChild('Mega'))
 local line=workspace:WaitForChild('DOGROTS_District'):WaitForChild('03_DogLine')
 local active=line:WaitForChild('ActiveDogs')
 local played={}
@@ -31,16 +37,12 @@ local function play(model)
  -- A dog whose module failed to load still gets its whispers and reveal card.
  run=run or function(c)if c:Wait(c.Config.Hold*.55)then c:Title()end;c:Wait(c.Config.Hold)end
  local late=now()-at
- -- Too late for this arrival (joined or streamed in afterwards): the rest of a long
- -- map-wide arrival still plays (modules skip the one-shots already past), a short one
- -- does not. THE DOG's stare lasts as long as it is around.
- local grace=config.LateGrace or math.max(Config.LateGrace,config.Hold*.6)
- if late>grace and not config.StareSeconds then return end
+ -- Too late for this arrival (joined or streamed in afterwards). THE DOG is the
+ -- exception: its stare lasts as long as it is around.
+ if late>Config.LateGrace and not config.StareSeconds then return end
  if late>(config.StareSeconds or 0)+config.Hold then return end
  played[uid]=true
  local scope=Kit.Scope('Arrival_'..id)
- -- When it ends on the server clock (Scope:Sky keeps clear of world events until then).
- scope.EndsAt=at+config.Hold
  local origin=model:GetAttribute('ArrivalOrigin')
  -- Venue: 'Tongue' (the conveyor), or off it: 'Yard' (a Lucky Block pad), 'Excavation'
  -- (a dig pit), 'Machine' (the DOG-O-MATIC stand). By: who got it (off-tongue only).
@@ -49,7 +51,7 @@ local function play(model)
  local ctx={Model=model,DogId=id,Config=config,Start=at,Late=late,Scope=scope,Kit=Kit,Whisper=Whisper,Stare=Stare,
   Low=Kit.Low(),Origin=typeof(origin)=='Vector3'and origin or model:GetPivot().Position,
   Venue=type(venue)=='string'and venue or 'Tongue',By=type(by)=='string'and by~=''and by or nil,
-  WhisperStyle=nil,ManualWhispers=false,ManualBanner=false,Map=Kit.Map}
+  WhisperStyle=nil,ManualWhispers=false}
  -- Wait(t): yield until Start+t on the server clock; false once the arrival is over.
  function ctx:Wait(t)
   while scope.Alive do
@@ -74,20 +76,6 @@ local function play(model)
   if ctx.By and not options.Tier then options.Tier='SECRET · '..string.upper(ctx.By)end
   Whisper.Title(config.Title,options)
  end
- -- Map-wide helpers bound to this arrival.
- function ctx:Cutaway(shots,options)return scope:Cutaway(ctx,shots,options)end
- function ctx:Colossus(options)options=table.clone(options or {});options.Ctx=ctx;return scope:Colossus(options)end
- function ctx:Banner(options)options=table.clone(options or {});options.Ctx=ctx;return scope:Banner(options)end
- -- The map-wide alert every player sees (SecretArrivalConfig.Dogs[id].Banner), unless the
- -- arrival sets ctx.ManualBanner before it first yields and shows its own.
- task.defer(function()
-  local banner=config.Banner
-  if ctx.ManualBanner or banner==false then return end
-  banner=type(banner)=='table'and banner or {}
-  if not ctx:Wait(banner.At or .15)then return end
-  if ctx:Elapsed()>(banner.At or .15)+(banner.Hold or 3)then return end
-  ctx:Banner(banner)
- end)
  -- The config's whispers are typed on schedule in ctx.WhisperStyle (Font, Color, Glitch,
  -- Chroma, Shake, Type), unless the arrival sets ctx.ManualWhispers before it first yields.
  task.defer(function()
@@ -107,6 +95,8 @@ local function play(model)
   if not ok then warn('SecretArrivals '..id..':',err)end
   scope:Clean()
  end)
+ -- The island-wide layer outlives the stage cinematic (it keeps going while the dog walks).
+ Mega.Run({DogId=id,Start=at,Origin=ctx.Origin,Venue=ctx.Venue,By=ctx.By,Uid=uid,Model=model})
 end
 
 local function watch(model)
@@ -136,4 +126,29 @@ if reveals then follow(reveals)else
   if child.Name=='DOGROTS_SecretReveals'and child:IsA('Folder')then waiting:Disconnect();follow(child)end
  end)
 end
+-- The server also broadcasts every arrival (ServerScriptService/SecretReveal.Broadcast): a
+-- player whose stream never held the dog (far side of the island, THE VOID) still gets
+-- the island-wide layer. The streamed dog, when it arrives, joins the same run.
+task.spawn(function()
+ local broadcast=RS:WaitForChild('SecretArrivalBroadcast',30)
+ if not broadcast then return end
+ local seen=broadcast:GetAttribute('Seq')
+ local function arrival()
+  local seq=broadcast:GetAttribute('Seq')
+  if seq==nil or seq==seen then return end
+  seen=seq
+  local id,at,uid=broadcast:GetAttribute('DogId'),broadcast:GetAttribute('Start'),broadcast:GetAttribute('Uid')
+  local config=type(id)=='string'and Config.Dogs[id]
+  if not config or type(at)~='number'then return end
+  if now()-at>Config.LateGrace and not config.StareSeconds then return end
+  -- Give the dog a moment to stream in so its own cinematic starts the run.
+  task.delay(.6,function()
+   local origin=broadcast:GetAttribute('Origin')
+   local venue,by=broadcast:GetAttribute('Venue'),broadcast:GetAttribute('By')
+   Mega.Run({DogId=id,Start=at,Origin=typeof(origin)=='Vector3'and origin or nil,Venue=type(venue)=='string'and venue or 'Tongue',
+    By=type(by)=='string'and by~=''and by or nil,Uid=uid})
+  end)
+ end
+ broadcast:GetAttributeChangedSignal('Seq'):Connect(arrival)
+end)
 print('DOGROTS_SECRET_ARRIVALS_READY')

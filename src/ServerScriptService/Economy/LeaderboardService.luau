@@ -44,45 +44,54 @@ end
 function S:Allowed(key)
  return not self.Retry[key]or self.Clock()>=self.Retry[key].At
 end
-function S:Failure(key)
+function S:Failure(key,err)
  local previous=self.Retry[key];local delay=math.min(C.MaxRetrySeconds,previous and previous.Delay*2 or C.RetrySeconds)
  self.Retry[key]={Delay=delay,At=self.Clock()+delay}
+ -- First failure of a streak is logged so live servers show why a board is empty.
+ if not previous then warn('DOGROTS leaderboard deferred',key,tostring(err))end
 end
 function S:Flush()
  if self.Writing then return end;self.Writing=true
- for _,c in ipairs(C.Categories)do
-  if c.Key~='Supporters'or Support.Configured()then
-   for id,value in pairs(self.Pending[c.Key])do
-    local key=c.Key..':'..id
-    if self:Allowed(key)then
-     local ok,result=pcall(self.Adapter.Write,c,id,value)
-     if ok and result~=false then
-      self.Written[c.Key][id]=value;self.Retry[key]=nil
-      if self.Pending[c.Key][id]==value then self.Pending[c.Key][id]=nil end
-     else self:Failure(key)end
+ local done,crash=pcall(function()
+  for _,c in ipairs(C.Categories)do
+   if c.Key~='Supporters'or Support.Configured()then
+    for id,value in pairs(self.Pending[c.Key])do
+     local key=c.Key..':'..id
+     if self:Allowed(key)then
+      local ok,result=pcall(self.Adapter.Write,c,id,value)
+      if ok and result~=false then
+       self.Written[c.Key][id]=value;self.Retry[key]=nil
+       if self.Pending[c.Key][id]==value then self.Pending[c.Key][id]=nil end
+      else self:Failure(key,ok and 'write rejected'or result)end
+     end
     end
    end
   end
- end
+ end)
+ -- Never leave the writer locked: a stuck flag would stop every later save.
  self.Writing=false
+ if not done then warn('DOGROTS leaderboard flush failed:',crash)end
 end
 function S:Refresh()
  if self.Refreshing then return end;self.Refreshing=true
- for _,c in ipairs(C.Categories)do
-  local status;local rows=self.Cache[c.Key]or {};local key='read:'..c.Key
-  if c.Key=='Supporters'and not Support.Configured()then status='Coming soon';rows={}
- elseif self:Allowed(key)and self.Clock()>=(self.ReadDue[c.Key]or 0)then
-   local ok,result=pcall(self.Adapter.Read,c)
-   if ok and type(result)=='table'then
-    rows=S.Clean(result);self.Cache[c.Key]=rows;self.Retry[key]=nil;self.ReadDue[c.Key]=self.Clock()+C.RefreshSeconds
-    status=self.Adapter.Preview and 'Studio preview · current test session'or (#rows==0 and 'No records yet · all time'or 'All time · updated every 2 min')
-   else self:Failure(key);status=#rows>0 and 'Saved standings · refresh pending'or 'Records unavailable · retrying'end
-  elseif self.Retry[key]then status=#rows>0 and 'Saved standings · refresh pending'or 'Records unavailable · retrying'
-  else status=self.Status[c.Key]or 'Connecting to the records…'end
-  self.Status[c.Key]=status
-  self.Renderer.Render(c,rows,status,function(id)return self:Name(id)end)
- end
+ local done,crash=pcall(function()
+  for _,c in ipairs(C.Categories)do
+   local status;local rows=self.Cache[c.Key]or {};local key='read:'..c.Key
+   if c.Key=='Supporters'and not Support.Configured()then status='Coming soon';rows={}
+   elseif self:Allowed(key)and self.Clock()>=(self.ReadDue[c.Key]or 0)then
+    local ok,result=pcall(self.Adapter.Read,c)
+    if ok and type(result)=='table'then
+     rows=S.Clean(result);self.Cache[c.Key]=rows;self.Retry[key]=nil;self.ReadDue[c.Key]=self.Clock()+C.RefreshSeconds
+     status=self.Adapter.Preview and 'Studio preview · current test session'or (#rows==0 and 'No records yet · all time'or 'All time · updated every 2 min')
+    else self:Failure(key,ok and 'invalid page'or result);status=#rows>0 and 'Saved standings · refresh pending'or 'Records unavailable · retrying'end
+   elseif self.Retry[key]then status=#rows>0 and 'Saved standings · refresh pending'or 'Records unavailable · retrying'
+   else status=self.Status[c.Key]or 'Connecting to the records…'end
+   self.Status[c.Key]=status
+   self.Renderer.Render(c,rows,status,function(id)return self:Name(id)end)
+  end
+ end)
  self.Refreshing=false
+ if not done then warn('DOGROTS leaderboard refresh failed:',crash)end
 end
 function S.Start()
  if S.Active then return S.Active end
@@ -93,15 +102,16 @@ function S.Start()
  local DS=game:GetService('DataStoreService');local stores={};local values={}
  for _,c in ipairs(C.Categories)do if memory then values[c.Key]={}else stores[c.Key]=DS:GetOrderedDataStore(c.Store)end end
  local adapter={Preview=memory}
+ -- No pre-checks with the legacy GetSortedAsync/SetIncrementSortedAsync budgets: since the 2026
+ -- per-experience limits those types are legacy and the list budget reads 0, which blocked every
+ -- live read and write. Throttling surfaces as an error here and is retried with backoff.
  adapter.Read=function(c)
   if memory then local rows={};for id,value in pairs(values[c.Key])do table.insert(rows,{key=tostring(id),value=value})end;return rows end
-  if DS:GetRequestBudgetForRequestType(Enum.DataStoreRequestType.GetSortedAsync)<1 then error('Read budget pending',0)end
   return stores[c.Key]:GetSortedAsync(false,C.Top):GetCurrentPage()
  end
  adapter.Write=function(c,id,value)
   if memory then values[c.Key][id]=math.max(values[c.Key][id]or 0,value);return true end
   if id<=0 then return true end
-  if DS:GetRequestBudgetForRequestType(Enum.DataStoreRequestType.SetIncrementSortedAsync)<1 then return false end
   stores[c.Key]:UpdateAsync(tostring(id),function(old)return math.max(tonumber(old)or 0,value)end)
   task.wait(.15);return true
  end
@@ -113,7 +123,7 @@ function S.Start()
  local function queueAll()for id,p in pairs(Runtime.Views)do self:Queue(id,p)end end
  Players.PlayerRemoving:Connect(function(p)self:Queue(p.UserId,Runtime.Views[p.UserId])end)
  game:BindToClose(function()
-  queueAll();local deadline=os.clock()+22
+  pcall(queueAll);local deadline=os.clock()+22
   repeat self:Flush();local pending=false;for _,v in pairs(self.Pending)do if next(v)then pending=true;break end end
    if not pending then break end;task.wait(1)
   until os.clock()>deadline
@@ -122,13 +132,17 @@ function S.Start()
   task.wait(5);local nextWrite=0
   while true do
    local now=os.clock()
-   if now>=nextWrite then queueAll();self:Flush();nextWrite=now+C.WriteSeconds end
+   if now>=nextWrite then
+    local ok,err=pcall(queueAll);if not ok then warn('DOGROTS leaderboard queue failed:',err)end
+    self:Flush();nextWrite=now+C.WriteSeconds
+   end
    -- Each category owns its next read deadline, including recovery after failure.
    self:Refresh()
    if next(self.Retry)then self:Flush()end
    task.wait(C.RetrySeconds)
   end
  end)
+ print('DOGROTS_LEADERBOARDS_READY',memory and 'STUDIO_MEMORY'or 'LIVE_ORDERED_STORES')
  return self
 end
 return S

@@ -4,6 +4,7 @@ local Odds=require(RS.RewardMachineOdds)
 local R=require(script.Parent.Rules);local I=require(script.Parent.ItemRules);local D=require(script.Parent.DogDefinitions)
 local Tickets=require(script.Parent.RouletteTickets)
 local Purchases=require(script.Parent.RoulettePurchases)
+local Pricing=require(RS.DogEconomy.BoostPricing);local Format=require(RS.PriceFormat)
 local S={};local rng=Random.new()
 function S.Pool(p,runtime,now)
  local rows,requiredReason={},nil;now=now or os.time()
@@ -21,6 +22,10 @@ function S.Pool(p,runtime,now)
   if not enabled and row.Required then requiredReason='Aurion is preparing to arrive. Please try again shortly.'end
   if (enabled or row.Required)and(row.Weight>0 or(row.FixedUnits or 0)>0)then
    local view=R.Copy(row);view.PrizeIndex=prizeIndex
+   -- A coin bag holds minutes of this player's income: the same amount is shown and paid.
+   if row.Kind=='Cash'and row.Coins then
+    view.Amount=Pricing.Coins(row.Coins,p,now);view.Name=Format.Number(view.Amount)..' Coins'
+   end
    if row.Kind=='Dog'and D[row.Id]then view.Rarity=D[row.Id].Rarity;view.Rank=D[row.Id].Rank
    elseif row.Kind=='Item'then view.Rarity=I.Definitions[row.Id].Class end
    table.insert(rows,view)
@@ -42,7 +47,7 @@ local function deliveryReason(p,pool,now)
    local def=E.Supplies[row.Id]
    if not def then return 'A reward is temporarily unavailable'end
    if math.max(now,(p.Supplies or{})[row.Id]or 0)+row.Duration>now+def.MaxSeconds then
-    return 'Wait until '..def.Name..' has room for the full 5-minute reward'
+    return 'Wait until '..def.Name..' has room for the full '..math.floor(row.Duration/60)..'-minute reward'
    end
   end
  end
@@ -59,7 +64,8 @@ function S.Info(p,runtime,now,paidAllowed)
   PaidRandomRestrictionReason=paidAllowed~=true and 'Paid tickets are unavailable for this account. Free tickets still work.'or nil,
   TicketRefillSeconds=C.TicketRefillSeconds,ServerNow=now,NextSpinAt=p.NextRouletteAt or 0,
   Rewards=pool,OddsDenominator=C.OddsDenominator,CanSpin=reason==nil,UnavailableReason=reason,
-  TicketDescription='One free DOG TOKEN every 5 hours after use. Holds one. DOG TOKENS cannot be purchased.'}
+  TicketDescription=C.FreeOnly and 'One free DOG TOKEN every 5 hours after use. Holds one. DOG TOKENS cannot be purchased.'
+   or 'One free DOG TOKEN every 5 hours after use (holds one). Extra tokens: Lucky Spin packs in the PAW MARKET. Free tokens are always used first.'}
 end
 -- Server-only pure transaction body. It can be tested against the existing
 -- transaction journal without bypassing the remote/world authorization gates.

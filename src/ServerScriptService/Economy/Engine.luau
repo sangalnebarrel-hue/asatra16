@@ -6,6 +6,7 @@ local D=require(script.Parent.DogDefinitions)
 local Market=require(script.Parent.Market)
 local I=require(script.Parent.ItemRules)
 local Offline=require(script.Parent.OfflineEarnings)
+local ServerLuck=require(script.Parent.ServerLuck)
 local E={};E.__index=E
 local function pk(id) return 'p:'..id end
 function E.new(tx,options)
@@ -110,6 +111,8 @@ local function lineShare(def)return def.LineWeight or 1 end
 -- maxRank leaves out the rarer groups (their budget is not redistributed).
 function E:LineOdds(maxRank)
  local choices,total,groups={},0,{}
+ -- Server luck and an active world event lift the rare groups (ServerLuck.Ranks).
+ local luck=ServerLuck.Ranks(self.Now())
  for id,def in pairs(D) do if def.CanSpawnOnLine==true and def.Rank<=(maxRank or #C.Rarities) and self.AssetReady(id) and R.Available(def,self.Now()) then
   groups[def.Rank]=groups[def.Rank]or{};table.insert(groups[def.Rank],def)
  end end
@@ -120,7 +123,7 @@ function E:LineOdds(maxRank)
    table.sort(members,function(a,b)return a.Id<b.Id end)
    local shares=0;for _,def in ipairs(members)do shares+=lineShare(def)end
    for _,def in ipairs(members)do
-    local weight=(C.Weights[rank]or 0)*lineShare(def)/shares
+    local weight=(C.Weights[rank]or 0)*lineShare(def)/shares*(luck[rank]or 1)
     if weight>0 then total+=weight;table.insert(choices,{Id=def.Id,Rank=rank,Weight=weight,Ceiling=total})end
    end
   end

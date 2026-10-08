@@ -31,7 +31,7 @@ function QA.Run()
  check(math.abs(weights-100)<1e-8,'line weights sum to 100')
  check(C.LineGuarantee[6]==nil,'no secret guarantee')
  check(D.TheDog.CanSpawnOnLine==true and D.TheDog.CanDropFromLuckyBlock==false,'THE DOG walks the tongue only')
- check(not D.LongDog.CanSpawnOnLine and not D.Aurion.CanSpawnOnLine,'excavation and roulette exclusives stay off the tongue')
+ check(D.LongDog.CanSpawnOnLine and not D.Aurion.CanSpawnOnLine,'Long Dog walks the tongue; the roulette exclusive stays off it')
  local engine=require(E.Engine).new(nil,{Now=os.time,Random=function()return .5 end,AssetReady=function(id)return D[id]~=nil end})
  local choices,total=engine:LineOdds();local share={0,0,0,0,0,0}
  for _,row in ipairs(choices)do share[row.Rank]+=row.Weight/total end

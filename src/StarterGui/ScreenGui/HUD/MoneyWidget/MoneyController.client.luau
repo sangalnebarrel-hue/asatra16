@@ -34,19 +34,25 @@ local function layoutAmount()
 	end
 	scale = math.max(0.01, scale)
 	local viewportWidth = screen and screen.AbsoluteSize.X or 800
-	local onTouch = UserInputService.TouchEnabled
+	-- UITheme.LayoutHUD publishes which way the wallet may grow and its right limit
+	-- (the free zone between the HUD button columns, in ScreenGui pixels).
+	local growLeft = moneyWidget:GetAttribute("HUDGrowLeft")
+	if growLeft == nil then growLeft = UserInputService.TouchEnabled end
+	local maxRight = moneyWidget:GetAttribute("HUDMaxRight")
 	local availablePixels
-	if onTouch then
+	if growLeft then
 		availablePixels = math.min(viewportWidth - 28, main.AbsolutePosition.X + main.AbsoluteSize.X - 14)
+	elseif type(maxRight) == "number" and screen then
+		availablePixels = screen.AbsolutePosition.X + maxRight - main.AbsolutePosition.X
 	else
 		availablePixels = viewportWidth - main.AbsolutePosition.X - 18
 	end
 	local measured = TextService:GetTextSize(amountLabel.Text, 40, Enum.Font.FredokaOne, Vector2.new(10000, 46))
 	local preferredWidth = math.max(320, math.ceil(measured.X * 1.06) + 16)
 	local width = math.floor(math.min(preferredWidth, math.max(1, availablePixels) / scale) * 4) / 4
-	local anchor = Vector2.new(onTouch and 1 or 0, 0)
-	local position = UDim2.new(onTouch and 1 or 0, 0, 0, 0)
-	local alignment = onTouch and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+	local anchor = Vector2.new(growLeft and 1 or 0, 0)
+	local position = UDim2.new(growLeft and 1 or 0, 0, 0, 0)
+	local alignment = growLeft and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
 	-- Do not rewrite watched properties on every fit. Roblox may signal a write
 	-- even when its value is equivalent, causing an unbounded deferred reflow.
 	if main.ClipsDescendants then main.ClipsDescendants = false end
@@ -88,6 +94,8 @@ coins:GetPropertyChangedSignal("Value"):Connect(updateMoney)
 main:GetPropertyChangedSignal("AbsoluteSize"):Connect(queueLayout)
 main:GetPropertyChangedSignal("AbsolutePosition"):Connect(queueLayout)
 UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(queueLayout)
+moneyWidget:GetAttributeChangedSignal("HUDGrowLeft"):Connect(queueLayout)
+moneyWidget:GetAttributeChangedSignal("HUDMaxRight"):Connect(queueLayout)
 if screen then screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(queueLayout) end
 -- UITheme can apply after this LocalScript. Refit once its initial fixed-size
 -- counter styling is applied, as well as after a later theme rebuild.

@@ -1,112 +1,46 @@
--- NUCLEAR PUG, "CRITICALITY". The whole island goes critical before the pug does. A Geiger
--- counter starts clicking for every player and will not stop, a radiation alert crosses
--- every screen (saying where, and who set it off), the sky curdles a sickly green, every
--- light in the district turns green (and the giant head's eyes), radioactive motes rise
--- around every player, a colossal radiation trefoil assembles in the sky (out in front of the
--- giant head on the tongue), every dog on the island looks up at it and a countdown runs on
--- every screen: 5 at 1.6 ... 0 at 6.6. At 4.4 every camera is pulled to the stage. At 5 the
--- pug appears in a hiss of steam and the stage act plays as before, 5 s later: a hazard plate
--- lights under it, three hazard rings lift off the belt and spin faster with the clicks, the
--- mouth's runes glow toxic. At 6.2 the reactor on its back lights, green sparks rush into it,
--- a beam of green light punches out of it into the sky and the trefoil spins up and implodes.
--- 6.6, ZERO: every screen goes white, every light dies, a shockwave and a mushroom cloud fill
--- the mouth (up to its roof) while a colossal fireball bursts out of the stage and climbs
--- into a mushroom cloud ~300 studs high, seen from every yard; a blast wave (a shimmering
--- dome, a bright ring on the ground) races across the whole district and shakes each player
--- as it passes them, every dog flinches and looks up at the cloud, the tongue's edges turn
--- green down the line, green fallout rains on every player and a ghostly giant pug grins out
--- of the cap. 9.2: on the stage the cloud lets go, the rings clatter onto the belt among
--- glowing puddles and the pug and the ghost in the sky celebrate together (the card). From 12
--- the cloud, the fallout and the sky ease back before the hold ends (15). Off the tongue (a
--- Lucky pad, open air) toxic runes stand round the stage instead of the mouth's, a green haze
--- creeps over the ground, the small cloud climbs into the open sky and every map-wide thing
--- (cloud, wave, trefoil, cutaway) is aimed at the stage.
+-- NUCLEAR PUG, "CRITICALITY". A Geiger counter starts clicking and will not stop. The
+-- mouth's runes go toxic green, a hazard plate lights under the pug and three hazard rings
+-- lift off the belt around it, spinning faster with the clicks while the screen's edges
+-- glow. At 1.2 the reactor on its back lights and green sparks rush into it; at 1.6 it
+-- goes critical: a flash, a shockwave, the tongue's edges turn green down the line and a
+-- mushroom cloud climbs out of its twin vents to the roof of the mouth. Fallout drifts
+-- down; at 4.2 the cloud lets go, the rings clatter onto the belt and it stands there,
+-- delighted, among glowing puddles. Off the tongue (a Lucky pad, open air) toxic runes
+-- stand round it instead of the mouth's, a green haze creeps over the ground, the blast
+-- runs on with no walls to stop it and the cloud climbs into the open sky.
 local Players=game:GetService('Players')
-local SoundService=game:GetService('SoundService')
 local C=Color3.fromRGB
-local WHITE,BLACK=Color3.new(1,1,1),Color3.new(0,0,0)
+local WHITE=Color3.new(1,1,1)
 local HAZARD,INK,TOXIC,SOOT,PALE=C(255,214,0),C(26,26,20),C(120,255,60),C(40,90,20),C(222,255,190)
--- The colossal cloud's shell, its rolling rim and cooled crown, the dust at its foot.
-local CLOUD,CURL,CROWN,DUST=C(104,214,52),C(84,150,46),C(64,118,38),C(132,152,108)
 local TICK='rbxasset://sounds/volume_slider.ogg'
--- The map-wide build-up runs PRE seconds before the stage act (whose t=0 it was); then the
--- stage act's beats: the reactor lights, criticality, the cloud lets go.
-local PRE=5
-local CHARGE,BOOM,CLEAR=PRE+1.2,PRE+1.6,PRE+4.2
--- The trefoil assembles, the countdown shows 5 (a number a second, 0 at the blast), the
--- cutaway's first shot, the ghost pug fades in inside the cap.
-local SIGN,COUNT,CUT,GHOST=1.2,BOOM-5,PRE-.6,BOOM+2
--- The blast wave crosses the district in WAVE_T seconds. The trefoil hangs LIFT over the
--- stage (on the tongue AHEAD studs out in front of the giant head, in open sky, where the
--- yards look); R0 is its centre disc's radius and the blades run from 1.5x to 5x it, as on
--- the real sign. BEAM: the reactor's beam into the sky.
-local WAVE_T,LIFT,AHEAD,R0,BEAM=6,125,50,11,700
+local CHARGE,BOOM,CLEAR=1.2,1.6,4.2
 -- The hazard rings: resting height above the belt and spin direction.
 local RINGS={{.25,1},{3,-1},{6,1}}
 local BONES={'Vent_L','Vent_R','Body'}
-local UPRIGHT=CFrame.Angles(0,0,math.pi/2)    -- a cylinder's axis (its X) pointing up
-local FACING=CFrame.Angles(0,math.pi/2,0)     -- ... pointing along a frame's look
 local function smooth(x)x=math.clamp(x,0,1);return x*x*(3-2*x)end
 local function out3(x)x=math.clamp(x,0,1);return 1-(1-x)^3 end
 local function backOut(x)x=math.clamp(x,0,1)-1;local c=1.70158;return 1+(c+1)*x*x*x+c*x*x end
--- Transparency a, faded toward invisible by f.
-local function veil(a,f)return math.min(1,a+(1-a)*f)end
 local function curve(points)
  local k={}
  for i,p in ipairs(points)do k[i]=NumberSequenceKeypoint.new(p[1],p[2])end
  return NumberSequence.new(k)
 end
 local function setSkin(s,strength,tint)s.EmissiveStrength=strength;s.EmissiveTint=tint end
--- Geiger clicks a second at t: 1 → 5 through the countdown, → 20 as the stage act charges, a
--- crackle into the blast, then thinning.
+-- Geiger clicks a second at t: 2 → 20 while it builds, a crackle into the blast, then thinning.
 local function rate(t)
- if t<PRE then return 5^(t/PRE)end
- if t<CHARGE then return 5*4^((t-PRE)/(CHARGE-PRE))end
+ if t<CHARGE then return 2*10^(t/CHARGE)end
  if t<BOOM then return 20+12*(t-CHARGE)/(BOOM-CHARGE)end
  if t<CLEAR then return 3+11*math.exp(-(t-BOOM)*1.1)end
  return 1.6
 end
--- The colossal cloud u seconds after the blast: the cap's height over the stage, its radius
--- and half-height. A fireball swelling on the ground first, then it climbs (fast, then
--- slower) and flattens into a cap.
-local function capAt(u)
- local r=u<.5 and 48*out3(u/.5)or 48+62*out3((u-.5)/3.6)
- local x=math.clamp((u-.2)/4.4,0,1)
- local h=22+210*(1-(1-x)^2)
- if u<.5 then h=math.min(h,4+r*.4)end
- return h,r,r*(.62-.14*x)
-end
--- The island's sky: curdling through the countdown, the blast's white-out, then a poisoned
--- dusk the cloud glows in. scope:Sky eases between them (and back after). The haze stays
--- thin (Density): the cloud must still read from the far north, ~800 studs away.
-local SKY_DOOM={
- Lighting={ClockTime=17.3,Brightness=1.6,ExposureCompensation=-.1,Ambient=C(84,104,70),OutdoorAmbient=C(120,150,96)},
- Atmosphere={Density=.24,Offset=.08,Color=C(168,214,118),Decay=C(74,104,40),Glare=.6,Haze=2.2},
- Clouds={Cover=.72,Density=.55,Color=C(160,204,110)},
- Grade={TintColor=C(228,255,208),Saturation=-.08,Contrast=.1,Brightness=0},
- Bloom={Intensity=.35,Size=30,Threshold=1.5},
-}
-local SKY_FLASH={Lighting={ExposureCompensation=2.2,Brightness=5},Grade={TintColor=WHITE,Brightness=.3},Bloom={Intensity=1.5,Threshold=.8}}
-local SKY_GLARE={Lighting={ExposureCompensation=.9,Brightness=3},Grade={TintColor=WHITE,Brightness=.1},Bloom={Intensity=.8,Threshold=1.1}}
-local SKY_FALLOUT={
- Lighting={ClockTime=18.3,Brightness=1.2,ExposureCompensation=-.25,Ambient=C(70,96,56),OutdoorAmbient=C(104,140,80)},
- Atmosphere={Density=.3,Offset=.1,Color=C(140,206,90),Decay=C(54,84,28),Glare=1.2,Haze=3},
- Clouds={Cover=.84,Density=.7,Color=C(120,170,80)},
- Grade={TintColor=C(216,255,190),Saturation=-.12,Contrast=.18,Brightness=0},
- Bloom={Intensity=.6,Size=36,Threshold=1.2},
-}
 
 return function(ctx)
- -- Our own alert (it says where and who set it off); set before the first yield.
- ctx.ManualBanner=true
  ctx.WhisperStyle={Font=Enum.Font.RobotoMono,Color=C(196,255,150),Glitch=.05,Chroma=false,Shake=false,Type=.04}
  local Kit,scope,model,config=ctx.Kit,ctx.Scope,ctx.Model,ctx.Config
  local low,calm,hold,origin=ctx.Low,Kit.ReducedMotion(),config.Hold,ctx.Origin
  local GREEN=config.Color
  local size=Kit.Size(model)
  local joined=ctx:Elapsed()
- -- The sky, the cloud and the fallout ease back over the last 3 s of the hold.
- local FADE=hold-3
  -- One-shots fire on time only: a late joiner gets the state, not a pile-up of cues.
  local function fresh(t)return ctx:Elapsed()-t<.35 end
  -- Off the tongue (a Lucky pad): open air, no mouth, no roof, no walls, any facing.
@@ -147,7 +81,7 @@ return function(ctx)
  end
  -- The cap's climb over the stage: to just under the mouth's roof (underside y 23.5), or
  -- in the open to a virtual ceiling ~18 over it. ROLL: the condensation ring's height under
- -- the cap at BOOM+.3; SHOCK: the blast's reach (the mouth's walls are at x=±15.5).
+ -- the cap at 1.9; SHOCK: the blast's reach (the mouth's walls are at x=±15.5).
  local RISE,ROLL,SHOCK=6.7,9.2,15
  if not onTongue then RISE,ROLL,SHOCK=8.5,9.9,22 end
  local function frame()
@@ -162,19 +96,17 @@ return function(ctx)
  end
 
  scope:Duck(.4,.6)
- -- The stage's own grade: only the near players' punch (the island's tint is the sky's).
- local grade=scope:Grade({Brightness=0},.2)
- -- The reactor core rides its Body bone: the dog's light lives here (lights and emitters
- -- parented under the district get throttled).
+ local grade=scope:Grade({TintColor=C(238,255,228),Saturation=.04},joined<.6 and .8 or .2)
+ -- The reactor core rides its Body bone: the dog's light and the Geiger counter live here
+ -- (lights and emitters parented under the district get throttled).
  local core=scope:Anchor(origin+Vector3.new(0,size.Y*.45,0),'Reactor')
  local glow=scope:Light(core,GREEN,20,0)
- -- The Geiger counter every player hears (2D, wherever they are).
  local clicks={}
  for i=1,low and 3 or 5 do
-  local s=Instance.new('Sound');s.Name='Geiger';s.SoundId=TICK;s.Volume=0
+  local s=Instance.new('Sound');s.Name='Geiger';s.SoundId=TICK;s.Volume=0;s.RollOffMinDistance=18;s.RollOffMaxDistance=220
   local eq=Instance.new('EqualizerSoundEffect');eq.LowGain=-14;eq.MidGain=2;eq.HighGain=4;eq.Parent=s
   local grit=Instance.new('DistortionSoundEffect');grit.Level=.55;grit.Parent=s
-  s.Parent=SoundService;scope:Add(s);clicks[i]=s
+  s.Parent=core;clicks[i]=s
  end
  -- A pooled click (no new sounds per click); every click also kicks the glow.
  local turn,kick=0,0
@@ -185,7 +117,7 @@ return function(ctx)
   kick=1
  end
 
- -- The edges of every screen glow green, building with the countdown.
+ -- The edges of the screen glow green, stronger the closer you stand.
  local edges={}
  local playerGui=Players.LocalPlayer:FindFirstChildOfClass('PlayerGui')
  if playerGui then
@@ -248,13 +180,6 @@ return function(ctx)
    if g.Name=='WarmEdgeGuide'and g:IsA('BasePart')and math.abs(g.Position.Z-origin.Z)<70 then table.insert(guides,g)end
   end
  end
- -- On the tongue the giant head's irises curdle green with the sky (seen from every yard).
- local irises:{BasePart}={}
- local head=factory and factory:FindFirstChild('THE_DOG')
- for _,o in ipairs(head and head:GetChildren()or {})do
-  if o.Name=='WarmIris'and o:IsA('BasePart')then table.insert(irises,o)end
- end
- local irisColor=#irises>0 and irises[1].Color or BLACK
  -- In the open the stage brings its own: toxic runes standing round it, lit in pairs from
  -- behind it to its front (as the mouth's light from the throat out), lamps on half of them
  -- for the lanterns and a green ground haze for the mist. Ours, so they burn out after.
@@ -316,10 +241,9 @@ return function(ctx)
   end
   rings[i]=ring
  end
- -- The cloud in the mouth: an ellipsoid cap with a hot core on a glowing stem, a rolling
- -- skirt below it. (blob also makes the colossal cloud's parts.)
- local function blob(name,color,material:Enum.Material?)
-  local p=scope:Part({Name=name,Color=color,Transparency=1,Size=Vector3.one,Material=material or Enum.Material.Neon})
+ -- The cloud: an ellipsoid cap with a hot core on a glowing stem, a rolling skirt below it.
+ local function blob(name,color)
+  local p=scope:Part({Name=name,Color=color,Transparency=1,Size=Vector3.one})
   local mesh=Instance.new('SpecialMesh');mesh.MeshType=Enum.MeshType.Sphere;mesh.Parent=p
   return p
  end
@@ -354,7 +278,7 @@ return function(ctx)
  end
  local function vent(n)for _,e in ipairs(vapour)do e.Rate=n end end
 
- -- Its own skin: the reactor pieces burn green from the charge, everything flares at the blast.
+ -- Its own skin: the reactor pieces burn green from 1.2, everything flares at the blast.
  local skins,seen={},{}
  local function grab(o)
   if not o:IsA('SurfaceAppearance')or seen[o]then return end
@@ -367,153 +291,6 @@ return function(ctx)
  end
  for _,o in ipairs(model:GetDescendants())do grab(o)end
  scope:Add(model.DescendantAdded:Connect(grab))
- -- Hidden through the build-up: it appears at PRE (in a hiss of steam).
- local vis=joined<PRE and scope:Visibility(model)or nil
- if vis then vis.Set(1)end
-
- ---------------------------------------------------------------- over the whole island
- -- Where the stage faces (down the line on the tongue): the cutaway and the ghost's fallback.
- local function front():Vector3
-  local f=frame().LookVector
-  local flat=Vector3.new(f.X,0,f.Z)
-  return flat.Magnitude>.1 and flat.Unit or Vector3.zAxis
- end
- -- The trefoil: a centre disc and three blades of radial bars (two up, one down) in its own
- -- plane, turned to this camera every frame and spun about its face.
- local signAt=origin+(onTongue and front()*AHEAD or Vector3.zero)+Vector3.new(0,LIFT,0)
- local signParts:{BasePart}={}
- local signLayout={}
- local signCF:{CFrame}={}
- do
-  local r1,r2=1.5*R0,5*R0
-  local bars=low and {-1,0,1}or {-2,-1,0,1,2}
-  local step=math.rad(low and 18 or 12)
-  for b=0,2 do
-   for _,k in ipairs(bars)do
-    table.insert(signLayout,{Angle=math.rad(30+b*120)+k*step,Mid=(r1+r2)/2,Born=SIGN+b*.18,Disc=false})
-    table.insert(signParts,scope:Part({Name='SkySign',Color=HAZARD,Transparency=1,Size=Vector3.new(r2-r1,(low and .33 or .22)*r2,2)}))
-   end
-  end
-  table.insert(signLayout,{Angle=0,Mid=0,Born=SIGN+.54,Disc=true})
-  table.insert(signParts,scope:Part({Name='SkySignCore',Shape=Enum.PartType.Cylinder,Color=HAZARD,Transparency=1,Size=Vector3.new(2,2*R0,2*R0)}))
- end
- -- The reactor's beam: out of the vents on its back straight up into the sky while it
- -- charges (through the mouth's roof and out of the giant head on the tongue). ventAt is
- -- kept by the stage act's step.
- local ventAt=origin+Vector3.new(0,size.Y,0)
- local beam=scope:Part({Name='Beam',Shape=Enum.PartType.Cylinder,Color=TOXIC,Transparency=1,Size=Vector3.new(BEAM,1,1)})
- local beamCore=scope:Part({Name='BeamCore',Shape=Enum.PartType.Cylinder,Color=PALE,Transparency=1,Size=Vector3.new(BEAM,.5,.5)})
- -- The colossal cloud: a glowing shell and heart for the cap, a matte crown and a rolling rim,
- -- a stem (hot pith inside), swells along it and the dust at its foot. Posed every frame from
- -- capAt with one BulkMoveTo; the low tier keeps a third.
- local shell,heart=blob('CloudShell',PALE),blob('CloudHeart',WHITE)
- local column=scope:Part({Name='CloudStem',Shape=Enum.PartType.Cylinder,Material=Enum.Material.SmoothPlastic,Color=CLOUD,Transparency=1,Size=Vector3.one})
- local pith=scope:Part({Name='CloudPith',Shape=Enum.PartType.Cylinder,Color=PALE,Transparency=1,Size=Vector3.one})
- local cloudParts:{BasePart}={shell,heart,column,pith}
- local crown=not low and blob('CloudCrown',CROWN,Enum.Material.SmoothPlastic)or nil
- local foot=not low and blob('CloudFoot',DUST,Enum.Material.SmoothPlastic)or nil
- if crown then table.insert(cloudParts,crown)end
- if foot then table.insert(cloudParts,foot)end
- local billows,rim={},{}
- for k=1,low and 0 or 3 do billows[k]=blob('CloudSwell',CLOUD,Enum.Material.SmoothPlastic);table.insert(cloudParts,billows[k])end
- for k=1,low and 4 or 10 do rim[k]=blob('CloudRoll',CURL,Enum.Material.SmoothPlastic);table.insert(cloudParts,rim[k])end
- local cloudCF:{CFrame}={}
- local cloudTop=origin+Vector3.new(0,22,0)
- local base=scope:Anchor(origin+Vector3.new(0,3,0),'CloudFoot')
- local blastLight=scope:Light(base,TOXIC,60,0)
- local plume=scope:Emitter(shell,{Texture=Kit.Textures.Smoke,Color=ColorSequence.new(CLOUD,C(58,104,34)),LightEmission=.25,LightInfluence=.6,
-  Shape=Enum.ParticleEmitterShape.Sphere,Lifetime=NumberRange.new(3,5),Speed=NumberRange.new(2,7),Drag=.6,
-  Size=curve({{0,30},{1,70}}),Transparency=curve({{0,1},{.15,.45},{.7,.6},{1,1}}),Rotation=NumberRange.new(0,360),RotSpeed=NumberRange.new(-12,12)})
- local chimney=scope:Emitter(column,{Texture=Kit.Textures.Smoke,Color=ColorSequence.new(CLOUD,DUST),LightEmission=.15,LightInfluence=.8,
-  Shape=Enum.ParticleEmitterShape.Box,Lifetime=NumberRange.new(2.5,4),Speed=NumberRange.new(2,6),Acceleration=Vector3.new(0,6,0),
-  Size=curve({{0,16},{1,36}}),Transparency=curve({{0,1},{.2,.5},{1,1}}),Rotation=NumberRange.new(0,360),RotSpeed=NumberRange.new(-15,15)})
- local surge=scope:Emitter(base,{Texture=Kit.Textures.Smoke,Color=ColorSequence.new(DUST,C(96,112,80)),LightEmission=0,LightInfluence=1,
-  EmissionDirection=Enum.NormalId.Top,SpreadAngle=Vector2.new(80,80),Speed=NumberRange.new(30,70),Drag=1.4,
-  Acceleration=Vector3.new(0,-4,0),Lifetime=NumberRange.new(2.5,3.5),Size=curve({{0,14},{1,40}}),
-  Transparency=curve({{0,.35},{1,1}}),Rotation=NumberRange.new(0,360),RotSpeed=NumberRange.new(-20,20)})
- -- The blast wave: a shimmering dome and a bright ring on the ground racing from the stage
- -- to the far end of the district (both inside WAVE studs).
- local span=0
- for _,x in ipairs({Kit.Map.Min.X,Kit.Map.Max.X})do
-  for _,z in ipairs({Kit.Map.Min.Z,Kit.Map.Max.Z})do span=math.max(span,Vector3.new(x-origin.X,0,z-origin.Z).Magnitude)end
- end
- local WAVE=math.clamp(span+60,300,1000)
- local function wave(u:number):number
-  local a=math.clamp(u/WAVE_T,0,1)
-  return 8+(WAVE-8)*(1-(1-a)^2)
- end
- local dome=scope:Part({Name='BlastWave',Shape=Enum.PartType.Ball,Material=Enum.Material.ForceField,Color=PALE,Transparency=1,
-  Size=Vector3.one*16,CFrame=CFrame.new(origin)})
- local segments=low and 14 or 32
- local fronts:{BasePart}={}
- local frontTurn:{CFrame}={}
- local frontCF:{CFrame}={}
- for i=1,segments do
-  local a=(i-.5)/segments*math.pi*2
-  frontTurn[i]=CFrame.fromMatrix(Vector3.zero,Vector3.new(math.cos(a),0,math.sin(a)),Vector3.yAxis)
-  fronts[i]=scope:Part({Name='BlastFront',Color=PALE,Transparency=1,Size=Vector3.new(3,7,1)})
- end
-
- -- The countdown on every screen: CRITICALITY IN, the number, a dose climbing off the scale.
- local counter:Frame?,counterPop:UIScale?,counterEdge:UIStroke?=nil,nil,nil
- local digit:TextLabel?,dose:TextLabel?=nil,nil
- local counterText:{TextLabel}={}
- if playerGui and joined<BOOM then
-  local gui=Instance.new('ScreenGui');gui.Name='DOGROTS_NuclearPugCountdown';gui.ResetOnSpawn=false
-  gui.IgnoreGuiInset=true;gui.DisplayOrder=95
-  -- (A second pug going critical at the same time counts down under the first.)
-  local below=playerGui:FindFirstChild('DOGROTS_NuclearPugCountdown')~=nil
-  local box=Instance.new('Frame');box.Name='Countdown';box.AnchorPoint=Vector2.new(.5,.5);box.Position=UDim2.fromScale(.5,below and .84 or .7)
-  box.Size=UDim2.fromOffset(250,122);box.BackgroundColor3=C(6,14,4);box.BackgroundTransparency=1;box.BorderSizePixel=0;box.Parent=gui
-  local corner=Instance.new('UICorner');corner.CornerRadius=UDim.new(0,10);corner.Parent=box
-  local edge=Instance.new('UIStroke');edge.Color=HAZARD;edge.Thickness=2;edge.Transparency=1;edge.Parent=box
-  local pop=Instance.new('UIScale');pop.Parent=box
-  -- KeepFont before parenting, or the place's typography swaps the face.
-  local function text(name:string,font:Enum.Font,color:Color3,y:number,h:number,value:string):TextLabel
-   local l=Instance.new('TextLabel');l.Name=name;l:SetAttribute('KeepFont',true)
-   l.BackgroundTransparency=1;l.AnchorPoint=Vector2.new(.5,0);l.Position=UDim2.fromScale(.5,y);l.Size=UDim2.fromScale(.92,h)
-   l.Font=font;l.TextScaled=true;l.TextColor3=color;l.TextStrokeColor3=C(4,10,2);l.TextStrokeTransparency=1
-   l.TextTransparency=1;l.Text=value;l.Parent=box
-   table.insert(counterText,l)
-   return l
-  end
-  text('Kicker',Enum.Font.RobotoMono,HAZARD,.05,.17,'☢ CRITICALITY IN ☢')
-  digit=text('Digit',Enum.Font.Bangers,GREEN,.2,.58,'5')
-  dose=text('Dose',Enum.Font.RobotoMono,PALE,.79,.15,'DOSE 0.05 Sv/h')
-  gui.Parent=playerGui
-  scope:Add(gui)
-  counter,counterPop,counterEdge=box,pop,edge
- end
- -- The countdown's pip (higher each number; a double pip on 1).
- local function pip(n:number)
-  local function one()
-   Kit.Shot(nil,TICK,.5,2.6+(5-n)*.25,{EqualizerSoundEffect={LowGain=-22,MidGain=4,HighGain=0},ReverbSoundEffect={DecayTime=1.2,WetLevel=-9}})
-  end
-  one()
-  if n==1 then task.delay(.16,function()if scope.Alive then one()end end)end
- end
- -- The blast wave reaching you: a whoomp and a thud.
- local function thump(volume:number)
-  Kit.Cue('Whoosh',nil,volume*.8)
-  Kit.Shot(nil,TICK,volume,.1,{EqualizerSoundEffect={LowGain=10,MidGain=-4,HighGain=-30},DistortionSoundEffect={Level=.5},
-   ReverbSoundEffect={DecayTime=3,WetLevel=-4,DryLevel=0,Density=1,Diffusion=1}})
- end
-
- -- The island turns: a sickly green sky for this player wherever they are, a low drone under
- -- the music, motes rising off the ground around them.
- local sky=scope:Sky(SKY_DOOM,math.max(.4,3-joined),3)
- local drone=scope:Drone('Drone',low and .14 or .2,.5,math.max(.5,2.5-joined))
- local motes=scope:Rain({Texture=Kit.Textures.Spark,Color=ColorSequence.new(GREEN,PALE),LightEmission=1,
-  Size=curve({{0,0},{.2,.32},{1,0}}),Transparency=NumberSequence.new(.1,.6),Speed=NumberRange.new(1.5,4),
-  Lifetime=NumberRange.new(3,4.5),SpreadAngle=Vector2.new(25,25),Acceleration=Vector3.new(0,1.5,0),
-  EmissionDirection=Enum.NormalId.Top,Rate=26,Area=110,Height=-16})
- local moteRate=motes.Rate
- local rainGlow:ParticleEmitter?,rainAsh:ParticleEmitter?=nil,nil
- local glowRate,ashRate=0,0
- local cutaway=nil
- local glance=nil
- local ghost=nil
- local ghostFace=Vector3.zAxis
 
  local lookup,nextClick=0,math.max(joined,0)
  local capXZ:Vector3?=nil
@@ -522,17 +299,13 @@ return function(ctx)
  local shiver=(not calm and joined<BOOM)and scope:Offset(model)or nil
  local hl:Highlight?=nil
  local puddles={}
- -- The countdown's pulse (1 on each number, decaying), its number and its dose clock.
- local beat,shown,doseAt,counterAlpha=0,-1,0,-1
- local signSpin,signHot,signDone,beamDone=0,false,false,false
- local cloudDone,cloudCooled,waveDone,hitCam,hitMe=false,false,false,false,false
  local function poseRing(i,ring,el,dt)
-  local t0=PRE+.1+(i-1)*.15
+  local t0=.1+(i-1)*.15
   local k=(el-t0)/.5
   local show=smooth((el-t0)/.35)
   local r=9.5-2.5*out3(k)-1.6*smooth((el-CHARGE)/(BOOM-CHARGE))+3.1*out3((el-BOOM)/.35)
   local h=.25+(ring.Height-.25)*backOut(k)
-  local spin,tilt,fade=.8+2.7*smooth((el-PRE)/(BOOM-PRE)),0,0
+  local spin,tilt,fade=.8+2.7*smooth(el/BOOM),0,0
   if el>=BOOM then
    spin=1.2+3.3*math.exp(-(el-BOOM)*1.5)
    -- Knocked off level by the blast (the floor ring barely: it would dip into the belt).
@@ -564,7 +337,6 @@ return function(ctx)
   end
  end
 
- -- The stage act (as before, PRE seconds later).
  scope:Every(function(dt)
   local el=ctx:Elapsed()
   local now=os.clock()
@@ -583,7 +355,6 @@ return function(ctx)
   local ventL=bone('Vent_L')or f:PointToWorldSpace(Vector3.new(size.X*.29,size.Y*.97,size.Z*.185))
   local ventR=bone('Vent_R')or f:PointToWorldSpace(Vector3.new(-size.X*.29,size.Y*.97,size.Z*.185))
   local vents=(ventL+ventR)/2
-  ventAt=vents
   core.CFrame=CFrame.new(bone('Body')or f:PointToWorldSpace(Vector3.new(0,size.Y*.45,0)))
   jets[1].CFrame=CFrame.new(ventL);jets[2].CFrame=CFrame.new(ventR)
   well.CFrame=CFrame.new(vents-Vector3.new(0,1.2,0))
@@ -593,7 +364,7 @@ return function(ctx)
   local n=0
   while nextClick<=el and n<2 do
    n+=1
-   click(el<CLEAR and .3+.22*math.min(rate(el)/30,1)or .16)
+   click(el<CLEAR and .32+.2*math.min(rate(el)/30,1)or .16)
    nextClick+=Kit.Random(.45,1.55)/rate(nextClick)
   end
   local pop=calm and 0 or kick
@@ -602,33 +373,25 @@ return function(ctx)
   local flare=el>=BOOM and math.exp(-(el-BOOM)*2.2)or 0
   local done=smooth((el-CLEAR)/1)
   local out=1-smooth((el-hold+.8)/.8)
-  -- It appears at PRE.
-  if vis and el>=PRE then
-   local v=1-smooth((el-PRE)/.3)
-   vis.Set(v)
-   if v<=0 then vis=nil end
-  end
 
-  -- The light on the dog: a 3 Hz pulse that builds, faster while charging, then the blast
-  -- (before it appears, only the clicks flicker in the empty stage).
+  -- The light on the dog: a 3 Hz pulse that builds, faster while charging, then the blast.
   local level
-  if el<CHARGE then level=6*smooth((el-PRE)/(CHARGE-PRE))*(calm and .7 or .55+.45*math.sin(el*math.pi*6))
+  if el<CHARGE then level=6*smooth(el/CHARGE)*(calm and .7 or .55+.45*math.sin(el*math.pi*6))
   elseif el<BOOM then level=6*(calm and .85 or .6+.4*math.sin(el*math.pi*12))
   else level=(2.5+9*flare)*(1-.6*done)end
   glow.Brightness=(level+1.5*pop)*out
   if #edges>0 then
    local a
-   if el<PRE then a=.04+.18*smooth(el/PRE)
-   elseif el<CHARGE then a=.22+.04*smooth((el-PRE)/(CHARGE-PRE))
-   elseif el<BOOM then a=.26+.1*charge
+   if el<CHARGE then a=.04+.2*smooth(el/CHARGE)
+   elseif el<BOOM then a=.24+.1*charge
    else a=.2+.35*flare end
-   a=(a+.06*pop+.1*beat)*(1-done)
-   local color=GREEN:Lerp(PALE,math.max(flare*.6,beat*.4))
+   a=(a+.06*pop)*(1-done)*(.3+.7*Kit.Near(origin,160))
+   local color=GREEN:Lerp(PALE,flare*.6)
    for _,e in ipairs(edges)do e.BackgroundTransparency=1-a;e.BackgroundColor3=color end
   end
   for i,ring in ipairs(rings)do poseRing(i,ring,el,dt)end
   if #plate>0 then
-   local vis=smooth((el-PRE-.05)/.5)*(1-smooth((el-CLEAR-.6)/.9))
+   local vis=smooth((el-.05)/.5)*(1-smooth((el-CLEAR-.6)/.9))
    local color=el>=BOOM and HAZARD:Lerp(WHITE,math.exp(-(el-BOOM)*5))or HAZARD
    plate[1].Transparency=1-.7*vis
    for i=2,#plate do plate[i].Transparency=1-(.8+.15*pop)*vis;plate[i].Color=color end
@@ -657,8 +420,8 @@ return function(ctx)
    else shiver.CFrame=CFrame.identity;shiver=nil end
   end
 
-  -- The mushroom cloud in the mouth: out of the vents at the blast, up to just under the
-  -- roof (y 23.5), or in the open straight up over the stage to its virtual ceiling.
+  -- The mushroom cloud: out of the vents at 1.6, up to just under the roof (y 23.5), or
+  -- in the open straight up over the stage to its virtual ceiling.
   if el>=BOOM and not cleared then
    local xz=capXZ or vents
    capXZ=xz
@@ -700,299 +463,39 @@ return function(ctx)
   return true
  end)
 
- -- The map-wide act: the countdown, the head's eyes, the trefoil and the beam, the colossal
- -- cloud, the blast wave reaching each player, the motes and the fallout.
- scope:Every(function(dt)
-  local el=ctx:Elapsed()
-  local cam=workspace.CurrentCamera
-  local eye=cam and cam.CFrame.Position or origin
-  beat*=math.exp(-dt*5)
-  if counter and counterPop and counterEdge and digit and dose and el<BOOM+1.8 then
-   local a=smooth((el-COUNT+.35)/.35)*(1-smooth((el-BOOM-1.1)/.6))
-   if a~=counterAlpha then
-    counterAlpha=a
-    counter.BackgroundTransparency=1-.45*a;counterEdge.Transparency=1-a
-    for _,l in ipairs(counterText)do l.TextTransparency=1-a;l.TextStrokeTransparency=1-.7*a end
-   end
-   if el>=COUNT and el<BOOM then
-    local number=math.clamp(math.ceil(BOOM-el),1,5)
-    if number~=shown then
-     shown=number;digit.Text=tostring(number)
-     if fresh(BOOM-number)then
-      beat=calm and 0 or 1
-      pip(number)
-     end
-    end
-    if os.clock()>=doseAt then
-     doseAt=os.clock()+.08
-     local d=.05*10^(el*.8)
-     dose.Text=d<10 and string.format('DOSE %.2f Sv/h',d)or d<100 and string.format('DOSE %.1f Sv/h',d)
-      or string.format('DOSE %d Sv/h',math.floor(d))
-    end
-   elseif el>=BOOM and shown~=0 then
-    shown=0;digit.Text='CRITICAL';dose.Text='DOSE: YES'
-    beat=calm and 0 or 1
-   end
-   counterPop.Scale=1+.4*beat
-   digit.TextColor3=GREEN:Lerp(PALE,beat)
-  end
-  -- The giant head's irises curdle green with the countdown, white-hot at the blast.
-  if #irises>0 and el>=.8 and el<hold-.8 then
-   local c=irisColor:Lerp(TOXIC,smooth((el-.8)/2.5))
-   if el>=BOOM then c=TOXIC:Lerp(PALE,math.exp(-(el-BOOM)*1.8))end
-   c=c:Lerp(PALE,beat*.5)
-   for _,p in ipairs(irises)do p.Color=c end
-  end
-
-  -- The trefoil: its blades fly in one by one, it turns to this camera, spins up as the
-  -- reactor charges and implodes into the blast.
-  if not signDone and el>=SIGN then
-   if el>=BOOM+.05 then
-    signDone=true
-    for _,p in ipairs(signParts)do p.Transparency=1 end
-   else
-    signSpin+=dt*(.35+8*smooth((el-CHARGE)/(BOOM-CHARGE)))
-    local face=Kit.LookAt(signAt,eye)*CFrame.Angles(0,0,signSpin)
-    local crush=1-out3((el-BOOM+.2)/.2)
-    local gone=1-smooth((el-BOOM+.1)/.1)
-    local pulse=calm and 0 or math.max(beat,kick*.5)
-    local heat=smooth((el-CHARGE)/.3)
-    local recolour=heat>0 and not signHot
-    for i,lay in ipairs(signLayout)do
-     if lay.Disc then signCF[i]=face*FACING
-     else
-      local k=(1+1.4*(1-out3((el-lay.Born)/.6)))*crush
-      signCF[i]=face*CFrame.Angles(0,0,lay.Angle)*CFrame.new(lay.Mid*k,0,0)
-     end
-     local p=signParts[i]
-     p.Transparency=1-smooth((el-lay.Born)/.45)*gone*(.8+.18*pulse)
-     if recolour then p.Color=HAZARD:Lerp(PALE,heat)end
-    end
-    if heat>=1 then signHot=true end
-    workspace:BulkMoveTo(signParts,signCF,Enum.BulkMoveMode.FireCFrameChanged)
-   end
-  end
-  -- The beam: out of the reactor into the sky from the charge to the blast.
-  if not beamDone and el>=CHARGE-.02 then
-   if el>=BOOM+.05 then
-    beamDone=true;beam.Transparency=1;beamCore.Transparency=1
-   else
-    local g=out3((el-CHARGE)/.18)*(calm and 1 or .82+.18*math.sin(el*55))
-    local cf=CFrame.new(ventAt+Vector3.new(0,BEAM/2,0))*UPRIGHT
-    beam.Size=Vector3.new(BEAM,1+5*g,1+5*g);beam.CFrame=cf;beam.Transparency=1-.55*g
-    beamCore.Size=Vector3.new(BEAM,.4+1.8*g,.4+1.8*g);beamCore.CFrame=cf;beamCore.Transparency=1-.92*g
-   end
-  end
-
-  if el>=BOOM then
-   local u=el-BOOM
-   -- The colossal cloud.
-   if not cloudDone then
-    local h,r,v=capAt(u)
-    r*=1+.15*smooth((u-4.8)/3)
-    local fade=smooth((el-FADE+.6)/2.6)
-    local thin=smooth((el-FADE+1)/2.4)
-    local heat=math.exp(-u*1.1)
-    local c=origin+Vector3.new(0,h,0)
-    cloudTop=c
-    r=math.max(r,.5);v=math.max(v,.5)
-    local top=h-v*.6
-    local rs=8+14*out3(u/1.5)
-    local stemCF=CFrame.new(origin+Vector3.new(0,math.max(top,.5)/2,0))*UPRIGHT
-    -- The stem shows once the fireball has lifted off the ground.
-    local standing=top>6
-    cloudCF[1]=CFrame.new(c)
-    shell.Size=Vector3.new(2*r,2*v,2*r);shell.Transparency=veil(.4+.18*smooth((u-1.6)/1.5),fade)
-    cloudCF[2]=CFrame.new(c-Vector3.new(0,v*.1,0))
-    heart.Size=Vector3.new(1.2*r,1.1*v,1.2*r);heart.Transparency=veil(.1+.6*(1-heat),fade)
-    cloudCF[3]=stemCF;cloudCF[4]=stemCF
-    column.Size=Vector3.new(math.max(top,.5),2*rs,2*rs);column.Transparency=standing and veil(.45,thin)or 1
-    pith.Size=Vector3.new(math.max(top,.5),.8*rs,.8*rs);pith.Transparency=standing and veil(.25+.5*(1-heat),thin)or 1
-    local n=4
-    if not cloudCooled then
-     shell.Color=PALE:Lerp(CLOUD,smooth(u/1.2))
-     heart.Color=u<.6 and WHITE:Lerp(PALE,smooth(u/.6))or PALE:Lerp(TOXIC,smooth((u-.6)/3))
-     cloudCooled=u>=3.6
-    end
-    if crown then
-     n+=1;cloudCF[n]=CFrame.new(c+Vector3.new(0,v*.38,0))
-     -- It thins once the ghost is inside, so the ghost shows through.
-     crown.Size=Vector3.new(1.55*r,1.05*v,1.55*r);crown.Transparency=veil(.35+.45*smooth((u-1.8)/1.2),fade)
-    end
-    if foot then
-     local rb=20+70*out3(u/1.4)
-     n+=1;cloudCF[n]=CFrame.new(origin+Vector3.new(0,rb*.12,0))
-     foot.Size=Vector3.new(2*rb,.45*rb,2*rb);foot.Transparency=math.min(1,.45+.55*smooth(u/3.2))
-    end
-    for k,p in ipairs(billows)do
-     n+=1;cloudCF[n]=CFrame.new(origin+Vector3.new(math.sin(el*.7+k*2)*rs*.25,top*(.05+.25*k),math.cos(el*.6+k*2)*rs*.25))
-     p.Size=Vector3.new(2.5*rs,1.7*rs,2.5*rs);p.Transparency=standing and veil(.5,thin)or 1
-    end
-    for k,p in ipairs(rim)do
-     local a=k/#rim*math.pi*2+el*.22
-     n+=1;cloudCF[n]=CFrame.new(c+Vector3.new(math.cos(a)*r*.8,-v*.38+math.sin(el*1.3+k)*v*.06,math.sin(a)*r*.8))
-     p.Size=Vector3.new(.62*r,.9*v,.62*r);p.Transparency=veil(.42,fade)
-    end
-    workspace:BulkMoveTo(cloudParts,cloudCF,Enum.BulkMoveMode.FireCFrameChanged)
-    blastLight.Brightness=10*heat
-    if ghost then
-     -- The ghost pug rides in the cap, a little forward so it grins out of it.
-     ghost:Pose(CFrame.lookAt(c+ghostFace*r*.25,c+ghostFace*(r*.25+1)))
-    end
-    if fade>=1 then
-     cloudDone=true
-     for _,p in ipairs(cloudParts)do p.Transparency=1 end
-     blastLight.Brightness=0
-    end
-   end
-   -- The blast wave, and what it does to each player as it passes them.
-   if not waveDone then
-    local r=wave(u)
-    local far=(r-8)/(WAVE-8)
-    local a=u/WAVE_T
-    dome.Size=Vector3.one*(2*r)
-    dome.Transparency=math.min(1,.38+.6*far^.6+smooth((a-.85)/.15))
-    local width=2*r*math.sin(math.pi/segments)*1.08
-    local mid=r*math.cos(math.pi/segments)
-    local alpha=math.min(1,.05+.9*far^1.3)
-    for i,p in ipairs(fronts)do
-     local t=frontTurn[i]
-     frontCF[i]=CFrame.new(origin+t.RightVector*mid+Vector3.new(0,2.5,0))*t
-     p.Size=Vector3.new(3,7,width);p.Transparency=alpha
-    end
-    workspace:BulkMoveTo(fronts,frontCF,Enum.BulkMoveMode.FireCFrameChanged)
-    -- Watching the cutaway: it hits the camera. Otherwise it hits you.
-    local watching=cutaway~=nil and cutaway.Active
-    if watching and not hitCam and r>=(eye-origin).Magnitude then
-     hitCam=true;cutaway:Shake(.8,.9);thump(.7)
-    end
-    if not hitMe then
-     local me=Kit.Me()
-     local away=Vector3.new(me.X-origin.X,0,me.Z-origin.Z)
-     local d=away.Magnitude
-     if r>=d then
-      hitMe=true
-      if not watching then
-       local k=1-math.clamp(d/WAVE,0,1)
-       Kit.Shake(.3+.45*k,1.2)
-       Kit.FOVPunch(4+5*k,.05,.8)
-       thump(.55+.4*k)
-       -- Dust whipped up around this player, blown away from the blast.
-       scope:Burst(me+Vector3.new(0,1.5,0),DUST,30,{Texture=Kit.Textures.Smoke,LightEmission=0,LightInfluence=1,
-        Speed=NumberRange.new(8,20),SpreadAngle=Vector2.new(70,70),Drag=2.5,Acceleration=(d>1 and away/d or Vector3.zero)*40,
-        Lifetime=NumberRange.new(.8,1.5),Size=NumberSequence.new(2,6),Transparency=NumberSequence.new(.35,1)})
-      end
-     end
-    end
-    if a>=1 then
-     waveDone=true;dome.Transparency=1
-     for _,p in ipairs(fronts)do p.Transparency=1 end
-    end
-   end
-  end
-  -- Motes rise around you through the countdown; fallout rains on you after the blast.
-  if el<BOOM then motes.Rate=moteRate*(.35+.65*smooth(el/PRE))
-  elseif motes.Rate>0 then motes.Rate=0 end
-  local thinning=1-smooth((el-FADE)/1.5)
-  if rainGlow then rainGlow.Rate=glowRate*thinning end
-  if rainAsh then rainAsh.Rate=ashRate*thinning end
-  return true
- end)
-
- -- 0: the counter starts clicking for everyone.
- -- .15: the radiation alert crosses every screen.
- if not ctx:Wait(.15)then return end
- if ctx:Elapsed()<3.2 then
-  local by=ctx.By and string.upper(ctx.By)or nil
-  local venue=ctx.Venue
-  local where=venue=='Yard'and(by and by..' OPENED SOMETHING RADIOACTIVE'or 'A LUCKY BLOCK IS GOING CRITICAL')
-   or venue=='Excavation'and(by and by..' DUG UP SOMETHING RADIOACTIVE'or 'SOMETHING RADIOACTIVE WAS DUG UP')
-   or venue=='Machine'and 'THE DOG-O-MATIC IS GOING CRITICAL'
-   or 'A SECRET DOG IS GOING CRITICAL IN THE MOUTH'
-  ctx:Banner({Kicker='☢  RADIATION ALERT  ☢',Title=config.Title,Text=where,Style='Toxic',Color=GREEN,
-   Hold=math.max(1.2,3.55-ctx:Elapsed())})
- end
- -- .8: every light in the district turns green, the giant head's eyes start to glow.
- if not ctx:Wait(.8)then return end
- local greenLights=scope:TintLights(C(150,255,90),fresh(.8)and 2.5 or .3)
- local unlit={}
- for _,p in ipairs(irises)do
-  local _,release=scope:Override(p,{Material=Enum.Material.Neon})
-  table.insert(unlit,release)
-  tint(p,{Color=irisColor})
- end
- -- 1.2: the trefoil assembles in the sky over the stage.
- if not ctx:Wait(SIGN)then return end
- if fresh(SIGN)then Kit.Cue('Whoosh',nil,.5)end
- -- 2: every dog on the island looks up at it.
- if not ctx:Wait(2)then return end
- if ctx:Elapsed()<PRE-.6 then glance=scope:Glance(signAt,{Exclude=model,Turn=.8,Ripple=260})end
- -- PRE-1: the cutaway, built once the dog (and its facing) has streamed in. Wide on the
- -- green sky and the trefoil, a dive to the mouth, close on the reactor; at the blast the
- -- side of the island as the wave crosses it, then back to see the cloud over the stage.
- if not ctx:Wait(PRE-1)then return end
- do
-  local F=front()
-  local S=F:Cross(Vector3.yAxis)
-  local function at(a:number,b:number,c:number):Vector3 return origin+F*a+S*b+Vector3.new(0,c,0)end
-  cutaway=ctx:Cutaway({
-   {At=CUT,CFrame=Kit.Frame(at(150,-70,85),at(0,0,80)),Fov=70},
-   {At=PRE+.35,CFrame=Kit.Frame(at(52,-20,26),at(0,0,7)),Fov=62},
-   {At=BOOM-.1,CFrame=Kit.Frame(at(13,-5,6),at(0,0,3.6)),Fov=54},
-   {At=BOOM+.05,CFrame=Kit.Frame(at(11.4,-4.4,5.6),at(0,0,3.6)),Fov=50,Linear=true},
-   {At=BOOM+.08,CFrame=Kit.Frame(at(120,-180,70),at(110,0,25)),Fov=80,Cut=true},
-   {At=BOOM+1.15,CFrame=Kit.Frame(at(128,-172,72),at(118,0,40)),Fov=78,Linear=true},
-   {At=BOOM+2.55,CFrame=Kit.Frame(at(205,-62,44),at(0,0,150)),Fov=80},
-  },{Focus=origin,Bars=.08})
- end
- if not ctx:Wait(PRE-.2)then return end
- if glance then glance:Stop(1);glance=nil end
-
- -- PRE: the pug appears in a hiss of steam; the rings and the plate come up.
- if not ctx:Wait(PRE)then return end
- if fresh(PRE)then
-  Kit.Cue('Glitch',core,.18)
-  scope:Burst(origin+Vector3.new(0,1,0),PALE,26,{Texture=Kit.Textures.Smoke,LightEmission=.4,Speed=NumberRange.new(4,10),
-   EmissionDirection=Enum.NormalId.Top,SpreadAngle=Vector2.new(60,60),Drag=3,Lifetime=NumberRange.new(.6,1.1),
-   Size=NumberSequence.new(1.5,5),Transparency=NumberSequence.new(.3,1)})
- end
- -- CHARGE Radiation_Cloud: the reactor lights, sparks rush in, it trembles; the beam.
+ -- 0: the counter starts; the rings and the plate come up.
+ if fresh(0)then Kit.Cue('Glitch',core,.18)end
+ -- 1.2 Radiation_Cloud: the reactor lights, sparks rush in, it trembles.
  if not ctx:Wait(CHARGE)then return end
  hl=scope:Highlight(model,GREEN,GREEN,1,1)
  inward.Rate=low and 18 or 70
  vent(low and 5 or 14)
- Kit.Tween(grade,.4,{Brightness=-.05,Contrast=.12})
- if cutaway then cutaway:Shake(.35,.5)end
- if fresh(CHARGE)then Kit.Cue('Whoosh',core,.55);Kit.Cue('Glitch',core,.22);Kit.Cue('Whoosh',nil,.45)end
+ Kit.Tween(grade,.4,{Brightness=-.05,Contrast=.12,TintColor=C(226,255,212)})
+ if fresh(CHARGE)then Kit.Cue('Whoosh',core,.55);Kit.Cue('Glitch',core,.22)end
 
- -- BOOM: criticality. White for everyone, the lights die, the fireball, the wave.
+ -- 1.6: criticality.
  if not ctx:Wait(BOOM)then return end
  inward.Rate=0
  smoke.Rate=low and 15 or 60;sparks.Rate=low and 5 or 20
  vent(low and 3 or 9)
  local reach=Kit.Near(origin,160)
- local emp=nil
  if fresh(BOOM)then
-  Kit.Flash(WHITE,0,1.6)
-  Kit.Cue('Impact',nil,1)
-  Kit.Shot(nil,TICK,1,.07,{EqualizerSoundEffect={LowGain=10,MidGain=-6,HighGain=-40},DistortionSoundEffect={Level=.7},
-   ReverbSoundEffect={DecayTime=8,WetLevel=0,DryLevel=-2,Density=1,Diffusion=1}})
-  task.delay(.06,function()if scope.Alive then Kit.Cue('Sting',nil,.8)end end)
-  sky:Set(calm and SKY_GLARE or SKY_FLASH,calm and .25 or .06)
-  emp=scope:TintLights(BLACK,0)
-  if cutaway then cutaway:Shake(1.4,1.2)end
+  local n=Kit.Near(origin,120)
+  Kit.Cue('Impact',nil,.6+.4*Kit.Near(origin,220))
+  task.delay(.06,function()if scope.Alive then Kit.Cue('Sting',nil,.5)end end)
+  if n>.05 then
+   Kit.Flash(C(230,255,205),1-.55*n,.55)
+   Kit.Shake(.3*n,.8)
+   if n>.2 then Kit.FOVPunch(5*n,.08,.9)end
+  end
   grade.Brightness=.28*reach
   scope:Ring(origin+Vector3.new(0,.3,0),GREEN,1.5,SHOCK,.9,{Thickness=.5,Segments=24})
   scope:Burst(origin+Vector3.new(0,.4,0),C(170,235,120),18,{Texture=Kit.Textures.Smoke,LightEmission=.2,Drag=4,
    Speed=NumberRange.new(8,16),SpreadAngle=Vector2.new(85,85),Lifetime=NumberRange.new(.6,1),
    Size=NumberSequence.new(1.5,4.5),Transparency=NumberSequence.new(.4,1)})
-  surge:Emit(low and 10 or 30)
  end
- surge.Rate=low and 3 or 8
- plume.Rate=low and 4 or 12;chimney.Rate=low and 3 or 9
- Kit.Tween(grade,.7,{Brightness=0,Contrast=.08,Saturation=.15*reach})
- scope:Duck(.12,.3)
- if drone then Kit.Tween(drone,.15,{Volume=low and .3 or .45});Kit.Tween(drone,1.6,{PlaybackSpeed=.3})end
+ Kit.Tween(grade,.7,{Brightness=0,Contrast=.08,Saturation=.2,TintColor=WHITE:Lerp(C(200,255,170),.35+.65*reach)})
+ local drone=ctx:Elapsed()<CLEAR and scope:Drone('Drone',low and .2 or .3,.3,.25)or nil
  -- The fallout runs down the tongue's warm edges, from the stage outward (in the open it
  -- reaches the runes as the shockwave passes them).
  for _,g in ipairs(guides)do
@@ -1009,67 +512,25 @@ return function(ctx)
    if rune.Lamp then rune.Lamp.Brightness=3;Kit.Tween(rune.Lamp,.6,{Brightness=1.2})end
   end)
  end
- -- BOOM+.15: a poisoned dusk; every dog flinches from the blast, then looks up at the cloud.
- if not ctx:Wait(BOOM+.15)then return end
- sky:Set(SKY_FALLOUT,1.8)
- if ctx:Elapsed()<FADE-1 then
-  glance=scope:Glance(function()return cloudTop end,{Exclude=model,Turn=.35,Ripple=420})
-  glance:Bow(.45,1.5)
- end
- -- BOOM+.3: a condensation ring rolls out under the cap in the mouth.
- if not ctx:Wait(BOOM+.3)then return end
- if fresh(BOOM+.3)and not low then
+ -- 1.9: a condensation ring rolls out under the cap.
+ if not ctx:Wait(1.9)then return end
+ if fresh(1.9)and not low then
   local xz=capXZ or origin
   scope:Ring(Vector3.new(xz.X,origin.Y+ROLL,xz.Z),PALE,3,12.5,1.4,{Thickness=.3,Alpha=.45,Segments=20})
   Kit.Cue('Whoosh',nil,.3)
  end
- -- BOOM+.45: the lights stumble back on, green.
- if not ctx:Wait(BOOM+.45)then return end
- if emp then emp();emp=nil end
- surge.Rate=0
- -- PRE+3: fallout drifts down from the mouth's cloud.
- if not ctx:Wait(PRE+3)then return end
+ if not ctx:Wait(3)then return end
  fallout.Rate=low and 4 or 16
- -- BOOM+1.6 (and +2.3): condensation rings roll out round the colossal stem, over the head.
- if not ctx:Wait(BOOM+1.6)then return end
- if fresh(BOOM+1.6)then scope:Ring(origin+Vector3.new(0,95,0),PALE,28,190,2.6,{Thickness=4,Alpha=.3,Segments=32})end
- -- BOOM+1.8: green fallout starts to rain on every player.
- if not ctx:Wait(BOOM+1.8)then return end
- rainGlow=scope:Rain({Texture=Kit.Textures.Spark,Color=ColorSequence.new(PALE,GREEN),LightEmission=1,
-  Size=NumberSequence.new(.45,.15),Transparency=curve({{0,.1},{.8,.3},{1,1}}),Speed=NumberRange.new(14,20),
-  Lifetime=NumberRange.new(3.5,4.5),SpreadAngle=Vector2.new(20,20),RotSpeed=NumberRange.new(-90,90),Rate=70,Area=160,Height=60})
- glowRate=rainGlow and rainGlow.Rate or 0
- if not low then
-  rainAsh=scope:Rain({Texture=Kit.Textures.Smoke,Color=ColorSequence.new(C(120,140,100),C(70,84,60)),LightEmission=0,LightInfluence=1,
-   Size=NumberSequence.new(.9,.5),Transparency=curve({{0,.4},{.8,.5},{1,1}}),Speed=NumberRange.new(10,14),
-   Lifetime=NumberRange.new(4.5,6),SpreadAngle=Vector2.new(30,30),RotSpeed=NumberRange.new(-60,60),Rate=40,Area=160,Height=60})
-  ashRate=rainAsh and rainAsh.Rate or 0
- end
- -- GHOST (PRE+3.6): the mouth's cloud stops smoking; a ghostly giant pug in the cap, facing you.
- if not ctx:Wait(GHOST)then return end
+ if not ctx:Wait(3.6)then return end
  smoke.Rate=0;sparks.Rate=0
- if ctx:Elapsed()<FADE then
-  local me=Kit.Me()
-  local d=Vector3.new(me.X-origin.X,0,me.Z-origin.Z)
-  ghostFace=d.Magnitude>20 and d.Unit or front()
-  local _,r=capAt(ctx:Elapsed()-BOOM)
-  ghost=ctx:Colossus({Style='Ghost',Color=PALE,Alpha=.42,Height=100,FadeIn=1.6,Rise=40,Clip='Idle',
-   At=CFrame.lookAt(cloudTop+ghostFace*r*.25,cloudTop+ghostFace*(r*.25+1))})
-  if fresh(GHOST)then Kit.Cue('Sting',nil,.45)end
- end
- if not ctx:Wait(BOOM+2.3)then return end
- if fresh(BOOM+2.3)and not low then scope:Ring(origin+Vector3.new(0,140,0),PALE,40,230,2.8,{Thickness=3,Alpha=.45,Segments=28})end
 
- -- CLEAR Result_Success: the cloud lets go, the rings drop, puddles splash down, the card;
- -- the ghost in the sky celebrates with it.
+ -- 4.2 Result_Success: the cloud lets go, the rings drop, puddles splash down, the card.
  if not ctx:Wait(CLEAR)then return end
  ctx.WhisperStyle={Font=Enum.Font.RobotoMono,Color=C(228,255,206),Glitch=.015,Chroma=false,Shake=false,Type=.035}
  ctx:Title({Font=Enum.Font.Bangers,Hold=3.6})
  vent(low and 1 or 3)
  Kit.Tween(grade,1.4,{Brightness=0,Contrast=0,Saturation=0,TintColor=WHITE},Enum.EasingStyle.Sine)
- if ghost then ghost:Play('Result_Success',false)end
- scope:Duck(.35,2.5)
- if drone then Kit.Tween(drone,2,{Volume=low and .16 or .24})end
+ if drone then Kit.Tween(drone,1.6,{Volume=0})end
  local splashes=low and 3 or 6
  for k=1,splashes do
   local a=k/splashes*math.pi*2+Kit.Random(-.35,.35)
@@ -1081,22 +542,8 @@ return function(ctx)
   Kit.Cue('Chime',nil,.45)
   scope:Burst(core.Position,GREEN,30,{Speed=NumberRange.new(6,12),Lifetime=NumberRange.new(.5,1),Drag=2,Size=NumberSequence.new(.5,0)})
  end
- if not ctx:Wait(PRE+4.4)then return end
+ if not ctx:Wait(4.4)then return end
  fallout.Rate=0
- -- The colossal cloud stops billowing, the dogs look away, the ghost settles.
- if not ctx:Wait(FADE-.6)then return end
- plume.Rate=0;chimney.Rate=0
- if glance then glance:Stop(1.2);glance=nil end
- if not ctx:Wait(CLEAR+2.4)then return end
- if ghost then ghost:Play('Idle',true)end
- -- FADE: the sky, the cloud and the fallout ease back; the ghost fades with the cloud.
- if not ctx:Wait(FADE)then return end
- sky:Release(3)
- if drone then Kit.Tween(drone,2.5,{Volume=0})end
- if not ctx:Wait(FADE+.4)then return end
- if ghost then ghost:Stop(1.8);ghost=nil end
- if not ctx:Wait(hold-1.4)then return end
- greenLights()
  -- The mouth eases back to its own colours as it sets off (in the open our runes, lamps
  -- and haze burn out).
  if not ctx:Wait(hold-.8)then return end
@@ -1108,8 +555,6 @@ return function(ctx)
  if haze then haze.Rate=0 end
  vent(0)
  if not ctx:Wait(hold)then return end
- -- The head's irises (their colour eased back) stop glowing.
- for _,release in ipairs(unlit)do release()end
  -- It walks (on a pad it stays); the puddles fade out.
  ctx:Wait(hold+.8)
 end

@@ -18,12 +18,10 @@ local function fxRoot()
  if not root then root=Instance.new('Folder');root.Name='DOGROTS_SecretArrivalFX';root.Parent=workspace end
  return root
 end
--- Phones and tablets get the light version unless their player chose High effects
--- (their world-event FX setting defaults to Medium).
 function K.Low()
  local fx=player:GetAttribute('WorldEventFX')
  return fx=='Low'or player:GetAttribute('LowFX')==true or player:GetAttribute('ReducedMotion')==true
-  or (UIS.TouchEnabled and fx~='High')
+  or (fx==nil and UIS.TouchEnabled)
 end
 function K.ReducedMotion()return player:GetAttribute('ReducedMotion')==true end
 function K.Tween(o,seconds,props,style,direction)
@@ -177,99 +175,47 @@ function Scope:Bolt(a,b,color,width,seconds)
  return m
 end
 
---[[ K.Layer(instance, props, sticky): set properties on an existing object for this client
- only, layered per object: when one of two overlapping arrivals lets go, each property
- falls back to the newest remaining layer that sets it, else to the true original.
- sticky: the layer holds against writes from elsewhere (the server replicating Lighting,
- a world event): such a write becomes the value to come back to and is overwritten again.
- Returns release(), update(key, value) (changes this layer's value) and base(key) (what
- the property would fall back to without this layer). Scope:Override binds it to a scope. ]]
+--[[ Scope:Override(instance, props): set properties on an existing world object (mouth
+ runes, the giant head's pupils, a SurfaceAppearance's EmissiveStrength...) for this
+ client only; the original values come back on Clean. Overrides are layered per object:
+ when one of two overlapping arrivals ends, each property falls back to the newest
+ remaining layer that sets it, else to the true original. Returns the instance (nil if
+ it is missing) and release(), which drops this layer early the same way. ]]
 local layers=setmetatable({},{__mode='k'})
 local function set(o,k,v)pcall(function()(o::any)[k]=v end)end
-local function get(o,k)local ok,v=pcall(function()return (o::any)[k]end);return ok,v end
-local function same(a,b)
- if a==b then return true end
- local ta=typeof(a)
- if ta~=typeof(b)then return false end
- if ta=='number'then return math.abs(a-b)<1e-3 end
- if ta=='Color3'then return math.abs(a.R-b.R)<.004 and math.abs(a.G-b.G)<.004 and math.abs(a.B-b.B)<.004 end
- if ta=='Vector3'then return (a-b).Magnitude<1e-3 end
- return false
-end
-local function topValue(entry,k,skip)
- for j=#entry.Stack,1,-1 do
-  local layer=entry.Stack[j]
-  if layer~=skip then local v=layer.Props[k];if v~=nil then return v,layer end end
- end
- return nil,nil
-end
--- Writes and remembers what the property reads back (ClockTime wraps, colours round).
-local function write(o,entry,k,v)
- set(o,k,v)
- local ok,now=get(o,k)
- entry.Written[k]=ok and now or v
-end
-function K.Layer(o,props,sticky)
+function Scope:Override(o,props)
+ if not o then return nil,function()end end
  local entry=layers[o]
- if not entry then entry={Original={},Stack={},Written={},Watch={}};layers[o]=entry end
+ if not entry then entry={Original={},Stack={}};layers[o]=entry end
  for k in pairs(props)do
   if entry.Original[k]==nil then
-   local ok,old=get(o,k)
+   local ok,old=pcall(function()return (o::any)[k]end)
    if ok then entry.Original[k]=old end
   end
  end
- local layer={Props=table.clone(props)}
+ local layer={Props=props}
  table.insert(entry.Stack,layer)
- for k,v in pairs(layer.Props)do
-  write(o,entry,k,v)
-  if sticky and not entry.Watch[k]then
-   entry.Watch[k]=o:GetPropertyChangedSignal(k):Connect(function()
-    local want=topValue(entry,k)
-    if want==nil then return end
-    local ok,now=get(o,k)
-    if not ok or same(now,entry.Written[k])then return end
-    entry.Original[k]=now
-    write(o,entry,k,want)
-   end)
-  end
- end
+ for k,v in pairs(props)do set(o,k,v)end
  local released=false
  local function release()
   if released then return end
   released=true
   local i=table.find(entry.Stack,layer)
   if i then table.remove(entry.Stack,i)end
-  for k in pairs(layer.Props)do
-   local value=topValue(entry,k)
-   if value==nil then
-    value=entry.Original[k]
-    if entry.Watch[k]then entry.Watch[k]:Disconnect();entry.Watch[k]=nil end
+  if o.Parent then
+   for k in pairs(props)do
+    local value=entry.Original[k]
+    for j=#entry.Stack,1,-1 do
+     local v=entry.Stack[j].Props[k]
+     if v~=nil then value=v;break end
+    end
+    set(o,k,value)
    end
-   if o.Parent then write(o,entry,k,value)end
   end
   if #entry.Stack==0 and layers[o]==entry then layers[o]=nil end
  end
- local function update(k,v)
-  if released or layer.Props[k]==nil then return end
-  layer.Props[k]=v
-  local _,owner=topValue(entry,k)
-  if owner==layer then write(o,entry,k,v)end
- end
- local function base(k)
-  local v=topValue(entry,k,layer)
-  if v==nil then v=entry.Original[k]end
-  return v
- end
- return release,update,base
-end
---[[ Scope:Override(instance, props, sticky?): K.Layer for this scope (mouth runes, the
- giant head's pupils, a SurfaceAppearance's EmissiveStrength...), undone on Clean.
- Returns the instance (nil if it is missing), release() and update(key, value). ]]
-function Scope:Override(o,props,sticky)
- if not o then return nil,function()end,function()end end
- local release,update=K.Layer(o,props,sticky)
  self:Add(release)
- return o,release,update
+ return o,release
 end
 -- Beam between two points. a/b: Attachment or Bone (follows it) or Vector3 (fixed).
 function Scope:Beam(a,b,color,width,props)
@@ -359,32 +305,29 @@ end
 -- owns the FOV: never start over one, and let go (without restoring) the moment anything
 -- else writes the FOV. While it runs, the camera's SecretZoom attribute holds the true
 -- FOV, which the other FOV owners save instead of the punched one.
--- SecretPunch marks the zoom as this punch's, so a cutaway may take over from it.
 function K.FOVPunch(delta,inSeconds,outSeconds)
  if K.ReducedMotion()then return end
  local c=workspace.CurrentCamera
  if not c or c:GetAttribute('SecretZoom')or c:GetAttribute('DiscoveryZoom')or c.CameraType==Enum.CameraType.Scriptable then return end
  local base=c.FieldOfView
- c:SetAttribute('SecretZoom',base);c:SetAttribute('SecretPunch',true)
+ c:SetAttribute('SecretZoom',base)
  local peak=math.clamp(base+delta,20,110)
  local written=base
  local started=os.clock()
  local connection
- local function done()
-  connection:Disconnect()
-  c:SetAttribute('SecretPunch',nil)
-  -- A cutaway that took over keeps the zoom marker it set.
-  if c:GetAttribute('SecretCutaway')==nil then c:SetAttribute('SecretZoom',nil)end
- end
  connection=Run.RenderStepped:Connect(function()
   local age=os.clock()-started
-  if math.abs(c.FieldOfView-written)>.01 or c.CameraType==Enum.CameraType.Scriptable then done();return end
+  if math.abs(c.FieldOfView-written)>.01 or c.CameraType==Enum.CameraType.Scriptable then
+   connection:Disconnect();c:SetAttribute('SecretZoom',nil);return
+  end
   local a
   if age<inSeconds then a=1-(1-age/inSeconds)^2
   else a=1-math.min((age-inSeconds)/outSeconds,1);a=a*a*(3-2*a)end
   written=base+(peak-base)*a
   c.FieldOfView=written
-  if age>=inSeconds+outSeconds then c.FieldOfView=base;done()end
+  if age>=inSeconds+outSeconds then
+   c.FieldOfView=base;connection:Disconnect();c:SetAttribute('SecretZoom',nil)
+  end
  end)
 end
 
@@ -591,11 +534,4 @@ end
 function K.SetGhostAlpha(ghost,alpha)
  for _,p in ipairs(ghost:GetDescendants())do if p:IsA('BasePart')then p.LocalTransparencyModifier=alpha end end
 end
--- SecretArrivals/Takeover fills in the map-wide helpers (sky, colossus, cutaway...).
-K.Map=(nil::any);K.Me=(nil::any);K.Frame=(nil::any);K.Orbit=(nil::any);K.DogCopy=(nil::any);K.Bounds=(nil::any)
-K.ScopeClass=Scope
-K.Screen=screen
-K.Sound=sound
-K.Shot=shot
-K.Tick=TICK
 return K

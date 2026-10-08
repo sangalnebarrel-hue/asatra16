@@ -1,6 +1,6 @@
 -- Per-player exhibits: one prompt, no active dog AI, immutable production clones.
 local Players=game:GetService('Players');local Run=game:GetService('RunService');local Rep=game.ReplicatedStorage
-local player=Players.LocalPlayer;local Catalog=require(Rep:WaitForChild('MuseumCatalog'))
+local player=Players.LocalPlayer;local Catalog=require(Rep:WaitForChild('MuseumCatalog'));local Rig=require(Rep:WaitForChild('DogRig'))
 local playerGui=player:WaitForChild('PlayerGui')
 local gui=playerGui:FindFirstChild('ScreenGui')
 while not gui do
@@ -57,32 +57,32 @@ end
 player:GetAttributeChangedSignal('DogDexCount'):Connect(function()fetch(true)end)
 player:GetAttributeChangedSignal('MuseumDexCount'):Connect(function()fetch(true)end)
 player:GetAttributeChangedSignal('EconomyReady'):Connect(function()if player:GetAttribute('EconomyReady')then fetch(true)end end)
-local function cloneStatic(source,silhouette,distant)
+-- Every MenuModels dog is a skinned mesh. The old clone destroyed RootPart (which carries the
+-- Bone tree of several rigs), every Bone and the AnimationController before rescaling; no
+-- other system renders dogs that way, and the stands stayed empty. Keep the production rig
+-- intact (static, nothing is animated) exactly like the conveyor, kennels and menu
+-- previews, and size it with the shared DogRig contract.
+local function cloneStatic(source,silhouette)
  local m=source:Clone()
  for _,o in m:GetDescendants()do
-  if o:IsA('LuaSourceContainer')or o:IsA('Humanoid')or o:IsA('AnimationController')or o:IsA('Animator')or o:IsA('JointInstance')or o:IsA('Constraint')or o:IsA('Sound')or o:IsA('ProximityPrompt')or o:IsA('LayerCollector')or o:IsA('ParticleEmitter')or o:IsA('Trail')or o:IsA('Beam')or o:IsA('ValueBase')or o:IsA('Light')then o:Destroy()
-  elseif (distant or silhouette)and o:IsA('Bone')then o:Destroy()
+  if o:IsA('LuaSourceContainer')or o:IsA('Humanoid')or o:IsA('Constraint')or o:IsA('Sound')or o:IsA('ProximityPrompt')or o:IsA('LayerCollector')or o:IsA('ParticleEmitter')or o:IsA('Trail')or o:IsA('Beam')or o:IsA('ValueBase')or o:IsA('Light')then o:Destroy()
   elseif silhouette and(o:IsA('SurfaceAppearance')or o:IsA('Decal')or o:IsA('Texture'))then o:Destroy()
   elseif o:IsA('BasePart')then
-   if o.Name=='RootPart'or o.Transparency>=1 then o:Destroy()
-   else o.Anchored=true;o.CanCollide=false;o.CanTouch=false;o.CanQuery=false;o.CastShadow=false
-    if silhouette then o.Color=Color3.fromRGB(13,12,16);o.Material=Enum.Material.SmoothPlastic;o.Transparency=0;o.Reflectance=0;if o:IsA('MeshPart')then o.TextureID=''end end
-   end
+   o.Anchored=true;o.CanCollide=false;o.CanTouch=false;o.CanQuery=false;o.CastShadow=false
+   -- Only visible pieces turn black; the invisible RootPart keeps Transparency 1.
+   if silhouette and o.Transparency<1 and o.Name~='RootPart'then o.Color=Color3.fromRGB(13,12,16);o.Material=Enum.Material.SmoothPlastic;o.Transparency=0;o.Reflectance=0;if o:IsA('MeshPart')then o.TextureID=''end end
   end
  end
  m.Name=silhouette and 'UnknownSilhouette'or source.Name
  return m
 end
+-- DogRig.Prepare: pivot to identity, bind pose, scale into the FitWidth/Height/Depth box.
+-- The dog's ground centre then stands on DisplayOrigin, facing out of the niche.
 local function fit(m,origin)
- local cf,size=m:GetBoundingBox();local w=origin:GetAttribute('FitWidth')or 5.8;local h=origin:GetAttribute('FitHeight')or 9;local d=origin:GetAttribute('FitDepth')or 3.9
- local scale=math.min(w/size.X,h/size.Y,d/size.Z)
- m:ScaleTo(m:GetScale()*scale)
- if d==16 and m.Name=='UnknownSilhouette'then
-  local center=m:GetBoundingBox()
-  for _,p in m:GetDescendants()do if p:IsA('BasePart')then local localCF=center:ToObjectSpace(p.CFrame);p.CFrame=center*CFrame.new(localCF.Position*Vector3.new(1,1,.25))*localCF.Rotation;p.Size*=Vector3.new(1,1,.25)end end
- end
- cf,size=m:GetBoundingBox();local target=origin.CFrame*CFrame.new(0,size.Y/2,0)
- m:PivotTo(target*cf:Inverse()*m:GetPivot())
+ local w=origin:GetAttribute('FitWidth')or 5.8;local h=origin:GetAttribute('FitHeight')or 9;local d=origin:GetAttribute('FitDepth')or 3.9
+ local prepared=Rig.Prepare(m,Vector3.new(w,h,d));if not prepared then return false end
+ m:PivotTo(origin.CFrame*CFrame.new(-prepared.Ground))
+ return true
 end
 local function destroyRecord(rec)
  if rec.model then rec.model:Destroy()end
@@ -94,19 +94,28 @@ local function discover(root)
  local index=root:GetAttribute('DexIndex')or previewIndex or tonumber(root.Name:match('^DexSlot_(%d+)$'))
  if index and Catalog.ByIndex[index]then records[root]={root=root,index=index,preview=previewIndex~=nil,rev=-1}end
 end
-local function apply(rec,near,visible)
- local root=rec.root;local origin=root:FindFirstChild('DisplayOrigin');if not origin then return end
+local failed={}
+local function apply(rec,visible,budget)
+ local root=rec.root;local origin=root:FindFirstChild('DisplayOrigin');if not origin then return budget end
  local entry=state.Entries[tostring(rec.index)];local source=entry and templates:FindFirstChild(entry.VisualAsset)
- local unlocked=source~=nil;local key=visible and(unlocked and near and entry.Id or 'silhouette')or 'hidden'
+ local unlocked=source~=nil;local key=visible and(unlocked and entry.Id or 'silhouette')or 'hidden'
  -- A locked exhibit shows the black silhouette of the dog that belongs there.
  local def=Catalog.ByIndex[rec.index];local shape=def and templates:FindFirstChild(def.VisualAsset or '')
- local shapeId=shape and def.Id or 'Breadog';shape=shape or templates.Breadog
- -- Distant discoveries retain their actual static meshes but omit the skeletal hierarchy.
- if unlocked and not near and visible then key='distant:'..entry.Id end
- if rec.key~=key then
+ local shapeId=shape and def.Id or 'Breadog';shape=shape or templates:FindFirstChild('Breadog')
+ -- Builds are budgeted per tick (nearest first); a failed build only skips its own stand.
+ if rec.key~=key and(key=='hidden'or budget>0)then
   if rec.model then rec.model:Destroy();rec.model=nil end
   if key~='hidden'then
-   local m=cloneStatic(key=='silhouette'and shape or source,key=='silhouette',not near);fit(m,origin);m:SetAttribute('MuseumDisplay',true);m:SetAttribute('LogicalIndex',rec.index);m:SetAttribute('Locked',not unlocked);m:SetAttribute('SourceDogId',key=='silhouette'and shapeId or entry.Id);m.Parent=localModels;rec.model=m
+   budget-=1
+   local silhouette=key=='silhouette';local src=silhouette and shape or source
+   local ok,m=pcall(function()
+    local m=cloneStatic(src,silhouette)
+    if not fit(m,origin)then m:Destroy();error('no visible parts')end
+    return m
+   end)
+   if ok then
+    m:SetAttribute('MuseumDisplay',true);m:SetAttribute('LogicalIndex',rec.index);m:SetAttribute('Locked',not unlocked);m:SetAttribute('SourceDogId',silhouette and shapeId or entry.Id);m.Parent=localModels;rec.model=m
+   elseif not failed[key..rec.index]then failed[key..rec.index]=true;warn('[Museum] exhibit #'..rec.index..' ('..key..') not displayed:',m)end
   end
   rec.key=key
  end
@@ -133,7 +142,7 @@ prompt.Triggered:Connect(function()
  if not nearest then return end
  local menus=require(gui.Modules.Menus).Active;if menus then menus.state.SelectedDexIndex=nearest.index;menus:Show('DexEntry');menus:Fetch(true)end
 end)
-local elapsed=0;local scan=0;local museumLights={}
+local elapsed=0;local scan=0;local museumLights={};local streamed
 local function manageLighting(museum)
  local camera=workspace.CurrentCamera;if not camera then return end
  local inside=(CFrame.new(-131,0,481)*CFrame.Angles(0,-math.pi/2,0)):PointToObjectSpace(camera.CFrame.Position).Z>-58
@@ -161,8 +170,17 @@ Run.Heartbeat:Connect(function(dt)
   prompt.Enabled=false;audio.SetInside(false)
   for _,rec in pairs(records)do destroyRecord(rec)end;currentMuseum=nil;return
  end
- if currentMuseum~=museum then for _,v in pairs(records)do destroyRecord(v)end;currentMuseum=museum;scan=2 end
- if scan>=2 then scan=0;for _,o in museum:GetDescendants()do discover(o);if o:IsA('Light')and o:GetAttribute('MuseumLight')then museumLights[o]=true end end end
+ if currentMuseum~=museum then
+  for _,v in pairs(records)do destroyRecord(v)end;currentMuseum=museum;scan=10
+  -- StreamingEnabled: exhibits (and their DisplayOrigin) arrive whenever the server streams
+  -- them in; register them as they land instead of waiting for the next full sweep.
+  if streamed then streamed:Disconnect()end
+  streamed=museum.DescendantAdded:Connect(function(o)
+   if o:IsA('Model')then discover(o)elseif o.Parent and o.Parent:IsA('Model')then discover(o.Parent)end
+   if o:IsA('Light')and o:GetAttribute('MuseumLight')then museumLights[o]=true end
+  end)
+ end
+ if scan>=10 then scan=0;for _,o in museum:GetDescendants()do discover(o);if o:IsA('Light')and o:GetAttribute('MuseumLight')then museumLights[o]=true end end end
  manageLighting(museum)
  local inRange=(hrp.Position-Vector3.new(-131,15,481)).Magnitude<155
  local localPos=(CFrame.new(-131,0,481)*CFrame.Angles(0,-math.pi/2,0)):PointToObjectSpace(hrp.Position)
@@ -179,13 +197,15 @@ Run.Heartbeat:Connect(function(dt)
   elseif origin then rec.distance=(origin.Position-hrp.Position).Magnitude;table.insert(ordered,rec)end
  end
  table.sort(ordered,function(a,b)return a.distance<b.distance end)
- local full=0;nearest=nil
+ local full=0;nearest=nil;local budget=8
  for _,rec in ipairs(ordered)do
   local sameFloor=math.abs(hrp.Position.Y-(rec.root.DisplayOrigin.Position.Y+1))<7
   if not nearest and not rec.preview and sameFloor and rec.distance<10 then nearest=rec end
   local near=rec.distance<Catalog.NearDistance and full<Catalog.MaxNearModels
   if near and state.Entries[tostring(rec.index)]then full+=1 end
-  apply(rec,near,inRange and rec.distance<Catalog.FarDistance)
+  -- One faulty stand must never abort the remaining stands, the prompt or the progress board.
+  local ok,left=pcall(apply,rec,inRange and rec.distance<Catalog.FarDistance,budget)
+  if ok then budget=left elseif not failed[rec]then failed[rec]=true;warn('[Museum] exhibit #'..rec.index..':',left)end
  end
  if nearest then
   promptPart.CFrame=nearest.root.DisplayOrigin.CFrame*CFrame.new(0,1,-2.7);prompt.ObjectText=string.format('DOGDEX #%03d',nearest.index)

@@ -121,6 +121,9 @@ function Runtime.Project(player,p)
  for _,count in pairs(p.LuckyCredits or{})do available+=math.max(0,count)end
  player:SetAttribute('OwnedBlockCount',available+active);player:SetAttribute('AvailableBlockCount',available);player:SetAttribute('ActiveBlockCount',active)
  for key in pairs(Config.Supplies)do player:SetAttribute('SupplyExpires_'..key,require(script.Parent.SupplyRules).EndAt(p,key))end
+ -- Personal luck tiers (LUCK tab) for the buff HUD.
+ local luck=require(script.Parent.LuckRules)
+ for tier in ipairs(Config.LuckTiers or {})do player:SetAttribute('LuckExpires_'..tier,luck.EndAt(p,tier))end
  player:SetAttribute('InventoryRevision',(player:GetAttribute('InventoryRevision')or 0)+1)
  player:SetAttribute('LatestFoundItem',p.DiscoveryFeed[1] and (p.DiscoveryFeed[1].DisplayName..' · '..string.format('%.4g kg',p.DiscoveryFeed[1].WeightKg)) or 'No finds yet')
  require(script.Parent.PlotDevelopment).Reconcile(player,p)
@@ -239,11 +242,6 @@ function Runtime.RevealExcavation(player,dogId)
  if pit and pit:IsA('BasePart')then ground=Vector3.new(ground.X,pit.Position.Y+pit.Size.Y/2,ground.Z)
  elseif slot then ground+=Vector3.new(0,((slot:GetAttribute('DigSize')or Vector3.new(12,.4,12)).Y)/2,0)end
  local toward=(spawn and spawn.Position or ground+Vector3.zAxis)-ground
- -- Every pit is taken: come up beside it (toward the yard's spawn), not inside its dog.
- if slot and slot:GetAttribute('AssignedDogUid')then
-  local flat=Vector3.new(toward.X,0,toward.Z)
-  if flat.Magnitude>1 then ground+=flat.Unit*math.min(11,flat.Magnitude*.5)end
- end
  return require(script.Parent.Parent.SecretReveal).Show(dogId,ground+Vector3.new(0,.04,0),toward,{Venue='Excavation',By=player.DisplayName})
 end
 local buckets={};local marketQueries={}

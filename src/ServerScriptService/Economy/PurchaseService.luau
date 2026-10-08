@@ -53,5 +53,28 @@ function Service.Start(runtime)
  Marketplace.PromptGamePassPurchaseFinished:Connect(function(player,_,purchased)if purchased then passes(player)end end)
  local function added(player)task.spawn(function()for _=1,60 do if not player.Parent then return end;if runtime.Ready(player)then passes(player);return end;task.wait(1)end end)end
  Players.PlayerAdded:Connect(added);for _,p in ipairs(Players:GetPlayers())do added(p)end
+ task.spawn(Service.Audit)
+end
+-- Startup self-check (Output only): every sold product ID must exist, be on sale and appear once.
+function Service.Audit()
+ local rows,seen,bad={},{},0
+ local function add(list,source,on)for _,row in ipairs(list or{})do if R.Int(row.Id,1,9007199254740990)and on(row)then table.insert(rows,{Row=row,Source=source})end end end
+ add(require(game.ReplicatedStorage.CommerceConfig).Products,'CommerceConfig',function(r)return r.Enabled==true end)
+ add(require(game.ReplicatedStorage.RewardMachineConfig).TicketProducts,'RewardMachineConfig',function(r)return r.Enabled==true end)
+ add(require(game.ReplicatedStorage.LuckyBlockConfig).RobuxProducts,'LuckyBlockConfig',function()return true end)
+ add(Definitions,'ShopDefinitions',function(r)return r.Kind=='Product'end)
+ for _,e in ipairs(rows)do
+  local id,key=e.Row.Id,e.Source..'.'..tostring(e.Row.Key)
+  if seen[id]then bad+=1;warn(('[DOGROTS commerce] %s and %s share product ID %d: neither can be granted'):format(seen[id],key,id))end
+  seen[id]=key
+  local ok,info=pcall(function()return Marketplace:GetProductInfoAsync(id,Enum.InfoType.Product)end)
+  if not ok or type(info)~='table'then bad+=1;warn(('[DOGROTS commerce] %s: product %d not found (%s). Create it in this experience and paste its ID.'):format(key,id,tostring(info)))
+  elseif info.IsForSale==false then bad+=1;warn(('[DOGROTS commerce] %s: product %d (%s) is not for sale.'):format(key,id,tostring(info.Name)))
+  elseif type(e.Row.Robux)=='number'and info.PriceInRobux~=e.Row.Robux then
+   print(('[DOGROTS commerce] %s: Roblox price R$%s (config note says %d); buyers pay the Roblox price.'):format(key,tostring(info.PriceInRobux),e.Row.Robux))
+  end
+  task.wait(.2)
+ end
+ print(('[DOGROTS commerce] %d/%d developer products ready'):format(#rows-bad,#rows))
 end
 return Service

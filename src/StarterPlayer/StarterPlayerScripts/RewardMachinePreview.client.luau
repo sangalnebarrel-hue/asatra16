@@ -1,6 +1,7 @@
 -- Per-player percentages come from the same exact integer slots as the roll.
 local RS=game:GetService('ReplicatedStorage');local player=game.Players.LocalPlayer
 local rig=workspace:WaitForChild('DOGROTS_District'):WaitForChild('37_AttractionRefresh'):WaitForChild('RewardMachineRig')
+require(RS.RewardMachineText).SetupVisibility(rig)
 local board=rig:WaitForChild('StatusBoard',60):WaitForChild('OddsDisplay')
 local focus=rig:WaitForChild('CameraHooks'):WaitForChild('RevealFocus',60)
 local remote=RS:WaitForChild('RewardRequest');local motion=require(RS.RewardMachineMotion)
