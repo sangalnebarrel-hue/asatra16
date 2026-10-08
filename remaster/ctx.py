@@ -55,14 +55,37 @@ class Ctx:
         self.log.append(msg)
 
     # ---------------------------------------------------------------- placement
-    def block(self, x0, z0, x1, z1, ytop=1e9, label=""):
-        self.blockers.append((min(x0, x1), min(z0, z1), max(x0, x1), max(z0, z1), ytop, label))
+    CELL = 16.0
 
-    def is_free(self, x, z, r, ymax=None):
-        for x0, z0, x1, z1, ytop, label in self.blockers:
-            if x + r > x0 and x - r < x1 and z + r > z0 and z - r < z1:
-                if ymax is None or ytop > ymax:
-                    return False
+    def block(self, x0, z0, x1, z1, ytop=1e9, label="", ybottom=-1e9):
+        b = (min(x0, x1), min(z0, z1), max(x0, x1), max(z0, z1), ytop, label, ybottom)
+        self.blockers.append(b)
+        grid = self.__dict__.setdefault("_grid", {})
+        c = self.CELL
+        for gx in range(int(b[0] // c), int(b[2] // c) + 1):
+            for gz in range(int(b[1] // c), int(b[3] // c) + 1):
+                grid.setdefault((gx, gz), []).append(b)
+
+    def is_free(self, x, z, r, ymax=None, ymin=None):
+        """True when the disc (x, z, r) touches no blocker. With ymax, blockers whose top is below
+        ymax are ignored (low things like paving); with ymin, blockers whose bottom is above ymin
+        are ignored (things overhead)."""
+        grid = self.__dict__.get("_grid", {})
+        c = self.CELL
+        seen = set()
+        for gx in range(int((x - r) // c), int((x + r) // c) + 1):
+            for gz in range(int((z - r) // c), int((z + r) // c) + 1):
+                for b in grid.get((gx, gz), ()):
+                    if id(b) in seen:
+                        continue
+                    seen.add(id(b))
+                    x0, z0, x1, z1, ytop, label, ybottom = b
+                    if x + r > x0 and x - r < x1 and z + r > z0 and z - r < z1:
+                        if ymax is not None and ytop <= ymax:
+                            continue
+                        if ymin is not None and ybottom >= ymin:
+                            continue
+                        return False
         return True
 
     def footprint_blockers_from_parts(self, min_height=0.6, ignore=None):
@@ -80,4 +103,4 @@ class Ctx:
                 continue
             if p.transp >= 0.95 and not p.collide:
                 continue
-            self.block(p.cf.p[0] - ex, p.cf.p[2] - ez, p.cf.p[0] + ex, p.cf.p[2] + ez, top, p.name)
+            self.block(p.cf.p[0] - ex, p.cf.p[2] - ez, p.cf.p[0] + ex, p.cf.p[2] + ez, top, p.name, p.cf.p[1] - ey)

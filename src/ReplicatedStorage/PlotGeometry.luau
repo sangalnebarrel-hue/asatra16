@@ -23,6 +23,22 @@ function G.Sign(parent,cf,size,text,color,name)
  local t=Instance.new('TextLabel');t.Name='Caption';t.Size=UDim2.fromScale(.94,.86);t.Position=UDim2.fromScale(.03,.07);t.BackgroundTransparency=1;t.Text=text;t.TextColor3=color;t.Font=Enum.Font.GothamBold;t.TextScaled=true;t.Parent=g
  return p
 end
+-- Palm tree (Paradise remaster): curved trunk of round segments, drooping fronds, coconuts.
+function G.Palm(parent,cf,s,leaf)
+ local trunk=Color3.fromRGB(156,118,80);local ring=Color3.fromRGB(128,94,62);local prev=cf.Position
+ for i=1,5 do local t=i/5
+  local p=cf:PointToWorldSpace(Vector3.new(1.4*s*t*t,7*s*t,0))
+  local mid,len=(prev+p)/2,(p-prev).Magnitude
+  G.Part(parent,'PalmTrunk',Vector3.new(len+.25*s,(1.05-.3*t)*s,(1.05-.3*t)*s),CFrame.lookAt(mid,p)*CFrame.Angles(0,math.pi/2,0),i%2==0 and ring or trunk,Enum.Material.Wood,Enum.PartType.Cylinder)
+  prev=p
+ end
+ for i=1,7 do local a=i*math.pi*2/7
+  local d=Vector3.new(math.cos(a),0,math.sin(a))
+  local tip=prev+d*3.2*s+Vector3.new(0,-1.3*s,0)
+  G.Beam(parent,'PalmFrond',prev+Vector3.new(0,.4*s,0),tip,.9*s,leaf or Color3.fromRGB(66,156,70)).Size=Vector3.new(1.3*s,.12*s,(tip-prev).Magnitude+.3*s)
+ end
+ for i=1,3 do local a=i*2.1;G.Part(parent,'Coconut',Vector3.one*.5*s,CFrame.new(prev+Vector3.new(math.cos(a)*.45*s,-.45*s,math.sin(a)*.45*s)),Color3.fromRGB(98,70,44),Enum.Material.Wood,Enum.PartType.Ball)end
+end
 function G.Bone(parent,cf,s,color)
  G.Part(parent,'IvoryBone',Vector3.new(5,.8,.8)*s,cf,color)
  for _,x in ipairs({-2.4,2.4})do for _,y in ipairs({-.32,.32})do G.Part(parent,'BoneKnuckle',Vector3.one*1.15*s,cf*CFrame.new(x*s,y*s,0),color,nil,Enum.PartType.Ball)end end

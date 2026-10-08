@@ -93,7 +93,8 @@ def gate(ctx, m):
 
 def tower(ctx, root):
     """SKY TOWER: spiral obby around a pillar on the lagoon island; reward chest and zipline on top."""
-    m = ctx.fac.model(root, "SkyTower", pivot=CF((ISLAND[0], TOWER_BASE, ISLAND[1])), attrs={"ParadiseObby": "SkyTower"})
+    m = ctx.fac.model(root, "SkyTower", pivot=CF((ISLAND[0], TOWER_BASE, ISLAND[1])), attrs={"ParadiseObby": "SkyTower"},
+                      stream_mode=2)
     b = Builder(ctx, m)
     ix, iz, ir = ISLAND
     bed = lagoon_ground(ix, iz)

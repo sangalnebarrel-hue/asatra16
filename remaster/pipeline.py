@@ -1,5 +1,5 @@
 """Order of the remaster steps (called by tools/build.py)."""
-from . import beach, coast, lagoon, landmarks, restyle
+from . import areas, beach, coast, factory_dog, islands, lagoon, landmarks, restyle, yards
 from .ctx import Ctx
 
 
@@ -25,9 +25,14 @@ def outside_blockers(ctx):
 def run(doc, fac):
     ctx = Ctx(doc, fac)
     restyle.run(ctx)
-    outside_blockers(ctx)
+    ctx.footprint_blockers_from_parts(min_height=0.6, ignore=lambda p: p.area in (None, "13_TheVoid", "NavigationAnchors"))
+    ctx.note("blockers: %d" % len(ctx.blockers))
     landmarks.run(ctx)
     lagoon.run(ctx)
+    areas.run(ctx)
+    factory_dog.run(ctx)
+    yards.run(ctx)
+    islands.run(ctx)
     beach.run(ctx)
     for line in ctx.log:
         print("[remaster]", line)

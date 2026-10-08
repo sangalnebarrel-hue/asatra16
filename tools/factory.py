@@ -266,7 +266,8 @@ class Factory:
                  "TextStrokeColor3": c3(stroke or (0, 0, 0)), "BorderSizePixel": 0, "RichText": rich,
                  "TextXAlignment": 2, "TextYAlignment": 1, "Visible": True, "TextTransparency": 0.0,
                  "AnchorPoint": (0.0, 0.0), "Rotation": 0.0, "ZIndex": 1, "TextSize": 48.0}
-        label = self.new("TextLabel", gui, "Text", props)
+        # PlaceTypography forces FredokaOne on world text unless the label opts out
+        label = self.new("TextLabel", gui, "Text", props, attrs={"KeepFont": True} if font != "FredokaOne" else None)
         return gui, label
 
 

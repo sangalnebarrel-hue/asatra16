@@ -14,7 +14,7 @@ C.Stages={
 C.Order={'Classic','BoneRain','GoldenHour','DogRush','TreasureFever','CrystalStorm','Earthquake','TimeWarp','CursedFog','Blackout','UFOInvasion','RainbowRift','NullHour','TheVoid'}
 -- Body / roof / trim / glow palettes intentionally match the supplied art direction.
 C.Skins={
- Classic={Name='CLASSIC YARD',Rarity='Starter',Cash=0,Color={142,102,65},Roof={37,91,98},Trim={188,145,81},Glow={255,214,135},Motif='Paw',Description='Warm timber, teal roofs and the original backyard.'},
+ Classic={Name='PARADISE VILLA',Rarity='Starter',Cash=0,Color={255,178,152},Roof={204,102,68},Trim={250,248,242},Glow={255,214,135},Motif='Paw',Description='Pastel beach villa, terracotta roofs, white trims and palms.'},
  BoneRain={Name='BONE RAIN',Rarity='Common',Cash=1200,Event='BONE_RAIN',Goal=30,Color={94,59,34},Roof={79,41,25},Trim={246,228,183},Glow={255,203,109},Motif='Bone',Description='Ivory bones, timber rails and a giant bone gateway.'},
  GoldenHour={Name='GOLDEN HOUR',Rarity='Common',Cash=2400,Event='GOLDEN_HOUR',Goal=60,Color={219,202,151},Roof={225,160,28},Trim={255,215,88},Glow={255,195,62},Motif='Sun',Description='Golden roofs, sun crests and warm stone.'},
  DogRush={Name='DOG RUSH',Rarity='Common',Cash=3600,Event='DOG_RUSH',Goal=90,Color={20,89,111},Roof={241,104,28},Trim={235,238,227},Glow={255,153,36},Motif='Race',Description='Racing orange, teal garages and checkered flags.'},
@@ -29,6 +29,8 @@ C.Skins={
  NullHour={Name='NULL HOUR',Rarity='Secret',Event='NULL_HOUR',Goal=2000,Stage=8,Color={14,14,18},Roof={24,24,28},Trim={219,222,229},Glow={255,47,64},Motif='Glitch',Description='Monochrome blocks, red fractures and a fragmented gate.'},
  TheVoid={Name='THE VOID OPENS',Rarity='Secret',Event='THE_VOID_OPENS',Goal=3000,Stage=9,Prestige=1,Color={28,20,43},Roof={39,25,62},Trim={112,51,171},Glow={188,64,255},Motif='Void',Description='Obsidian ruins, suspended rocks and a violet singularity.'},
 }
+-- The starter villa gets its own pastel per yard (Yard_01 .. Yard_08).
+C.VillaPastels={{255,178,152},{172,230,206},{255,210,164},{208,190,240},{166,216,242},{255,236,166},{250,192,208},{150,222,214}}
 function C.Level(p)return math.clamp(1+((p.Upgrades or {}).Plot or 0),1,#C.Stages)end
 function C.Slots(p)return C.Stages[C.Level(p)].Slots end
 function C.Cost(level)return math.floor(300*2.2^(level-1))end

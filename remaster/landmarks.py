@@ -132,6 +132,7 @@ def build_ferris_wheel(ctx):
     """Wheel geometry in model 'Wheel' (rotated by the client around the hub, Motion=FerrisWheel),
     gondolas in 'Gondolas' (each a model kept level by the client)."""
     root = ctx.group("Landmarks/FerrisWheel")
+    ctx.doc.set(root, "ModelStreamingMode", 2)  # Persistent: visible from the whole island
     cx, cy, cz = WHEEL_C
     hub = CF((cx, cy, cz))
     base = Builder(ctx, root)
@@ -181,7 +182,8 @@ def build_ferris_wheel(ctx):
     for i in range(n):
         a = 2 * math.pi * i / n
         px, py = cx + math.cos(a) * WHEEL_R, cy + math.sin(a) * WHEEL_R
-        g = ctx.fac.model(gond, "Gondola", pivot=CF((px, py, cz)), attrs={"Angle": a})
+        g = ctx.fac.model(gond, "Gondola", pivot=CF((px, py, cz)),
+                          attrs={"Motion": "Gondola", "Hub": ("Vector3", (cx, cy, cz)), "AngularSpeed": 0.07})
         gb = Builder(ctx, g, CF((px, py, cz)))
         col = colors[i % len(colors)]
         gb.box("Hanger", (0.4, 3.0, 0.4), T(0, -1.5, 0), P.WHITE, "Metal", collide=False)
@@ -201,6 +203,7 @@ LIGHTHOUSE = (292.0, 612.0)
 def build_lighthouse(ctx):
     """Lighthouse on a rock islet off the east cliffs, with a boardwalk bridge from the island."""
     root = ctx.group("Landmarks/Lighthouse")
+    ctx.doc.set(root, "ModelStreamingMode", 2)
     x, z = LIGHTHOUSE
     b = Builder(ctx, root)
     rng = ctx.rng
@@ -237,7 +240,7 @@ def build_lighthouse(ctx):
     bb = Builder(ctx, beam)
     for side in (-1, 1):
         bb.box("BeamCone", (3.0, 3.0, 90), T(x + side * 46.0, y + 4.5, z) * yaw(math.pi / 2), (255, 244, 190), "Neon",
-               transparency=0.82, collide=False, shadow=False, query=False)
+               transparency=0.82, collide=False, shadow=False, query=False, attrs={"NightOnlyBeam": True})
     # door and windows
     b.box("Door", (3.2, 5.2, 0.6), T(x - 6.3, top + 2.6, z) * yaw(math.pi / 2), P.WOOD_DARK, "WoodPlanks", collide=False)
     for i in (2, 4, 6):

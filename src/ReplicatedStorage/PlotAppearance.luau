@@ -223,8 +223,9 @@ local function garden(parent,f,d,level,sx)
    P(parent,'TrafficConeFoot',Vector3.new(2,.25,2),cf,body)
    for j=1,3 do P(parent,'TrafficCone',Vector3.new(1.6-j*.35,.6,1.6-j*.35),cf*CFrame.new(0,j*.5,0),j==2 and trim or C.Color(d.Roof))end
   elseif level>=3 then
-   P(parent,'GardenPlanter',Vector3.new(3,1.2,4),cf,body,Enum.Material.Slate)
-   P(parent,'GardenShrub',Vector3.new(2.8,2,3.8),cf*CFrame.new(0,1.2,0),Color3.fromRGB(55,103,65),Enum.Material.Grass,Enum.PartType.Ball)
+   P(parent,'GardenPlanter',Vector3.new(3,1.2,4),cf,trim,Enum.Material.Slate)
+   if m=='Paw'then G.Palm(parent,cf*CFrame.new(0,.6,0),1.25)
+   else P(parent,'GardenShrub',Vector3.new(2.8,2,3.8),cf*CFrame.new(0,1.2,0),Color3.fromRGB(55,103,65),Enum.Material.Grass,Enum.PartType.Ball)end
   end
  end
  if m=='Void'or m=='Curse'then
@@ -254,7 +255,9 @@ function A.Apply(yard,level,id)
  if cache[yard]==token and yard:FindFirstChild('PlotDevelopment')then return end
  local old=yard:FindFirstChild('PlotDevelopment');if old then old:Destroy()end
  local deco=Instance.new('Model');deco.Name='PlotDevelopment';deco.Parent=yard
- local d=C.Skins[id];local themed=id~='Classic';local f=A.Frame(yard);local body,top,trim,glow=C.Color(d.Color),C.Color(d.Roof),C.Color(d.Trim),C.Color(d.Glow)
+ local d=C.Skins[id];local themed=id~='Classic'
+ if not themed then local n=tonumber(yard.Name:match('^Yard_(%d+)'))or 1;d=table.clone(d);d.Color=C.VillaPastels[(n-1)%#C.VillaPastels+1]end
+ local f=A.Frame(yard);local body,top,trim,glow=C.Color(d.Color),C.Color(d.Roof),C.Color(d.Trim),C.Color(d.Glow)
  local dark=d.Motif=='Void'or d.Motif=='Glitch'or d.Motif=='Curse'or d.Motif=='Moon'
  for _,groupName in ipairs({'YardLandscape','DogStorage','Vendor','Workshop','StorageRoofMascot'})do
   local group=yard:FindFirstChild(groupName)
@@ -271,8 +274,8 @@ function A.Apply(yard,level,id)
     if n:find('Roof')or n:find('Canopy')then p.Color=top
     elseif n:find('Trim')or n:find('Cornice')or n:find('Pier')or n:find('Sill')then p.Color=trim;p.Material=Enum.Material.Metal
     elseif n:find('Wall')or n:find('Cabinet')or n:find('Panel')or n:find('Foundation')and n~='YardFoundation'then p.Color=body
-    elseif n=='EntryWalk'or n=='UtilityApron'then p.Color=dark and body:Lerp(trim,.12)or level>=6 and Color3.fromRGB(192,183,160)or Color3.fromRGB(133,114,88);p.Material=level>=6 and Enum.Material.Cobblestone or Enum.Material.Ground
-    elseif n=='WorkArea'or n=='CosmeticGarden'or n=='YardFoundation'then p.Color=dark and Color3.fromRGB(49,63,51)or Color3.fromRGB(77,132,57);p.Material=Enum.Material.Grass
+    elseif n=='EntryWalk'or n=='UtilityApron'then p.Color=dark and body:Lerp(trim,.12)or level>=6 and Color3.fromRGB(236,222,198)or Color3.fromRGB(178,130,88);p.Material=dark and(level>=6 and Enum.Material.Cobblestone or Enum.Material.Ground)or level>=6 and Enum.Material.Pavement or Enum.Material.WoodPlanks
+    elseif n=='WorkArea'or n=='CosmeticGarden'or n=='YardFoundation'then p.Color=dark and Color3.fromRGB(49,63,51)or Color3.fromRGB(88,162,64);p.Material=dark and Enum.Material.Grass or Enum.Material.LeafyGrass
     elseif n:find('Lens')or n=='PadTrim'then p.Color=glow end
    end
   end end end

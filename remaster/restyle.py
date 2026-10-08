@@ -46,8 +46,18 @@ AREA_ROOFS = {
     "36_DistrictRefresh": (P.TERRACOTTA, "ClayRoofTiles"),
 }
 
-# (areas or None, name regex, materials or None, colour fn or rgb, material or None)
+OUTDOOR = ("01_IslandAndStreets", "32_WelcomeHub", "33_DogExpress", "09_DogPark", "31_BackDistrictExpansion", "34_GardenPolish",
+           "11_Shops", "27_RewardMachinePlaza", "03_DogLine")
+
+# (areas or None, name regex, materials or None, colour fn or rgb, material or None[, predicate(p, rgb)])
 RULES = [
+    # ---- welcome arch and dark street furniture -> white posts, gold caps, teal beams ---------
+    (("32_WelcomeHub",), r"^Pylon$", ("Metal",), P.WHITE, "Plaster"),
+    (("32_WelcomeHub",), r"^(Lintel|Roof|DOGROTS)$", ("Metal",), P.TEAL_DARK, "SmoothPlastic", lambda p, c: max(p.size) > 20 or p.name == "DOGROTS"),
+    (OUTDOOR, r"^(Column|LanternFrame|LanternBase|LanternHousing|ArmPost|Post|Pole|Support|MetalLeg|Leg|BenchLeg|StoolLeg|Foot)$",
+     ("Metal", "Plastic", "SmoothPlastic"), P.WHITE, "SmoothPlastic", lambda p, c: P.lum(c) < 80 and max(p.size) < 14),
+    (OUTDOOR, r"^(Roof|LanternCap|Cap|CopperCollar)$", ("Metal",), P.GOLD, "Metal", lambda p, c: P.lum(c) < 80 and max(p.size) < 5),
+    (OUTDOOR, r"^(Toe|Pad|DarkPlinth|Honor|Discovery|Legacy)$", ("Metal", "SmoothPlastic", "Concrete"), P.TEAL_DARK, None, lambda p, c: P.lum(c) < 80),
     # ---- museum: cream & navy -> white marble & deep teal; lab: white with aqua glass ----
     (("06_DogDexMuseum",), r".*", ("Concrete", "Marble", "Plastic", "SmoothPlastic"), "museum", None),
     (("05_MutationLab",), r".*", ("Marble", "Metal", "Concrete", "Glass"), "lab", None),
@@ -77,7 +87,7 @@ RULES = [
     (tuple(AREA_WALLS), r"(Wall|Gable|Header|Masonry|Return)", ("Concrete", "Plastic", "SmoothPlastic"), "area_wall", "Plaster"),
 ]
 
-_compiled = [(areas, re.compile(rx), mats, col, mat) for areas, rx, mats, col, mat in RULES]
+_compiled = [(r[0], re.compile(r[1]), r[2], r[3], r[4], r[5] if len(r) > 5 else None) for r in RULES]
 
 NAVY = (19, 30, 49)
 
@@ -119,12 +129,14 @@ def run(ctx):
         if p.transp >= 0.95 or p.mat == "Neon":
             continue
         c = tuple(round(v * 255) for v in p.color)
-        for i, (areas, rx, mats, col, mat) in enumerate(_compiled):
+        for i, (areas, rx, mats, col, mat, pred) in enumerate(_compiled):
             if areas and p.area not in areas:
                 continue
             if mats and p.mat not in mats:
                 continue
             if not rx.search(p.name):
+                continue
+            if pred and not pred(p, c):
                 continue
             new_mat = mat
             if col == "area_roof":
