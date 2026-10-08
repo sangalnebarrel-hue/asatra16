@@ -70,7 +70,8 @@ def fountain(ctx, parent, x, z, r=9.0, jets=True, tier=True, accent=P.NEON_CYAN)
     b.vcyl("FountainBasin", 0.6, r * 2 - 0.4, T(0, 0.35, 0), (40, 120, 150), "SmoothPlastic", collide=False)
     water = b.vcyl("FountainWater", 0.3, r * 2 - 0.6, T(0, 1.1, 0), (120, 220, 235), "Glass", transparency=0.35,
                    collide=False, shadow=False)
-    b.vcyl("FountainGlow", 0.2, r * 2 - 1.2, T(0, 0.75, 0), accent, "Neon", transparency=0.5, collide=False, shadow=False,
+    # tinted by day, glowing at night (Night module switches NightNeon parts to Neon)
+    b.vcyl("FountainGlow", 0.2, r * 2 - 1.2, T(0, 0.75, 0), accent, "SmoothPlastic", transparency=0.5, collide=False, shadow=False,
            attrs={"NightNeon": True})
     if tier:
         b.vcyl("FountainColumn", 5.0, 1.8, T(0, 3.0, 0), P.TRAVERTINE, "Marble")

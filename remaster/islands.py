@@ -9,19 +9,21 @@ from . import palette as P
 from .geom import Builder, T, yaw
 
 SKIP = {"SkyIsland_04"}
+# moved sideways as well: SkyIsland_12 would hang over the Paw Pier and the fireworks
+NUDGE = {"SkyIsland_12": (-180.0, 0.0)}
 
 
-def shift_model(ctx, model, dy):
+def shift_model(ctx, model, dy, dx=0.0, dz=0.0):
     doc = ctx.doc
     for ref in [model] + doc.descendants(model):
         cls = doc.cls(ref)
         if cls in ("Part", "WedgePart", "MeshPart", "Seat", "SpawnLocation", "CornerWedgePart", "TrussPart"):
             cf = doc.get(ref, "CFrame")
-            doc.set(ref, "CFrame", CF((cf.p[0], cf.p[1] + dy, cf.p[2]), cf.r, cf.rid))
+            doc.set(ref, "CFrame", CF((cf.p[0] + dx, cf.p[1] + dy, cf.p[2] + dz), cf.r, cf.rid))
         elif cls == "Model":
             piv = doc.get(ref, "WorldPivotData")
             if piv is not None:
-                doc.set(ref, "WorldPivotData", CF((piv.p[0], piv.p[1] + dy, piv.p[2]), piv.r, piv.rid))
+                doc.set(ref, "WorldPivotData", CF((piv.p[0] + dx, piv.p[1] + dy, piv.p[2] + dz), piv.r, piv.rid))
 
 
 def island_bounds(ctx, model):
@@ -74,13 +76,18 @@ def run(ctx):
         name = ctx.doc.name(model)
         if name in SKIP or ctx.doc.cls(model) != "Model":
             continue
+        # bounds come from the scene snapshot (before any move); the nudge is applied to them
         (x0, y0, z0, x1, y1, z1), meadow = island_bounds(ctx, model)
+        nx, nz = NUDGE.get(name, (0.0, 0.0))
+        x0, x1, z0, z1 = x0 + nx, x1 + nx, z0 + nz, z1 + nz
+        if meadow:
+            meadow = ((meadow[0][0] + nx, meadow[0][1], meadow[0][2] + nz), meadow[1], meadow[2])
         cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
         dist = math.hypot(cx - coast.CENTER[0], cz - coast.CENTER[1])
         # lift: bottom well above the sea, higher islands further out
         target_bottom = 18.0 + rng.uniform(0, 30) + min(40.0, dist / 40.0)
         dy = max(0.0, target_bottom - y0)
-        shift_model(ctx, model, dy)
+        shift_model(ctx, model, dy, nx, nz)
         top = (meadow[2] if meadow else y1) + dy
         mc = meadow[0] if meadow else (cx, y1, cz)
         msize = meadow[1] if meadow else (x1 - x0, 1, z1 - z0)

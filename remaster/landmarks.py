@@ -170,7 +170,7 @@ def build_ferris_wheel(ctx):
         for zoff in (-5.0, 5.0):
             wb.rod("Spoke", (cx, cy, cz + zoff * 0.3), (cx + math.cos(a) * WHEEL_R, cy + math.sin(a) * WHEEL_R, cz + zoff), 0.55,
                    P.WHITE, "Metal", collide=False)
-        # neon bulbs along the spoke (colour-cycled at night)
+        # neon bulbs along the spoke (Spoke index: the Night module chases the colours at night)
         for k in (0.35, 0.55, 0.75, 0.95):
             r = WHEEL_R * k
             ctx.fac.part(wheel, "WheelBulb", (0.9, 0.9, 0.9), CF((cx + math.cos(a) * r, cy + math.sin(a) * r, cz - 5.6)),

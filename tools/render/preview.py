@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Preview renders of a place (approximate Roblox look: sun + sky + shadows + neon bloom).
 
-    preview.py PLACE.rbxl OUT_PREFIX [--night] [--views name,name] [--size 1280x720]
+    preview.py PLACE.rbxl OUT_PREFIX [--night | --golden] [--views name,name] [--size 1280x720]
+               [--view name:ex:ey:ez:tx:ty:tz ...]
 
-Views are defined in VIEWS below (eye, target). The rasterizer binary is built on demand.
+Views are defined in VIEWS below (eye, target); --view adds a custom one (and renders only
+the custom ones unless --views is given too). The rasterizer binary is built on demand.
 """
 import math
 import os
@@ -31,6 +33,16 @@ VIEWS = {
     "museum": ((40, 40, 600), (-110, 25, 480)),
     "south": ((160, 90, 820), (-40, 0, 560)),
     "yard_close": ((-60, 25, -10), (-130, 8, -90)),
+    # Paradise remaster (docs/preview)
+    "paradise": ((520, 260, 1250), (0, 0, 420)),
+    "holiday_dog": ((0, 60, 20), (0, 70, -180)),
+    "lagoon": ((-10, 90, 820), (130, 30, 620)),
+    "pier": ((-170, 40, 880), (0, 30, 1040)),
+    "pier_east": ((150, 60, 820), (-60, 40, 1000)),
+    "reward_plaza": ((-30, 40, 560), (-110, 15, 640)),
+    "shops": ((20, 28, 300), (130, 12, 340)),
+    "villa_yards": ((-120, 70, -40), (0, 5, 60)),
+    "beach": ((-300, 30, 300), (-200, 2, 420)),
 }
 
 
@@ -299,13 +311,23 @@ def main():
     args = sys.argv[1:]
     place, prefix = args[0], args[1]
     night = "night" if "--night" in args else "golden" if "--golden" in args else "day"
-    views = list(VIEWS)
+    views = None
+    custom = []
     size = (1280, 720)
     for i, a in enumerate(args):
         if a == "--views":
             views = args[i + 1].split(",")
         if a == "--size":
             size = tuple(int(v) for v in args[i + 1].split("x"))
+        if a == "--view":
+            name, *nums = args[i + 1].split(":")
+            nums = [float(v) for v in nums]
+            VIEWS[name] = (tuple(nums[:3]), tuple(nums[3:6]))
+            custom.append(name)
+    if views is None:
+        views = custom or list(VIEWS)
+    else:
+        views += custom
     doc = rbxl.Doc.load(place)
     tri_rec, lights = build_scene(doc)
     print("triangles", len(tri_rec), "lights", len(lights))

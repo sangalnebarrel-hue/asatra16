@@ -1,5 +1,6 @@
 -- Paradise HUD: toasts for rewards and the Golden Bone hunt counter. Found bones are hidden
--- for this player only (LocalTransparencyModifier), the rest keep spinning for everyone else.
+-- for this player only (LocalTransparencyModifier, glow removed locally); the rest keep
+-- spinning for everyone else.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -53,13 +54,22 @@ local function refreshCounter()
 	counter.Visible = total > 0
 end
 
+local function hidePiece(d: Instance)
+	if d:IsA("BasePart") then
+		d.LocalTransparencyModifier = 1
+	elseif d:IsA("ParticleEmitter") or d:IsA("Light") then
+		-- removed locally: WorldDetailQuality re-enables lights and emitters it manages
+		task.defer(function()
+			if d.Parent then
+				d:Destroy()
+			end
+		end)
+	end
+end
+
 local function hideBone(model: Instance)
 	for _, d in ipairs(model:GetDescendants()) do
-		if d:IsA("BasePart") then
-			d.LocalTransparencyModifier = 1
-		elseif d:IsA("ParticleEmitter") or d:IsA("Light") then
-			d.Enabled = false
-		end
+		hidePiece(d)
 	end
 end
 
@@ -160,9 +170,17 @@ function M.Start()
 	-- bones streaming in later must hide too
 	local map = workspace:WaitForChild("DOGROTS_District")
 	map.DescendantAdded:Connect(function(d)
-		local m = d:IsA("BasePart") and d.Parent and boneModel(d.Parent)
-		if m and found[m:GetAttribute("GoldenBone") :: string] then
-			d.LocalTransparencyModifier = 1
+		if d:IsA("Model") then
+			local m = boneModel(d)
+			if m and found[m:GetAttribute("GoldenBone") :: string] then
+				hideBone(m)
+			end
+		elseif d:IsA("BasePart") or d:IsA("ParticleEmitter") or d:IsA("Light") then
+			local m = d:FindFirstAncestorWhichIsA("Model")
+			m = m and boneModel(m)
+			if m and found[m:GetAttribute("GoldenBone") :: string] then
+				hidePiece(d)
+			end
 		end
 	end)
 end

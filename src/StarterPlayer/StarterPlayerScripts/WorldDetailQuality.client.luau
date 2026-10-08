@@ -30,15 +30,22 @@ Run.Heartbeat:Connect(function(dt)
   p.Enabled=false
   local navigation=p.Parent and (p.Parent.Name=='WarmLens'or p.Parent.Name=='PortalEnergy')
   local king=p:GetAttribute('ServerKingLight')==true
-  if d<(king and 260 or (low and 85 or 160))and (not blackout or navigation)then table.insert(candidates,{p,d,king})end
+  -- a light dimmed to nothing (day-only/night-only lights) does not take a slot
+  if d<(king and 260 or (low and 85 or 160))and p.Brightness>.02 and (not blackout or navigation)then table.insert(candidates,{p,d,king})end
  end
  table.sort(candidates,function(a,b)if a[3]~=b[3]then return a[3]end;return a[2]<b[2]end)
  for i=1,math.min(#candidates,low and 8 or 24)do candidates[i][1].Enabled=true end
  local remaining=low and 8 or 50
+ -- the emitter budget goes to the nearest effects first
+ local nearby={}
  for p,rate in pairs(emitters)do
   if not p:IsDescendantOf(map)then emitters[p]=nil;continue end
-  local pos=position(p);local near=pos and(pos-camera.CFrame.Position).Magnitude<(low and 90 or 210)
-  local amount=near and math.min(rate,low and 2 or 8,remaining)or 0
-  p.Rate=amount;p.Enabled=amount>0;remaining-=amount
+  local pos=position(p);local d=pos and(pos-camera.CFrame.Position).Magnitude or math.huge
+  if d<(low and 90 or 210)then table.insert(nearby,{p,d,rate})else p.Rate=0;p.Enabled=false end
+ end
+ table.sort(nearby,function(a,b)return a[2]<b[2]end)
+ for _,row in ipairs(nearby)do
+  local amount=math.min(row[3],low and 2 or 8,remaining)
+  row[1].Rate=amount;row[1].Enabled=amount>0;remaining-=amount
  end
 end)

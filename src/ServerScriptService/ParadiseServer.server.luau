@@ -194,26 +194,22 @@ local function load(player: Player)
 	if not player.Parent or not Runtime.Ready(player) then
 		return
 	end
-	local uid = player.UserId
-	local key = "p:" .. uid
-	local ok, data = Runtime.Tx:Run({ key }, function(v)
-		local p = v[key]
-		local P = p.Paradise or {}
-		local list = {}
-		for id in pairs(P.Bones or {}) do
-			table.insert(list, id)
-		end
-		return { Bones = list, TowerAt = tonumber(P.TowerAt) or 0 }
-	end, "paradiseread:" .. uid .. ":" .. os.time())
-	if not ok or type(data) ~= "table" then
+	-- a plain read of the in-memory profile (no transaction, nothing marked dirty)
+	local ok, p = pcall(function()
+		return Runtime.Engine:Get(player.UserId)
+	end)
+	if not ok or type(p) ~= "table" then
 		return
 	end
-	local set = {}
-	for _, id in ipairs(data.Bones) do
+	local P = type(p.Paradise) == "table" and p.Paradise or {}
+	local list, set = {}, {}
+	for id in pairs(type(P.Bones) == "table" and P.Bones or {}) do
+		table.insert(list, id)
 		set[id] = true
 	end
 	cache[player] = set
-	remote:FireClient(player, { Kind = "State", Bones = data.Bones, Total = total, TowerReadyAt = data.TowerAt + TOWER_COOLDOWN })
+	local towerAt = tonumber(P.TowerAt) or 0
+	remote:FireClient(player, { Kind = "State", Bones = list, Total = total, TowerReadyAt = towerAt + TOWER_COOLDOWN })
 end
 
 Players.PlayerAdded:Connect(function(player)

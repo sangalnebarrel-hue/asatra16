@@ -22,9 +22,13 @@ type Rig = {
 	phase: number,
 	radius: number,
 	center: Vector3,
+	conn: RBXScriptConnection?,
 }
 
 local rigs: { [Model]: Rig } = {}
+-- rest offset of every part ever seen, so a part that streams out and back in keeps its
+-- offset even if it comes back with an animated CFrame (weak keys: gone parts get collected)
+local known: { [BasePart]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
 local KINDS = { FerrisWheel = true, Gondola = true, LighthouseBeam = true, Bob = true, Cruise = true, Spin = true }
 -- beyond `far` studs a rig updates every third frame, beyond `stop` it holds still
 local RANGE = {
@@ -36,16 +40,15 @@ local RANGE = {
 	Spin = { far = 120, stop = 320 },
 }
 
-local function collect(model: Instance, rest: CFrame, parts: { BasePart }, offsets: { CFrame }, index: { [BasePart]: number }?)
-	for _, d in ipairs(model:GetDescendants()) do
-		if d:IsA("BasePart") and (not index or not index[d]) then
-			table.insert(parts, d)
-			table.insert(offsets, rest:ToObjectSpace(d.CFrame))
-			if index then
-				index[d] = #parts
-			end
-		end
+local function join(rig: Rig, d: BasePart)
+	if rig.index[d] then
+		return
 	end
+	local offset = known[d] or rig.rest:ToObjectSpace(d.CFrame)
+	known[d] = offset
+	table.insert(rig.parts, d)
+	table.insert(rig.offsets, offset)
+	rig.index[d] = #rig.parts
 end
 
 local function register(model: Instance)
@@ -69,16 +72,32 @@ local function register(model: Instance)
 		radius = tonumber(model:GetAttribute("Radius")) or 0,
 		center = (model:GetAttribute("Center") :: Vector3?) or (model:GetAttribute("Hub") :: Vector3?) or rest.Position,
 	}
-	collect(model, rest, rig.parts, rig.offsets, rig.index)
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			join(rig, d)
+		end
+	end
 	rigs[model] = rig
 	-- parts that stream in later join with their rest offset
-	model.DescendantAdded:Connect(function(d)
-		if d:IsA("BasePart") and not rig.index[d] then
-			table.insert(rig.parts, d)
-			table.insert(rig.offsets, rig.rest:ToObjectSpace(d.CFrame))
-			rig.index[d] = #rig.parts
+	rig.conn = model.DescendantAdded:Connect(function(d)
+		if d:IsA("BasePart") then
+			join(rig, d)
 		end
 	end)
+end
+
+-- drop parts that left the world (streamed out); swap-remove keeps the arrays dense
+local function prune(rig: Rig, i: number)
+	local parts, offsets = rig.parts, rig.offsets
+	local last = #parts
+	rig.index[parts[i]] = nil
+	if i ~= last then
+		parts[i] = parts[last]
+		offsets[i] = offsets[last]
+		rig.index[parts[i]] = i
+	end
+	parts[last] = nil
+	offsets[last] = nil
 end
 
 local function poseOf(rig: Rig, t: number): CFrame
@@ -111,13 +130,6 @@ end
 local partsBuf: { BasePart } = {}
 local cfBuf: { CFrame } = {}
 
-local function push(part: BasePart, cf: CFrame)
-	if part.Parent then
-		table.insert(partsBuf, part)
-		table.insert(cfBuf, cf)
-	end
-end
-
 function M.Start()
 	local map = workspace:WaitForChild("DOGROTS_District")
 	for _, d in ipairs(map:GetDescendants()) do
@@ -141,6 +153,9 @@ function M.Start()
 		table.clear(cfBuf)
 		for model, rig in pairs(rigs) do
 			if not model.Parent then
+				if rig.conn then
+					rig.conn:Disconnect()
+				end
 				rigs[model] = nil
 				continue
 			end
@@ -151,8 +166,17 @@ function M.Start()
 				continue
 			end
 			local pose = poseOf(rig, t)
-			for i, part in ipairs(rig.parts) do
-				push(part, pose * rig.offsets[i])
+			local parts, offsets = rig.parts, rig.offsets
+			local i = 1
+			while i <= #parts do
+				local part = parts[i]
+				if part.Parent then
+					table.insert(partsBuf, part)
+					table.insert(cfBuf, pose * offsets[i])
+					i += 1
+				else
+					prune(rig, i)
+				end
 			end
 		end
 		if #partsBuf > 0 then
