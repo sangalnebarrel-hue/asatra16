@@ -20,12 +20,14 @@ int, Float32/Float64 -> float, Vector2/Vector3/Color3 -> tuple, CFrame -> CF (po
 the rest -> small tuples or raw bytes (see the codec table at the bottom).
 """
 import math
+import os
 import struct
 
 import lz4.block
 import zstandard
 
 MAGIC = b"<roblox!"
+ZSTD_LEVEL = int(os.environ.get("DOGROTS_ZSTD_LEVEL", "9"))
 
 
 # ---------------------------------------------------------------------------- helpers
@@ -702,7 +704,7 @@ class Chunk:
         if self.compression == "lz4":
             packed = lz4.block.compress(body, store_size=False)
         else:
-            packed = zstandard.ZstdCompressor(level=19).compress(body)
+            packed = zstandard.ZstdCompressor(level=ZSTD_LEVEL).compress(body)
         return self.name + struct.pack("<III", len(packed), len(body), 0) + packed
 
 

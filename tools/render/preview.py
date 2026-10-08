@@ -119,7 +119,78 @@ def srgb_to_lin(c):
     return tuple(v ** 2.2 for v in c)
 
 
-def build_scene(doc, extra_parts=()):
+def coast_tris(step=8.0):
+    """Approximate terrain (beaches, seabed) and the sea surface from remaster/coast.py."""
+    sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+    from remaster import coast
+    x0, z0, x1, z1 = coast.NEAR
+    nx, nz = int((x1 - x0) / step), int((z1 - z0) / step)
+    def h_at(x, z):
+        h = coast.height(x, z)
+        return -0.45 if h is None else h  # under the island: hidden, keeps the shore edge closed
+    hs = [[h_at(x0 + i * step, z0 + k * step) for k in range(nz + 1)] for i in range(nx + 1)]
+    inside = [[coast.is_land(x0 + (i + 0.5) * step, z0 + (k + 0.5) * step) for k in range(nz)] for i in range(nx)]
+    out = []
+    mats = {"Sand": (0.94, 0.85, 0.66), "Rock": (0.42, 0.39, 0.37), "Ground": (0.59, 0.51, 0.38)}
+    for i in range(nx):
+        for k in range(nz):
+            q = [hs[i][k], hs[i + 1][k], hs[i + 1][k + 1], hs[i][k + 1]]
+            if inside[i][k] and all(coast.is_land(x0 + (i + a) * step, z0 + (k + b) * step) for a in (0, 1) for b in (0, 1)):
+                continue
+            xs = (x0 + i * step, x0 + (i + 1) * step)
+            zs = (z0 + k * step, z0 + (k + 1) * step)
+            a, b = (xs[0], q[0], zs[0]), (xs[1], q[1], zs[0])
+            c, d = (xs[1], q[2], zs[1]), (xs[0], q[3], zs[1])
+            hm = sum(q) / 4
+            col = mats[coast.surface_material(xs[0] + step / 2, zs[0] + step / 2, hm)]
+            col = srgb_to_lin(col)
+            out.append(((a, b, c), col, 0.0, 1.0, 0.0))
+            out.append(((a, c, d), col, 0.0, 1.0, 0.0))
+            if hm < coast.SEA + 0.3:
+                depth = coast.SEA - hm
+                t = min(1.0, depth / 22.0)
+                wc = srgb_to_lin(tuple(s * (1 - t) + dd * t for s, dd in zip((0.30, 0.80, 0.80), (0.07, 0.36, 0.52))))
+                al = 0.45 + 0.45 * t
+                W = coast.SEA
+                out.append((((xs[0], W, zs[0]), (xs[1], W, zs[0]), (xs[1], W, zs[1])), wc, 0.0, al, 0.9))
+                out.append((((xs[0], W, zs[0]), (xs[1], W, zs[1]), (xs[0], W, zs[1])), wc, 0.0, al, 0.9))
+    # lagoon basin in the old quarry hole
+    gx0, gz0, gx1, gz1 = coast.LAGOON_REGION
+    st = 4.0
+    lx = int((gx1 - gx0) / st)
+    lz = int((gz1 - gz0) / st)
+    for i in range(lx):
+        for k in range(lz):
+            xs = (gx0 + i * st, gx0 + (i + 1) * st)
+            zs = (gz0 + k * st, gz0 + (k + 1) * st)
+            q = [coast.lagoon_height(xs[0], zs[0]), coast.lagoon_height(xs[1], zs[0]), coast.lagoon_height(xs[1], zs[1]),
+                 coast.lagoon_height(xs[0], zs[1])]
+            if any(h is None for h in q) or max(q) > -0.6 and min(q) > -0.6:
+                continue
+            a, b = (xs[0], q[0], zs[0]), (xs[1], q[1], zs[0])
+            c, d = (xs[1], q[2], zs[1]), (xs[0], q[3], zs[1])
+            col = srgb_to_lin((0.94, 0.85, 0.66))
+            out.append(((a, b, c), col, 0.0, 1.0, 0.0))
+            out.append(((a, c, d), col, 0.0, 1.0, 0.0))
+            hm = sum(q) / 4
+            if hm < coast.SEA + 0.3:
+                t = min(1.0, (coast.SEA - hm) / 8.0)
+                wc = srgb_to_lin(tuple(s_ * (1 - t) + dd * t for s_, dd in zip((0.36, 0.85, 0.85), (0.10, 0.55, 0.65))))
+                W = coast.SEA
+                out.append((((xs[0], W, zs[0]), (xs[1], W, zs[0]), (xs[1], W, zs[1])), wc, 0.0, 0.5 + 0.35 * t, 0.9))
+                out.append((((xs[0], W, zs[0]), (xs[1], W, zs[1]), (xs[0], W, zs[1])), wc, 0.0, 0.5 + 0.35 * t, 0.9))
+    # open ocean: big quads around the near box
+    F = coast.FAR
+    cz = coast.CENTER[1]
+    deep = srgb_to_lin((0.07, 0.36, 0.52))
+    W = coast.SEA
+    for (ax0, az0, ax1, az1) in ((-F, cz - F, F, z0), (-F, z1, F, cz + F), (-F, z0, x0, z1), (x1, z0, F, z1)):
+        out.append((((ax0, W, az0), (ax1, W, az0), (ax1, W, az1)), deep, 0.0, 1.0, 0.9))
+        out.append((((ax0, W, az0), (ax1, W, az1), (ax0, W, az1)), deep, 0.0, 1.0, 0.9))
+    return out
+
+
+def build_scene(doc, extra_parts=(), coast=True):
     ps = scene.parts(doc) + list(extra_parts)
     tri_rec = []
     for p in ps:
@@ -133,6 +204,8 @@ def build_scene(doc, extra_parts=()):
         spec = MAT_SPEC.get(p.mat, 0.05)
         for t in tris_for(p):
             tri_rec.append((t, col, em, alpha, spec))
+    if coast:
+        tri_rec += coast_tris()
     lights = []
     for cname in ("PointLight", "SpotLight", "SurfaceLight"):
         cid = doc.by_name.get(cname)
@@ -152,12 +225,19 @@ def build_scene(doc, extra_parts=()):
 
 def pack(tri_rec, lights, W, H, eye, target, fov, night):
     cf = rbxl.CF.look_at(eye, target)
-    if night:
+    mode = night if isinstance(night, str) else ("night" if night else "day")
+    if mode == "night":
         sun = (-0.3, 0.55, -0.4)
         sunC = (0.10, 0.12, 0.22)
         ambS, ambG = (0.10, 0.11, 0.20), (0.05, 0.05, 0.08)
         fogC, fogS, fogE = (0.04, 0.05, 0.10), 300, 2600
         skyT, skyH = (0.01, 0.01, 0.04), (0.06, 0.06, 0.14)
+    elif mode == "golden":
+        sun = (-0.55, 0.30, 0.62)
+        sunC = (1.55, 1.05, 0.62)
+        ambS, ambG = (0.40, 0.36, 0.48), (0.26, 0.18, 0.14)
+        fogC, fogS, fogE = (0.98, 0.70, 0.52), 450, 3600
+        skyT, skyH = (0.22, 0.32, 0.70), (1.0, 0.66, 0.46)
     else:
         sun = (0.45, 0.62, 0.35)
         sunC = (1.25, 1.12, 0.95)
@@ -175,7 +255,7 @@ def pack(tri_rec, lights, W, H, eye, target, fov, night):
         arr[i, 12], arr[i, 13], arr[i, 14] = em, alpha, spec
     larr = np.zeros((len(lights), 8), dtype=np.float32)
     for i, (pos, c, rng, br) in enumerate(lights):
-        larr[i] = (*pos, *c, rng, br * (1.0 if night else 0.25))
+        larr[i] = (*pos, *c, rng, br * (1.0 if mode == "night" else 0.25 if mode == "day" else 0.5))
     return head + arr.tobytes() + larr.tobytes()
 
 
@@ -207,7 +287,7 @@ def render(tri_rec, lights, out_png, eye, target, W=1280, H=720, fov=70, night=F
         b = np.apply_along_axis(lambda m: np.convolve(m, k, mode="same"), 1, src)
         b = np.apply_along_axis(lambda m: np.convolve(m, k, mode="same"), 0, b)
         blur += b * 0.8
-    col = col + blur * (0.55 if night else 0.3)
+    col = col + blur * (0.55 if night == "night" or night is True else 0.3)
     # tone map + gamma
     col = col / (1 + col * 0.25)
     col = np.clip(col * 1.12, 0, 1) ** (1 / 2.2)
@@ -218,7 +298,7 @@ def render(tri_rec, lights, out_png, eye, target, W=1280, H=720, fov=70, night=F
 def main():
     args = sys.argv[1:]
     place, prefix = args[0], args[1]
-    night = "--night" in args
+    night = "night" if "--night" in args else "golden" if "--golden" in args else "day"
     views = list(VIEWS)
     size = (1280, 720)
     for i, a in enumerate(args):
@@ -231,7 +311,7 @@ def main():
     print("triangles", len(tri_rec), "lights", len(lights))
     for v in views:
         eye, target = VIEWS[v]
-        render(tri_rec, lights, "%s_%s%s.png" % (prefix, v, "_night" if night else ""), eye, target, size[0], size[1], night=night)
+        render(tri_rec, lights, "%s_%s%s.png" % (prefix, v, "" if night == "day" else "_" + night), eye, target, size[0], size[1], night=night)
 
 
 if __name__ == "__main__":
