@@ -69,8 +69,11 @@ RULES = [
     (None, r"^(Trunk|DistantTrunk)$", None, P.WOOD_DARK, "Wood"),
     (None, r"^Soil$", None, P.SOIL, "Ground"),
     # ---- island rock ------------------------------------------------------------
-    (("01_IslandAndStreets", "23_DistrictPolish", "34_GardenPolish"),
+    (("01_IslandAndStreets", "34_GardenPolish"),
      r"^(IslandMass|WeatheredBasalt|EndStrata|RockShelf|BrokenBasalt|Outcrop)", None, _rock, "Rock"),
+    # floating islands: pale limestone karst with darker roots
+    (("23_DistrictPolish",), r"^RockShelf$", None, (184, 170, 150), "Limestone"),
+    (("23_DistrictPolish",), r"^BrokenBasalt$", None, (138, 126, 114), "Rock"),
     # ---- streets ------------------------------------------------------------------
     (("01_IslandAndStreets",), r"^(MainBoulevard|InnerYardPromenade|OuterYardPromenade)$", None, P.PAVE, "Pavement"),
     (("01_IslandAndStreets",), r"^YardCrossing$", None, P.PAVE_ROSE, "Pavement"),

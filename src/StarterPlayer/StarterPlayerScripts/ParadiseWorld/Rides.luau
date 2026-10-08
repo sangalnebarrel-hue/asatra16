@@ -98,14 +98,16 @@ local function ride(track: Instance)
 	end
 	local dist, seg = 0, 1
 	local finished = false
-	local conn: RBXScriptConnection
+	local conn: RBXScriptConnection?
 	local sitConn: RBXScriptConnection?
 	local function finish(exitVelocity: Vector3?)
 		if finished then
 			return
 		end
 		finished = true
-		conn:Disconnect()
+		if conn then
+			conn:Disconnect()
+		end
 		if sitConn then
 			sitConn:Disconnect()
 		end

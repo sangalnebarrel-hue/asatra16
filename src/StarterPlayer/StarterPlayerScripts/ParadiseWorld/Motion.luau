@@ -26,6 +26,15 @@ type Rig = {
 
 local rigs: { [Model]: Rig } = {}
 local KINDS = { FerrisWheel = true, Gondola = true, LighthouseBeam = true, Bob = true, Cruise = true, Spin = true }
+-- beyond `far` studs a rig updates every third frame, beyond `stop` it holds still
+local RANGE = {
+	FerrisWheel = { far = 450, stop = 2600 },
+	Gondola = { far = 450, stop = 2600 },
+	LighthouseBeam = { far = 500, stop = 2600 },
+	Cruise = { far = 600, stop = 3000 },
+	Bob = { far = 250, stop = 700 },
+	Spin = { far = 120, stop = 320 },
+}
 
 local function collect(model: Instance, rest: CFrame, parts: { BasePart }, offsets: { CFrame }, index: { [BasePart]: number }?)
 	for _, d in ipairs(model:GetDescendants()) do
@@ -135,9 +144,10 @@ function M.Start()
 				rigs[model] = nil
 				continue
 			end
-			local dist = (rig.rest.Position - eye).Magnitude
-			-- far away: update less often (still visible on the horizon)
-			if dist > 2500 or (dist > 700 and frame % 3 ~= 0) then
+			local range = RANGE[rig.kind]
+			local dist = if rig.kind == "Cruise" then (rig.center - eye).Magnitude - rig.radius else (rig.rest.Position - eye).Magnitude
+			-- far away: update less often (still visible on the horizon), or not at all
+			if dist > range.stop or (dist > range.far and frame % 3 ~= 0) then
 				continue
 			end
 			local pose = poseOf(rig, t)

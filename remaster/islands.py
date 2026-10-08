@@ -92,6 +92,9 @@ def run(ctx):
         ex, ez = cx + sx * reach, cz + sz * reach
         width = rng.uniform(12, 18)
         waterfall(ctx, deco, (ex, top - 0.5, ez), coast.SEA, width=width, facing=to_center)
+        if "IslandFalls" not in ctx.spots or dist < ctx.spots.get("_falls_dist", 1e9):
+            ctx.spots["IslandFalls"] = (ex + sx * 7, coast.SEA + 1.6, ez + sz * 7)
+            ctx.spots["_falls_dist"] = dist
         # a stream across the meadow edge feeds the fall
         a = (cx + sx * inner, top - 0.2, cz + sz * inner)
         b = (ex, top - 0.2, ez)

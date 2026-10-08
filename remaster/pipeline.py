@@ -1,5 +1,5 @@
 """Order of the remaster steps (called by tools/build.py)."""
-from . import areas, beach, coast, factory_dog, islands, lagoon, landmarks, restyle, yards
+from . import areas, beach, coast, factory_dog, features, islands, lagoon, landmarks, restyle, yards
 from .ctx import Ctx
 
 
@@ -33,6 +33,7 @@ def run(doc, fac):
     factory_dog.run(ctx)
     yards.run(ctx)
     islands.run(ctx)
+    features.run(ctx)
     beach.run(ctx)
     for line in ctx.log:
         print("[remaster]", line)

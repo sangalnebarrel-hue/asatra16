@@ -91,6 +91,10 @@ def build_pier(ctx):
     for x, z in ((x0 + 6, z0 + 6), (x1 - 6, z0 + 6), (x0 + 6, z1 - 6), (x1 - 6, z1 - 6)):
         geom.lamp_post(ctx, m, (x, DECK_Y, z), glow=(255, 206, 140), height=11)
     pier_arch(ctx, m)
+    ctx.spots["PierAnchor"] = b.box("EntranceAnchor", (1, 1, 1), T(0, DECK_Y + 2.5, 790.0), (120, 130, 120), transparency=1,
+                                    collide=False, query=False, shadow=False)
+    ctx.spots["PierEnd"] = (x1 - 5, DECK_Y + 2.2, z1 - 5)
+    ctx.spots["UnderPier"] = (0.0, coast.SEA + 1.3, 868.0)
     ctx.block(-PIER_X - 4, PIER_Z0 - 6, PIER_X + 4, PIER_Z1 + 2, label="pier")
     ctx.block(x0 - 4, z0 - 4, x1 + 4, z1 + 4, label="pier platform")
     return m
@@ -193,6 +197,7 @@ def build_ferris_wheel(ctx):
         gb.box("CabinRoof", (5.8, 0.5, 7.8), T(0, -1.75, 0), col, collide=False)
         gb.ball("RoofBall", 1.0, T(0, -1.2, 0), P.GOLD, "Metal", collide=False)
     ctx.block(PLAT[0], cz - 14, PLAT[2], cz + 14, label="ferris wheel")
+    ctx.spots["FerrisBase"] = (cx, DECK_Y + 2.2, cz + 18)
     ctx.note("ferris wheel: %d gondolas" % n)
     return root
 
@@ -267,6 +272,7 @@ def build_lighthouse(ctx):
         for k in range(0, int(bx1 - 212) + 1, 10):
             b.box("RopePost", (0.5, 3.4, 0.5), T(212.0 + k, top + 1.7, bz + side * 4.4), P.WOOD_DARK, "Wood")
     ctx.block(x - 22, z - 22, x + 22, z + 22, label="lighthouse")
+    ctx.spots["LighthouseDoor"] = (x - 9.0, top + 1.6, z + 2.0)
     ctx.block(200, bz - 6, x, bz + 6, label="lighthouse bridge")
     return root
 

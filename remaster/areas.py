@@ -139,6 +139,9 @@ def reward_plaza(ctx):
             if ctx.is_free(x, z, 4, ymax=0.9):
                 planter_palm(ctx, m, x, z, size=5.5)
     giant_dice(ctx, m, -70.0, 566.0, 0.4)
+    small = ctx.fac.model(m, "StepDice", pivot=CF((-63.0, 1.6, 570.0)))
+    ctx.fac.part(small, "Dice", (3.2, 3.2, 3.2), CF((-63.0, 1.6, 570.5)) * yaw(0.9), (255, 90, 120), "SmoothPlastic")
+    ctx.spots["CasinoDice"] = (-70.0, 8.2, 566.0)
     giant_dice(ctx, m, -64.0, 700.0, 1.1)
     chip_stack(ctx, m, -124.0, 702.0)
     chip_stack(ctx, m, -128.0, 560.0)
@@ -189,5 +192,130 @@ def chip_stack(ctx, parent, x, z):
 
 
 def run(ctx):
+    coast_rocks(ctx)
     boulevard(ctx)
     reward_plaza(ctx)
+    shops(ctx)
+    museum(ctx)
+    blossoms(ctx)
+
+
+# ---------------------------------------------------------------------------- blossoms & shops
+BLOSSOMS = [(255, 70, 150), (240, 60, 200), (255, 130, 60), (255, 210, 80), (255, 255, 255)]
+
+
+def blossoms(ctx):
+    """Bougainvillea-style flowers on the old voxel trees and planters."""
+    doc = ctx.doc
+    rng = ctx.rng
+    trees = {}
+    for p in ctx.parts():
+        if p.name in ("Leaves", "LeafCluster", "Canopy", "VoxelCanopy") and p.area in (
+                "32_WelcomeHub", "34_GardenPolish", "27_RewardMachinePlaza", "31_BackDistrictExpansion", "09_DogPark",
+                "02_DogFactory", "03_DogLine", "11_Shops", "06_DogDexMuseum"):
+            trees.setdefault(doc.parent[p.ref], []).append(p)
+    m = ctx.group("Districts/Blossoms")
+    n = 0
+    for model, leaves in trees.items():
+        if doc.name(model) not in ("Broadleaf", "Cypress", "VoxelTree", "Planter", "GardenBed", "RaisedBed"):
+            continue
+        palette = rng.sample(BLOSSOMS, 2)
+        count = 0
+        for p in leaves:
+            hx, hy, hz = p.size[0] / 2, p.size[1] / 2, p.size[2] / 2
+            for k in range(2):
+                lx, lz = rng.uniform(-hx, hx) * 0.85, rng.uniform(-hz, hz) * 0.85
+                side = rng.random()
+                if side < 0.6:
+                    local = (lx, hy + 0.15, lz)
+                else:
+                    sx = hx if rng.random() < 0.5 else -hx
+                    local = (sx * 1.02, rng.uniform(-hy, hy) * 0.7, lz)
+                pos = p.cf * local
+                d = rng.uniform(0.7, 1.4)
+                ctx.fac.part(m, "Blossom", (d, d, d), CF(pos), rng.choice(palette), "SmoothPlastic", shape="Ball",
+                             collide=False, shadow=False)
+                count += 1
+            if count > 14:
+                break
+        n += count
+    ctx.note("blossoms: %d flowers on %d trees" % (n, len(trees)))
+
+
+SHOP_COLORS = {"UPGRADES": ((172, 230, 206), (32, 168, 170)), "COSMETICS": ((250, 192, 208), (255, 90, 150)),
+               "SUPPLIES": ((255, 230, 160), (255, 140, 50))}
+
+
+def shops(ctx):
+    """Pastel shop fronts with striped awnings and neon sign frames."""
+    from .restyle import set_look
+    doc = ctx.doc
+    area = ctx.area("11_Shops")
+    m = ctx.group("Districts/ShopFronts")
+    for shop_name, (wall, accent) in SHOP_COLORS.items():
+        shop = doc.child(area, shop_name)
+        if shop is None:
+            continue
+        floor = None
+        for p in ctx.parts_under(shop):
+            if p.name == "ShopFloor":
+                floor = p
+            if p.mat in ("Concrete", "Plastic", "SmoothPlastic", "Plaster") and any(
+                    k in p.name for k in ("Wall", "Gable", "Header", "Masonry", "SideSill", "WindowSillWall")):
+                if p.name != "FacadeHeader":
+                    set_look(doc, p, wall, "Plaster")
+        if floor is None:
+            continue
+        zc = floor.cf.p[2]
+        x_wall, x_out = 118.2, 111.2
+        y_top, y_low = 15.0, 12.4
+        stripes = 10
+        width = 34.0
+        for i in range(stripes):
+            z = zc - width / 2 + (i + 0.5) * width / stripes
+            a = (x_wall, y_top, z)
+            b = (x_out, y_low, z)
+            from factory import beam_cf
+            cf, ln = beam_cf(a, b)
+            ctx.fac.part(m, "AwningStripe", (width / stripes + 0.02, 0.3, ln), cf, accent if i % 2 == 0 else P.WHITE, "Fabric",
+                         collide=False)
+            ctx.fac.part(m, "AwningScallop", (width / stripes * 0.8, 0.9, 0.3), CF((x_out - 0.1, y_low - 0.45, z)),
+                         accent if i % 2 == 0 else P.WHITE, "Fabric", collide=False, shadow=False)
+        # neon frame around the shop name
+        for dy in (-2.15, 2.15):
+            ctx.fac.part(m, "SignNeon", (0.35, 0.35, 33.0), CF((117.4, 17.2 + dy, zc)), accent, "Neon", collide=False, shadow=False)
+        for dz in (-16.5, 16.5):
+            ctx.fac.part(m, "SignNeon", (0.35, 4.6, 0.35), CF((117.4, 17.2, zc + dz)), accent, "Neon", collide=False, shadow=False)
+        # palm planters at the doors
+        for dz in (-21.0, 21.0):
+            x, z = 108.0, zc + dz
+            if ctx.is_free(x, z, 3.2, ymax=0.9):
+                planter_palm(ctx, m, x, z, size=5.0)
+    ctx.note("shops: pastel fronts with awnings")
+
+
+def museum(ctx):
+    m = ctx.group("Districts/MuseumGardens")
+    placed = 0
+    for x, z in ((-12.0, 430.0), (-12.0, 532.0), (-24.0, 430.0), (-24.0, 532.0), (-30.0, 446.0), (-30.0, 516.0)):
+        if ctx.is_free(x, z, 3.2, ymax=0.9):
+            planter_palm(ctx, m, x, z, size=5.5)
+            placed += 1
+    ctx.note("museum: %d palm planters" % placed)
+
+
+def coast_rocks(ctx):
+    """Island cliff faces next to sandy beaches turn to warm sandstone; rocky shores stay dark."""
+    from .restyle import set_look
+    from . import coast
+    n = 0
+    for p in ctx.parts():
+        if p.area != "01_IslandAndStreets" or not p.name.startswith(("WeatheredBasalt", "EndStrata", "IslandMass")):
+            continue
+        d, px, pz = coast.nearest(p.cf.p[0], p.cf.p[2])
+        if coast.beach_weight(px, pz) > 0.6:
+            c = tuple(round(v * 255) for v in p.color)
+            t = max(0.0, min(1.0, (P.lum(c) - 60) / 60.0))
+            set_look(ctx.doc, p, P.lerp((196, 164, 120), (226, 196, 150), t), "Sandstone")
+            n += 1
+    ctx.note("coast rocks: %d cliff parts to sandstone" % n)

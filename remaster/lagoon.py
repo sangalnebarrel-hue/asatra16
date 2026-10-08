@@ -132,6 +132,8 @@ def tower(ctx, root):
               collide=False)
         if n % 9 == 8:
             checkpoints.append((px, y, pz))
+            if len(checkpoints) == 2:
+                ctx.spots["SkyTowerHalfway"] = (px, y + 2.6, pz)
         y += step_y
         a += step_a
         n += 1
@@ -265,6 +267,8 @@ def mountain(ctx, root):
     s = b.box("JumpSign", (4, 1.6, 0.3), T(mx - 13, 29, mz + 11.3), (255, 250, 240), collide=False)
     ctx.fac.sign(s, "CLIFF JUMP!", "Front", color=(255, 80, 120), font="LuckiestGuy")
     ctx.block(mx - 22, mz - 22, mx + 22, mz + 22, label="mountain")
+    ctx.spots["MountainSummit"] = (mx - 3, top + 2.4, mz - 3)
+    ctx.spots["BehindWaterfall"] = (wf_x + 1.8, coast.SEA + 1.6, mz + 1.5)
     return m
 
 
@@ -379,6 +383,7 @@ def snack_bar(ctx, root):
     b.box("CounterTop", (14.6, 0.4, 3.0), T(0, 3.8, -3.2), (232, 200, 150), "WoodPlanks")
     for i in range(5):
         b.vcyl("Stool", 2.4, 1.6, T(-5 + i * 2.5, 1.2, -6.0), (230, 70, 110) if i % 2 else (60, 190, 210), "SmoothPlastic")
+    ctx.spots["CocoBar"] = (x + 4.5, DECK_TOP + 5.6, z - 3.2)
     sign = b.box("BarSign", (12, 2.6, 0.4), T(0, 7.6, -6.4), (40, 170, 160), "SmoothPlastic", collide=False)
     ctx.fac.sign(sign, "COCO DOG BAR", "Front", color=(255, 246, 220), font="LuckiestGuy")
     b.box("BarNeon", (12.4, 0.35, 0.5), T(0, 9.0, -6.5), P.NEON_PINK, "Neon", collide=False)
@@ -445,5 +450,8 @@ def run(ctx):
     from .landmarks import DECK_Y, PLAT
     zip_end = (PLAT[2] - 14, DECK_Y + 9.0, PLAT[1] + 14)
     zipline(ctx, root, zip_start, zip_end)
+    ctx.spots["ZiplineEnd"] = (zip_end[0] - 6, DECK_Y + 2.2, zip_end[2] + 4)
+    deep = (92.0, 662.0)
+    ctx.spots["LagoonDeep"] = (deep[0], coast.lagoon_height(*deep) + 1.6, deep[1])
     scenery(ctx, root)
     return root

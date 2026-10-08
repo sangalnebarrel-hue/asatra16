@@ -20,6 +20,7 @@ class Ctx:
         self.groups = {}
         self.log = []
         self.blockers = []        # (x0, z0, x1, z1, ytop, label) footprints new props must avoid
+        self.spots = {}           # named positions recorded by the builders (golden bones etc.)
 
     # ---------------------------------------------------------------- lookups
     def area(self, name):

@@ -74,35 +74,17 @@ def run(ctx):
     n_palm = n_umb = n_rock = n_torch = 0
 
     # tiki torches along the top of the beaches
-    for x, z, d, px, pz in coast.perimeter_points(24, 3.5, 6.0, rng):
+    for x, z, d, px, pz in coast.perimeter_points(24, 7.0, 10.0, rng):
         if coast.beach_weight(px, pz) < 0.8:
             continue
         h = ground(x, z)
         if h is None or h < coast.SEA + 1.5:
             continue
-        if not sc.ok(x, z, 9):
+        if not sc.ok(x, z, 2.5):
             continue
-        sc.take(x, z, 9)
+        sc.take(x, z, 2.5)
         geom.tiki_torch(ctx, torches, (x, h - 0.2, z), light=(n_torch % 2 == 0))
         n_torch += 1
-
-    # palms on dry sand, leaning to the sea
-    for x, z, d, px, pz in coast.perimeter_points(7, 8, 30, rng):
-        if coast.beach_weight(px, pz) < 0.6:
-            continue
-        h = ground(x, z)
-        if h is None or h < coast.SEA + 0.8:
-            continue
-        if not sc.ok(x, z, 5.5):
-            continue
-        if rng.random() < 0.25:
-            continue
-        sc.take(x, z, 5.5)
-        ox, oz = outward(x, z)
-        lean = rng.uniform(0.12, 0.32)
-        geom.palm(ctx, palms, (x, h - 0.4, z), height=rng.uniform(17, 26), lean=(ox * lean, oz * lean), seed=n_palm,
-                  scale=rng.uniform(0.9, 1.15))
-        n_palm += 1
 
     # umbrella + loungers + towels clusters on the wide dry beach
     for x, z, d, px, pz in coast.perimeter_points(16, 14, 30, rng):
@@ -111,9 +93,9 @@ def run(ctx):
         h = ground(x, z)
         if h is None or h < coast.SEA + 1.0:
             continue
-        if not sc.ok(x, z, 8):
+        if not sc.ok(x, z, 7):
             continue
-        sc.take(x, z, 8)
+        sc.take(x, z, 7)
         cols = UMBRELLA_COLORS[n_umb % len(UMBRELLA_COLORS)]
         geom.umbrella(ctx, deco, (x, h - 0.3, z), cols)
         ox, oz = outward(x, z)
@@ -130,6 +112,24 @@ def run(ctx):
                 geom.towel(ctx, deco, CF((tx, th - 0.05, tz)) * CF.angles(0, face + rng.uniform(-0.4, 0.4), 0),
                            TOWEL_COLORS[n_umb % len(TOWEL_COLORS)])
         n_umb += 1
+
+    # palms on dry sand, leaning to the sea
+    for x, z, d, px, pz in coast.perimeter_points(7, 8, 30, rng):
+        if coast.beach_weight(px, pz) < 0.6:
+            continue
+        h = ground(x, z)
+        if h is None or h < coast.SEA + 0.8:
+            continue
+        if not sc.ok(x, z, 4.5):
+            continue
+        if rng.random() < 0.25:
+            continue
+        sc.take(x, z, 4.5)
+        ox, oz = outward(x, z)
+        lean = rng.uniform(0.12, 0.32)
+        geom.palm(ctx, palms, (x, h - 0.4, z), height=rng.uniform(17, 26), lean=(ox * lean, oz * lean), seed=n_palm,
+                  scale=rng.uniform(0.9, 1.15))
+        n_palm += 1
 
     # surfboards, sandcastles, starfish
     n_extra = 0
